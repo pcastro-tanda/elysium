@@ -1,0 +1,1 @@
+doc-valid-idents = ["RuboCop", "GitLab", "GitHub", "WASM", "UTF-8", "JSON", "YAML", "CRuby", "..", ]
