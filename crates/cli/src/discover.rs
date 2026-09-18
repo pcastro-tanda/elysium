@@ -127,7 +127,9 @@ fn walk(
                     return WalkState::Continue;
                 }
             }
-            if opts.matcher.is_target(relative) || (glob.is_none() && ruby_shebang(path)) {
+            if !opts.matcher.is_excluded(relative)
+                && (opts.matcher.is_included(relative) || (glob.is_none() && ruby_shebang(path)))
+            {
                 found.lock().push(path.to_path_buf());
             }
             WalkState::Continue
@@ -180,17 +182,21 @@ mod tests {
         }
         std::fs::write(dir.join("notes.md"), b"x").unwrap();
         std::fs::write(dir.join(".gitignore"), b"d3/\n").unwrap();
+        std::fs::create_dir_all(dir.join("vendor/bin")).unwrap();
+        std::fs::write(dir.join("vendor/bin/tool"), b"#!/usr/bin/env ruby\n1\n").unwrap();
+        std::fs::create_dir_all(dir.join("bin")).unwrap();
+        std::fs::write(dir.join("bin/tool"), b"#!/usr/bin/env ruby\n1\n").unwrap();
 
         let matcher = FileMatcher::rubocop_defaults();
         let opts = Options { root: &dir, matcher: &matcher, gitignore: false };
         let all = discover(std::slice::from_ref(&dir), &opts).unwrap();
-        assert_eq!(all.len(), 300);
+        assert_eq!(all.len(), 301);
         assert!(all.windows(2).all(|w| w[0] < w[1]), "sorted and deduplicated");
 
         let opts = Options { root: &dir, matcher: &matcher, gitignore: true };
         let ignored = discover(std::slice::from_ref(&dir), &opts).unwrap();
         let in_d3 = (0..300).filter(|i| i % 7 == 3).count();
-        assert_eq!(ignored.len(), 300 - in_d3);
+        assert_eq!(ignored.len(), 300 - in_d3 + 1);
 
         let globbed = discover(&[PathBuf::from("d1/*.rb")], &opts).unwrap();
         assert_eq!(globbed.len(), (0..300).filter(|i| i % 7 == 1).count());
