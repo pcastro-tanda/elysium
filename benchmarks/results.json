@@ -1,0 +1,30 @@
+{
+  "e2e/discover": {
+    "median_ms": 325.3,
+    "runs": 5,
+    "recorded_at": "2026-09-18T04:54:54Z",
+    "host": "arm64 Apple M4",
+    "unit": "ms"
+  },
+  "e2e/files": {
+    "median_ms": 32237.0,
+    "runs": 5,
+    "recorded_at": "2026-09-18T04:54:54Z",
+    "host": "arm64 Apple M4",
+    "unit": "count"
+  },
+  "e2e/lint": {
+    "median_ms": 570.7,
+    "runs": 5,
+    "recorded_at": "2026-09-18T04:54:54Z",
+    "host": "arm64 Apple M4",
+    "unit": "ms"
+  },
+  "e2e/total": {
+    "median_ms": 898.1,
+    "runs": 5,
+    "recorded_at": "2026-09-18T04:54:54Z",
+    "host": "arm64 Apple M4",
+    "unit": "ms"
+  }
+}
