@@ -1,0 +1,48 @@
+use std::path::PathBuf;
+
+use clap::{Args, Parser, Subcommand, ValueEnum};
+
+/// A fast, RuboCop-compatible Ruby linter.
+#[derive(Debug, Parser)]
+#[command(name = "elysium", version, about, propagate_version = true)]
+pub struct Cli {
+    #[command(subcommand)]
+    pub command: Command,
+}
+
+#[derive(Debug, Subcommand)]
+pub enum Command {
+    /// Lint files and report offenses.
+    Check(CheckArgs),
+}
+
+#[derive(Debug, Args)]
+pub struct CheckArgs {
+    /// Files, directories, or globs to check. Defaults to the current directory.
+    #[arg(value_name = "PATH")]
+    pub paths: Vec<PathBuf>,
+
+    /// Output format.
+    #[arg(long, short = 'f', value_enum, default_value_t = Format::Human)]
+    pub format: Format,
+
+    /// Number of worker threads. Defaults to the number of logical CPUs.
+    #[arg(long, short = 'j', value_name = "N")]
+    pub jobs: Option<usize>,
+
+    /// Do not consult .gitignore files when discovering targets.
+    #[arg(long)]
+    pub no_gitignore: bool,
+
+    /// Print timing and node statistics to stderr.
+    #[arg(long)]
+    pub stats: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum Format {
+    /// `path:line:col: S: Cop/Name: message` lines plus a summary.
+    Human,
+    /// RuboCop's JSON formatter schema.
+    Json,
+}
