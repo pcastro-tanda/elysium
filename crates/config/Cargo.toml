@@ -8,6 +8,11 @@ description = "RuboCop configuration loading and effective settings"
 
 [dependencies]
 globset.workspace = true
+linter.workspace = true
+saphyr.workspace = true
+
+[dev-dependencies]
+tempfile.workspace = true
 
 [lints]
 workspace = true

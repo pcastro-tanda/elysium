@@ -156,7 +156,7 @@ pub(crate) fn run(args: &BenchArgs) -> Result<ExitCode> {
 
 /// Locates the workspace root from this crate's manifest directory
 /// (`<root>/crates/xtask`), independent of the caller's working directory.
-fn workspace_root() -> PathBuf {
+pub(crate) fn workspace_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR"))
         .parent()
         .and_then(Path::parent)
@@ -165,7 +165,7 @@ fn workspace_root() -> PathBuf {
 }
 
 /// Runs `cargo build --release -p cli`, inheriting stdio.
-fn build_release_cli(workspace_root: &Path) -> Result<()> {
+pub(crate) fn build_release_cli(workspace_root: &Path) -> Result<()> {
     let cargo = std::env::var("CARGO").unwrap_or_else(|_| "cargo".to_string());
     let status = Command::new(cargo)
         .args(["build", "--release", "-p", "cli"])
