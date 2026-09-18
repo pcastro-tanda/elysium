@@ -1,0 +1,12 @@
+[package]
+name = "ruby_source"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Source file model: bytes, line index, offset to line/column mapping"
+
+[dependencies]
+
+[lints]
+workspace = true
