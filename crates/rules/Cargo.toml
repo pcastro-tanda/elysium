@@ -1,0 +1,15 @@
+[package]
+name = "rules"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Every lint rule, grouped by RuboCop department"
+
+[dependencies]
+linter.workspace = true
+ruby_ast.workspace = true
+ruby_source.workspace = true
+
+[lints]
+workspace = true

@@ -1,0 +1,21 @@
+[package]
+name = "linter"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Rule contract, traversal engine, diagnostics, fix engine"
+
+[dependencies]
+ruby_source.workspace = true
+ruby_ast.workspace = true
+
+[dev-dependencies]
+criterion.workspace = true
+
+[[bench]]
+name = "pipeline"
+harness = false
+
+[lints]
+workspace = true
