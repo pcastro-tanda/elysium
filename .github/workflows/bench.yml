@@ -1,0 +1,38 @@
+name: bench
+
+on:
+  pull_request:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  bench:
+    name: bench
+    runs-on: ubuntu-latest
+    continue-on-error: false
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+
+      # Smoke test only: proves the criterion harness still builds and runs,
+      # does not gate the PR on timing.
+      - name: cargo bench (smoke)
+        run: cargo bench -p linter --bench pipeline -- --quick
+
+      - name: clone gitlab-foss corpus
+        run: git clone --depth 1 --filter=blob:none https://gitlab.com/gitlab-org/gitlab-foss.git corpus/gitlab
+
+      # NOTE: the medians recorded in benchmarks/results.json were captured
+      # on an Apple M4 laptop, not on a GitHub-hosted runner. CI runners are
+      # slower and noisier, so a fresh run here will very likely exceed the
+      # recorded medians by more than the 5% threshold even with no
+      # regression. This step is wired up so the corpus/pipeline exercise
+      # the full binary in CI, but the gate is not meaningful until CI
+      # records its own baseline (`cargo xtask bench --record` run on a
+      # GitHub-hosted runner and committed). TODO: once a CI-recorded
+      # baseline exists in benchmarks/results.json, drop continue-on-error.
+      - name: cargo xtask bench --check
+        continue-on-error: true
+        run: cargo xtask bench --check --runs 3 --corpus $GITHUB_WORKSPACE/corpus/gitlab

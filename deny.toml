@@ -1,0 +1,48 @@
+# cargo-deny configuration. Run with `cargo deny check`.
+# https://embarkstudios.github.io/cargo-deny/
+
+[graph]
+# Only check the targets we actually ship elysium for.
+targets = [
+    "x86_64-unknown-linux-gnu",
+    "aarch64-apple-darwin",
+    "x86_64-apple-darwin",
+]
+
+[output]
+feature-depth = 1
+
+# https://embarkstudios.github.io/cargo-deny/checks/advisories/cfg.html
+[advisories]
+ignore = []
+
+# https://embarkstudios.github.io/cargo-deny/checks/licenses/cfg.html
+[licenses]
+# Every license actually present in `cargo tree` for this workspace.
+# ruby-prism-sys vendors Shopify's prism (MIT); bindgen (used only to
+# generate the prism C bindings at build time) is BSD-3-Clause; libloading
+# is ISC; unicode-ident's expression ANDs in Unicode-3.0.
+allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Unicode-3.0"]
+confidence-threshold = 0.8
+
+[licenses.private]
+# The workspace crates are `publish = false`; don't hold them to the same
+# license bar as published third-party dependencies.
+ignore = true
+
+# https://embarkstudios.github.io/cargo-deny/checks/bans/cfg.html
+[bans]
+multiple-versions = "warn"
+wildcards = "deny"
+# Internal workspace crates are path dependencies without a version
+# constraint (`ruby_ast.workspace = true` etc.); cargo-deny otherwise
+# flags those as wildcards even though they can't drift to another crate.
+allow-wildcard-paths = true
+allow-workspace = true
+
+# https://embarkstudios.github.io/cargo-deny/checks/sources/cfg.html
+[sources]
+unknown-registry = "deny"
+unknown-git = "deny"
+allow-registry = ["https://github.com/rust-lang/crates.io-index"]
+allow-git = []
