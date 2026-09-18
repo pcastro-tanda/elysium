@@ -1,0 +1,19 @@
+[package]
+name = "ruby_ast"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Prism wrapper: parse results, node kinds, visitor"
+build = "build.rs"
+
+[dependencies]
+ruby_source.workspace = true
+ruby-prism.workspace = true
+
+[build-dependencies]
+serde = { version = "1", features = ["derive"] }
+serde_json = "1"
+
+[lints]
+workspace = true
