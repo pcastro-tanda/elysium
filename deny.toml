@@ -22,7 +22,7 @@ ignore = []
 # ruby-prism-sys vendors Shopify's prism (MIT); bindgen (used only to
 # generate the prism C bindings at build time) is BSD-3-Clause; libloading
 # is ISC; unicode-ident's expression ANDs in Unicode-3.0.
-allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Unicode-3.0"]
+allow = ["MIT", "Apache-2.0", "BSD-3-Clause", "ISC", "Unicode-3.0", "Zlib"]
 confidence-threshold = 0.8
 
 [licenses.private]
