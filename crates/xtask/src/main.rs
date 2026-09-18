@@ -1,6 +1,7 @@
 //! Developer-facing project automation, invoked via `cargo xtask <command>`.
 
 mod bench;
+mod rubocop;
 mod stats;
 mod time;
 

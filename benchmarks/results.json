@@ -1,30 +1,44 @@
 {
   "e2e/discover": {
-    "median_ms": 325.3,
-    "runs": 5,
-    "recorded_at": "2026-09-18T04:54:54Z",
+    "median_ms": 371.1,
+    "runs": 3,
+    "recorded_at": "2026-09-18T05:22:37Z",
     "host": "arm64 Apple M4",
     "unit": "ms"
   },
   "e2e/files": {
     "median_ms": 32237.0,
-    "runs": 5,
-    "recorded_at": "2026-09-18T04:54:54Z",
+    "runs": 3,
+    "recorded_at": "2026-09-18T05:22:37Z",
     "host": "arm64 Apple M4",
     "unit": "count"
   },
   "e2e/lint": {
-    "median_ms": 570.7,
-    "runs": 5,
-    "recorded_at": "2026-09-18T04:54:54Z",
+    "median_ms": 777.0,
+    "runs": 3,
+    "recorded_at": "2026-09-18T05:22:37Z",
     "host": "arm64 Apple M4",
     "unit": "ms"
   },
   "e2e/total": {
-    "median_ms": 898.1,
-    "runs": 5,
-    "recorded_at": "2026-09-18T04:54:54Z",
+    "median_ms": 1100.0,
+    "runs": 3,
+    "recorded_at": "2026-09-18T05:22:37Z",
     "host": "arm64 Apple M4",
+    "unit": "ms"
+  },
+  "rubocop/files": {
+    "median_ms": 32231.0,
+    "runs": 3,
+    "recorded_at": "2026-09-18T05:22:37Z",
+    "host": "1.82.1",
+    "unit": "count"
+  },
+  "rubocop/total": {
+    "median_ms": 132463.927666,
+    "runs": 3,
+    "recorded_at": "2026-09-18T05:22:37Z",
+    "host": "1.82.1",
     "unit": "ms"
   }
 }

@@ -11,6 +11,7 @@ use anyhow::{anyhow, bail, Context as _, Result};
 use clap::Args;
 use serde::{Deserialize, Serialize};
 
+use crate::rubocop;
 use crate::stats;
 use crate::time::iso8601_now;
 
@@ -43,6 +44,11 @@ pub(crate) struct BenchArgs {
     /// Number of end-to-end runs to take the median of.
     #[arg(long, default_value_t = 5)]
     runs: usize,
+
+    /// Also benchmark RuboCop (`--only Lint/Syntax`) over the same corpus
+    /// and report the speedup. Off by default: RuboCop takes minutes.
+    #[arg(long)]
+    rubocop: bool,
 }
 
 /// One recorded benchmark entry in `benchmarks/results.json`.
@@ -84,7 +90,15 @@ pub(crate) fn run(args: &BenchArgs) -> Result<ExitCode> {
         .canonicalize()
         .with_context(|| format!("corpus path {} does not exist", args.corpus.display()))?;
 
-    let fresh = run_benchmarks(&binary, &corpus, args.runs)?;
+    let mut fresh = run_benchmarks(&binary, &corpus, args.runs)?;
+    let mut rubocop_version = None;
+    if args.rubocop {
+        if let Some(bench) = rubocop::run(&corpus, args.runs)? {
+            fresh.insert("rubocop/total".to_string(), (bench.total_ms, "ms"));
+            fresh.insert("rubocop/files".to_string(), (bench.files, "count"));
+            rubocop_version = Some(bench.version);
+        }
+    }
     let results_path = workspace_root.join(RESULTS_PATH);
     let previous = load_results(&results_path)?;
 
@@ -114,13 +128,21 @@ pub(crate) fn run(args: &BenchArgs) -> Result<ExitCode> {
         let new_results: BTreeMap<String, BenchResult> = fresh
             .iter()
             .map(|(name, &(median_ms, unit))| {
+                // RuboCop entries carry the tool's version instead of the
+                // machine host, so `--check` runs can see which release a
+                // recorded RuboCop benchmark came from.
+                let entry_host = if name.starts_with("rubocop/") {
+                    rubocop_version.clone().unwrap_or_else(|| host.clone())
+                } else {
+                    host.clone()
+                };
                 (
                     name.clone(),
                     BenchResult {
                         median_ms,
                         runs: args.runs,
                         recorded_at: recorded_at.clone(),
-                        host: host.clone(),
+                        host: entry_host,
                         unit: unit.to_string(),
                     },
                 )
@@ -203,7 +225,7 @@ fn run_once(binary: &Path, corpus: &Path) -> Result<stats::RunStats> {
 
 /// Median of a slice of samples; averages the two middle samples for an
 /// even-sized input.
-fn median(mut values: Vec<f64>) -> f64 {
+pub(crate) fn median(mut values: Vec<f64>) -> f64 {
     values.sort_by(|a, b| a.partial_cmp(b).unwrap_or(std::cmp::Ordering::Equal));
     let len = values.len();
     if len % 2 == 1 {
@@ -269,6 +291,25 @@ fn print_table(fresh: &FreshResults, recorded: Option<&BTreeMap<String, BenchRes
             },
         );
         println!("{name:<16}{recorded_str:>14}{fresh_str:>14}{delta_str:>10}");
+    }
+
+    if let (Some(&(rubocop_total, _)), Some(&(e2e_total, _))) =
+        (fresh.get("rubocop/total"), fresh.get("e2e/total"))
+    {
+        if e2e_total > 0.0 {
+            println!("speedup (rubocop/total \u{f7} e2e/total): {:.1}x", rubocop_total / e2e_total);
+        }
+    }
+
+    if let (Some(&(rubocop_files, _)), Some(&(e2e_files, _))) =
+        (fresh.get("rubocop/files"), fresh.get("e2e/files"))
+    {
+        if (rubocop_files - e2e_files).abs() > f64::EPSILON {
+            println!(
+                "file count differs: e2e/files={e2e_files:.0} rubocop/files={rubocop_files:.0} (diff {:+.0})",
+                rubocop_files - e2e_files
+            );
+        }
     }
 }
 

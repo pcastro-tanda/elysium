@@ -49,13 +49,30 @@ Last updated: 2026-09-18. Phase 1 complete.
 Host: Apple M4 (10 cores), macOS, release build (`lto = "fat"`).
 Corpus: gitlab-foss `master`, 32,237 target files, 108.6 MB, 11.3M nodes.
 
-End to end (`cargo xtask bench`, median of 5, `benchmarks/results.json`):
+End to end (`cargo xtask bench --record --runs 3 --rubocop`, median of 3,
+`benchmarks/results.json`):
 
-| benchmark | median |
-|---|---:|
-| e2e/discover | 325 ms |
-| e2e/lint (read + parse + walk) | 571 ms |
-| e2e/total | 898 ms |
+| benchmark | median | files |
+|---|---:|---:|
+| e2e/discover | 371 ms | - |
+| e2e/lint (read + parse + walk) | 777 ms | - |
+| e2e/total | 1,100 ms | 32,237 |
+| rubocop/total (`--only Lint/Syntax`, RuboCop 1.82.1) | 132,464 ms | 32,231 |
+
+Speedup: **120.4x** (`rubocop/total ÷ e2e/total`) for `Lint/Syntax` alone, the
+only rule both tools currently run.
+
+File counts differ by 6 (elysium 32,237 vs RuboCop 32,231). All 6 are
+extensionless scripts with a `ruby`/`rake` shebang under `vendor/gems/**`
+(`vendor/gems/omniauth-salesforce/Rakefile`,
+`vendor/gems/omniauth_crowd/Rakefile`, and four `vendor/gems/sidekiq/bin/*`
+executables), which `AllCops/Exclude: vendor/**/*` drops for both tools.
+elysium's shebang-detection fallback
+(`crates/cli/src/discover.rs::ruby_shebang`) is only gated on the file
+extension and never consulted through the `Exclude` matcher, so it adds
+these 6 files back in; RuboCop's own shebang detection correctly honours
+`Exclude`. This is a real elysium discovery bug (shebang detection should
+run after, not instead of, the exclude check), not a benchmark artifact.
 
 Phase 1 exit criterion (under 2 s cold on a 20k-file repository): met with
 margin on a 32k-file repository. First run after a reboot-equivalent cold
