@@ -7,6 +7,8 @@ use clap::Parser;
 
 mod args;
 mod check;
+mod config_cmd;
+mod config_load;
 mod discover;
 mod output;
 
@@ -20,5 +22,6 @@ fn main() -> ExitCode {
                 ExitCode::from(2)
             }
         },
+        args::Command::Config(args) => config_cmd::run(&args),
     }
 }

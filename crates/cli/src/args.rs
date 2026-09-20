@@ -14,6 +14,8 @@ pub struct Cli {
 pub enum Command {
     /// Lint files and report offenses.
     Check(CheckArgs),
+    /// Show the resolved configuration.
+    Config(ConfigArgs),
 }
 
 #[derive(Debug, Args)]
@@ -37,6 +39,41 @@ pub struct CheckArgs {
     /// Print timing and node statistics to stderr.
     #[arg(long)]
     pub stats: bool,
+
+    /// Configuration file to load instead of searching for one.
+    #[arg(long, value_name = "PATH")]
+    pub config: Option<PathBuf>,
+
+    /// Ignore any `.rubocop.yml` and use only the bundled defaults.
+    #[arg(long)]
+    pub no_config: bool,
+}
+
+#[derive(Debug, Args)]
+pub struct ConfigArgs {
+    /// Output format.
+    #[arg(long, short = 'f', value_enum, default_value_t = ConfigFormat::ShowCops)]
+    pub format: ConfigFormat,
+
+    /// Restrict output to these cops (comma-separated, globs allowed).
+    #[arg(long, value_name = "COP,...", value_delimiter = ',')]
+    pub only: Vec<String>,
+
+    /// Configuration file to load instead of searching for one.
+    #[arg(long, value_name = "PATH")]
+    pub config: Option<PathBuf>,
+
+    /// Ignore any `.rubocop.yml` and use only the bundled defaults.
+    #[arg(long)]
+    pub no_config: bool,
+}
+
+#[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
+pub enum ConfigFormat {
+    /// RuboCop's `--show-cops` listing.
+    ShowCops,
+    /// Same listing, in YAML form.
+    Yaml,
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq, ValueEnum)]
