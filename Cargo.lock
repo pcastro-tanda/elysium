@@ -520,7 +520,9 @@ name = "linter"
 version = "0.1.0"
 dependencies = [
  "criterion",
+ "parking_lot",
  "ruby_ast",
+ "ruby_directives",
  "ruby_source",
 ]
 

@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-18. Phase 1 complete.
+Last updated: 2026-09-18. Phase 2 complete.
 
 ## What works
 
@@ -20,16 +20,46 @@ Last updated: 2026-09-18. Phase 1 complete.
 - Tooling: `cargo xtask bench --record|--check` (end-to-end over the corpus,
   fails on >5% regression), criterion micro-benchmarks (`cargo bench -p linter`),
   `cargo deny` config (all licenses permissive: MIT, Apache-2.0, BSD-3-Clause,
-  ISC, Unicode-3.0), CI workflows for fmt/clippy pedantic/test/deny.
+  ISC, Unicode-3.0), CI workflows for fmt/clippy pedantic/test/deny. 125 tests
+  pass across the workspace.
+- `.rubocop.yml` loading: `inherit_from`/`inherit_gem` (gem paths resolved by
+  filesystem search against `Gemfile.lock`, no Ruby/Bundler/RubyGems
+  involved — see ADR 0005), `inherit_mode`, department-level switches,
+  `DisabledByDefault`/`EnabledByDefault`, `Enabled: pending` plus `NewCops`,
+  and `Exclude`/`Include` absolutisation relative to the file that declares
+  them, matching `RuboCop::ConfigLoader`. Project root is discovered from
+  `.rubocop.yml` location, not just the working directory.
+- `elysium config [--format show-cops|yaml] [--only COP,...] [--config PATH]
+  [--no-config]` prints the fully resolved configuration, in RuboCop's own
+  `--show-cops`-compatible key order and format or as plain resolved YAML;
+  `elysium check` gained the matching `--config PATH`/`--no-config` flags.
+- `ruby_directives` parses `rubocop:disable|enable|todo` comments with exact
+  line and end-of-line semantics and applies them in the engine.
+- Config conformance: `elysium config --format show-cops` matches
+  `rubocop --show-cops` on three real Rails apps (discourse, forem,
+  mastodon) 100% on `Enabled` state for every cop whose embedded default
+  isn't itself stale relative to the app's pinned RuboCop version; the two
+  remaining disagreements are documented RuboCop version skew, not
+  elysium bugs (`docs/conformance/config.md`).
 
 ## What does not work yet
 
-- No `.rubocop.yml` loading, no inline `rubocop:disable` directives (Phase 2).
 - Zero lint rules beyond `Lint/Syntax`; `RuleSet` is an empty dispatcher and
   the registry codegen is not written yet (Phase 3).
-- Project root is the working directory. `Exclude` patterns are root-relative
-  (as in RuboCop), so running from a parent directory does not exclude
-  `vendor/**/*`. Phase 2 sets root from `.rubocop.yml` discovery.
+- ERB embedded in `.rubocop.yml` is rejected with a clear error instead of
+  evaluated (no Ruby runtime). This blocks loading GitLab's real
+  `.rubocop.yml`; `--no-config` works around it there. See ADR 0005.
+- Remote `inherit_from: https://...` is rejected instead of fetched.
+- No `ConfigValidator`: a config with a wrong-typed value or an unknown cop
+  name does not produce an error the way RuboCop's own validator does.
+- `!ruby/regexp` YAML tags inside `Exclude`/`Include` entries are not
+  matched; only plain glob-string entries work.
+- Extension-gem defaults (`rubocop-rails`, `rubocop-rspec`,
+  `rubocop-performance`, etc.) are not embedded, so a `.rubocop.yml`'s
+  `require:`/`plugins:` of one of those gems prints a warning instead of
+  loading its cop defaults (Phase 6).
+- `TargetRubyVersion` is not inferred from a gemspec's `required_ruby_version`
+  when the config doesn't set it explicitly.
 - Syntax error message text matches RuboCop only under
   `ParserEngine: parser_prism`; the legacy `parser` engine wording
   (`unexpected token kEND`) is not reproduced. See ADR 0003.
@@ -61,6 +91,9 @@ End to end (`cargo xtask bench --record --runs 3 --rubocop`, median of 3,
 
 Speedup: **120.4x** (`rubocop/total ÷ e2e/total`) for `Lint/Syntax` alone, the
 only rule both tools currently run.
+
+Discourse (12,133 target files, real `.rubocop.yml` with
+`inherit_gem: rubocop-discourse`) lints end to end in 545 ms total.
 
 File counts differ by 6 (elysium 32,237 vs RuboCop 32,231). All 6 are
 extensionless scripts with a `ruby`/`rake` shebang under `vendor/gems/**`
@@ -101,11 +134,14 @@ CI needs its own recorded baseline before `--check` is a hard gate
 
 ## Next three milestones
 
-1. Phase 2: `.rubocop.yml` loader with `inherit_from`/`inherit_gem`, root
-   discovery, `Include`/`Exclude` per cop, `config` subcommand; conformance
-   against `rubocop --show-cops` on three apps.
-2. Phase 2: `ruby_directives` parsing `rubocop:disable|enable|todo` with exact
-   line/end-of-line semantics, applied in the engine.
-3. Phase 3: rule registry codegen (`Dispatch` from `META.kinds`), fixture
-   snapshot harness, and the first ten rules by real-world frequency with the
-   conformance runner comparing against RuboCop on the corpus.
+1. Phase 3: rule registry codegen (`Dispatch` from each rule's `META`), a
+   fixture snapshot harness, and a conformance runner that diffs offenses
+   against real RuboCop on the corpus.
+2. Phase 3: the first 15 syntactic rules by real-world frequency
+   (`Style/FrozenStringLiteralComment`, `Style/StringLiterals`,
+   `Layout/LineLength`, `Layout/TrailingWhitespace`,
+   `Layout/TrailingEmptyLines`, `Layout/EmptyLines`,
+   `Style/Documentation`, and others selected by measured frequency),
+   each with safe autocorrect and the fix engine that applies it.
+3. Phase 3: the remaining 35 of the fifty target rules and the `fix`
+   subcommand.
