@@ -7,11 +7,13 @@ mod context;
 mod diagnostic;
 mod engine;
 mod rule;
+mod settings;
 
 pub use context::Context;
 pub use diagnostic::{Applicability, Diagnostic, Edit, Fix, Severity};
-pub use engine::{lint_file, lint_parsed, FileResult, SYNTAX_RULE};
+pub use engine::{lint_file, lint_parsed, lint_parsed_with, FileResult, SYNTAX_RULE};
 pub use rule::{
     ConfigDefault, ConfigOption, Department, Dispatch, FixAvailability, NoRules, Rule, RuleMeta,
     Stability,
 };
+pub use settings::{intern_rule_name, FileSettings};
