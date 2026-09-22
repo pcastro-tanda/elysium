@@ -26,6 +26,10 @@ pub fn write(out: &mut impl Write, reports: &[FileReport], summary: &Summary) ->
     let files = plural(summary.inspected_files, "file", "files");
     let offenses = plural(summary.offenses, "offense", "offenses");
     write!(out, "\n{files} inspected, {offenses} detected")?;
+    if summary.corrected > 0 {
+        let n = plural(summary.corrected, "offense", "offenses");
+        write!(out, ", {n} corrected")?;
+    }
     if summary.correctable > 0 {
         let n = plural(summary.correctable, "offense", "offenses");
         write!(out, ", {n} autocorrectable")?;

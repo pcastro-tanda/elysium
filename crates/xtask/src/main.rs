@@ -2,6 +2,8 @@
 
 mod bench;
 mod conformance;
+mod conformance_rule;
+mod docs_rules;
 mod rubocop;
 mod stats;
 mod time;
@@ -26,6 +28,10 @@ enum Command {
     /// Compare `elysium config --format show-cops` against a ground-truth
     /// `rubocop --show-cops` capture, cop by cop.
     ConformanceConfig(conformance::ConformanceConfigArgs),
+    /// Compare one rule's offenses against real RuboCop's on a corpus app.
+    Conformance(conformance_rule::ConformanceArgs),
+    /// Regenerate `docs/rules` from the registered rules' metadata.
+    DocsRules,
 }
 
 fn main() -> ExitCode {
@@ -33,6 +39,8 @@ fn main() -> ExitCode {
     let result = match cli.command {
         Command::Bench(args) => bench::run(&args),
         Command::ConformanceConfig(args) => conformance::run(&args),
+        Command::Conformance(args) => conformance_rule::run(&args),
+        Command::DocsRules => docs_rules::run(),
     };
     match result {
         Ok(code) => code,

@@ -46,6 +46,8 @@ pub struct Summary {
     pub inspected_files: usize,
     pub offenses: usize,
     pub correctable: usize,
+    /// Offenses `elysium fix` corrected. Always zero for `check`.
+    pub corrected: usize,
     pub nodes: u64,
     pub bytes: u64,
     pub io_errors: usize,
@@ -53,16 +55,18 @@ pub struct Summary {
 
 /// Everything resolved once per invocation and shared by every worker
 /// thread while linting files in parallel.
-struct Session {
-    cfg: LoadedConfig,
-    root: PathBuf,
-    overrides: Vec<CopOverride>,
-    parse_options: ParseOptions,
+pub struct Session {
+    pub cfg: LoadedConfig,
+    pub root: PathBuf,
+    pub overrides: Vec<CopOverride>,
+    pub parse_options: ParseOptions,
+    /// The configured rules, cloned per file (rules keep per-file state).
+    pub rule_set: rules::RuleSet,
 }
 
 /// Loads the configuration, prints its warnings, and precomputes the
 /// per-file inputs every worker thread needs.
-fn prepare(args: &CheckArgs) -> Result<Session> {
+pub fn prepare(args: &CheckArgs) -> Result<Session> {
     let cwd = std::env::current_dir().context("cannot determine working directory")?;
     let cfg = load_config(args.config.as_deref(), args.no_config, &cwd)
         .map_err(|err| anyhow::anyhow!("{err}"))?;
@@ -80,13 +84,43 @@ fn prepare(args: &CheckArgs) -> Result<Session> {
         version: ruby_version(cfg.all_cops().target_ruby_version),
         partial_script: true,
     };
-    Ok(Session { cfg, root, overrides, parse_options })
+    let rule_set = select_rules(&cfg, &args.only, &args.except)?;
+    Ok(Session { cfg, root, overrides, parse_options, rule_set })
+}
+
+/// True when `selector` names `cop` exactly or names its department.
+fn selects(selector: &str, cop: &str) -> bool {
+    cop == selector
+        || (cop.len() > selector.len()
+            && cop.starts_with(selector)
+            && cop.as_bytes()[selector.len()] == b'/')
+}
+
+/// Builds the rule set for this run, applying `--only`/`--except` on top
+/// of the configuration. `--only` enables a cop the configuration
+/// disabled, like RuboCop's.
+fn select_rules(cfg: &LoadedConfig, only: &[String], except: &[String]) -> Result<rules::RuleSet> {
+    if only.is_empty() && except.is_empty() {
+        return rules::RuleSet::from_config(cfg).map_err(|err| anyhow::anyhow!("{err}"));
+    }
+    let names: Vec<&str> = rules::ALL_RULES
+        .iter()
+        .filter(|meta| {
+            let selected = if only.is_empty() {
+                cfg.cop(meta.name).map_or(meta.enabled_by_default, |cop| cop.enabled)
+            } else {
+                only.iter().any(|sel| selects(sel, meta.name))
+            };
+            selected && !except.iter().any(|sel| selects(sel, meta.name))
+        })
+        .map(|meta| meta.name)
+        .collect();
+    rules::RuleSet::only(&names, cfg).map_err(|err| anyhow::anyhow!("{err}"))
 }
 
 /// Reads, parses, and lints one file per the resolved [`Session`].
 fn lint_one(
     session: &Session,
-    rule_set: &mut rules::RuleSet,
     path: &Path,
     io_errors: &AtomicUsize,
     bytes: &AtomicU64,
@@ -104,7 +138,8 @@ fn lint_one(
     bytes.fetch_add(source.bytes().len() as u64, Ordering::Relaxed);
     let parsed = Parsed::parse_with(&source, session.parse_options);
     let settings = file_settings(&session.cfg, &session.overrides, &display);
-    let result = linter::lint_parsed_with(&parsed, rule_set, &settings);
+    let mut rules = session.rule_set.clone();
+    let result = linter::lint_parsed_with(&parsed, &mut rules, &settings);
     nodes.fetch_add(u64::from(result.node_count), Ordering::Relaxed);
     let offenses = result
         .diagnostics
@@ -148,12 +183,8 @@ pub fn run(args: &CheckArgs) -> Result<ExitCode> {
     let bytes = AtomicU64::new(0);
     let io_errors = AtomicUsize::new(0);
 
-    let mut reports: Vec<FileReport> = files
-        .par_iter()
-        .map_init(rules::RuleSet::rubocop_defaults, |rule_set, path| {
-            lint_one(&session, rule_set, path, &io_errors, &bytes, &nodes)
-        })
-        .collect();
+    let mut reports: Vec<FileReport> =
+        files.par_iter().map(|path| lint_one(&session, path, &io_errors, &bytes, &nodes)).collect();
     reports.sort_by(|a, b| a.path.cmp(&b.path));
     let linted_at = Instant::now();
 
@@ -162,6 +193,7 @@ pub fn run(args: &CheckArgs) -> Result<ExitCode> {
         inspected_files: files.len() - io_errors.load(Ordering::Relaxed),
         offenses: reports.iter().map(|r| r.offenses.len()).sum(),
         correctable: reports.iter().flat_map(|r| &r.offenses).filter(|o| o.correctable).count(),
+        corrected: 0,
         nodes: nodes.load(Ordering::Relaxed),
         bytes: bytes.load(Ordering::Relaxed),
         io_errors: io_errors.load(Ordering::Relaxed),
@@ -204,7 +236,7 @@ pub fn run(args: &CheckArgs) -> Result<ExitCode> {
 /// severity override. Every cop absent from this list runs enabled at its
 /// default severity for every file, so [`file_settings`] only walks this
 /// (much smaller) list per file instead of every known cop.
-struct CopOverride {
+pub struct CopOverride {
     name: &'static str,
     severity: Option<Severity>,
 }
@@ -230,7 +262,7 @@ fn cop_overrides(cfg: &LoadedConfig) -> Vec<CopOverride> {
 /// `overrides` stay enabled at their default severity; cops present are
 /// re-checked against [`LoadedConfig::is_cop_enabled_for`] (which folds in
 /// both `AllCops` and per-cop `Include`/`Exclude`) for `relative`.
-fn file_settings(
+pub fn file_settings(
     cfg: &LoadedConfig,
     overrides: &[CopOverride],
     relative: &Path,
@@ -263,7 +295,7 @@ fn ruby_version(target: Option<f32>) -> RubyVersion {
     }
 }
 
-fn char_len(bytes: &[u8]) -> u32 {
+pub fn char_len(bytes: &[u8]) -> u32 {
     u32::try_from(bytes.iter().filter(|&&b| (b & 0xC0) != 0x80).count()).unwrap_or(u32::MAX)
 }
 

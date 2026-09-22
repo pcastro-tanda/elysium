@@ -8,6 +8,7 @@ description = "Every lint rule, grouped by RuboCop department"
 
 [dependencies]
 linter.workspace = true
+config.workspace = true
 ruby_ast.workspace = true
 ruby_source.workspace = true
 

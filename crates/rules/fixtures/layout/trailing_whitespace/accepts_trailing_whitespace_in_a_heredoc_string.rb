@@ -1,0 +1,3 @@
+x = <<HEREDOC
+  Hi   
+HEREDOC

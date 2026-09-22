@@ -16,6 +16,8 @@ pub enum Command {
     Check(CheckArgs),
     /// Show the resolved configuration.
     Config(ConfigArgs),
+    /// Fix offenses in place and report what is left.
+    Fix(FixArgs),
 }
 
 #[derive(Debug, Args)]
@@ -47,6 +49,28 @@ pub struct CheckArgs {
     /// Ignore any `.rubocop.yml` and use only the bundled defaults.
     #[arg(long)]
     pub no_config: bool,
+
+    /// Run only these cops (comma-separated, repeatable).
+    #[arg(long, value_name = "COP,...", value_delimiter = ',')]
+    pub only: Vec<String>,
+
+    /// Run every cop except these (comma-separated, repeatable).
+    #[arg(long, value_name = "COP,...", value_delimiter = ',')]
+    pub except: Vec<String>,
+}
+
+#[derive(Debug, Args)]
+pub struct FixArgs {
+    #[command(flatten)]
+    pub check: CheckArgs,
+
+    /// Also apply fixes RuboCop marks as unsafe.
+    #[arg(long = "unsafe")]
+    pub unsafe_fixes: bool,
+
+    /// Print a unified diff of what would change instead of writing files.
+    #[arg(long)]
+    pub diff: bool,
 }
 
 #[derive(Debug, Args)]

@@ -1,11 +1,21 @@
 use std::borrow::Cow;
+use std::cell::OnceCell;
 
-use ruby_ast::Parsed;
+use ruby_ast::{LocationExt as _, Parsed};
 use ruby_directives::Directives;
-use ruby_source::{SourceFile, Span};
+use ruby_source::{LineCol, SourceFile, Span};
 
 use crate::diagnostic::{Diagnostic, Fix};
 use crate::rule::RuleMeta;
+
+/// One comment in the file, in source order.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct CommentInfo {
+    /// Byte range of the comment, including the leading `#`.
+    pub span: Span,
+    /// 1-based line the comment starts on.
+    pub line: u32,
+}
 
 /// Per-file state handed to rules: the source, the tree, the directive
 /// comments, and the diagnostic sink. Designed so every method could be
@@ -16,6 +26,7 @@ pub struct Context<'a> {
     parsed: &'a Parsed<'a>,
     directives: Directives,
     diagnostics: Vec<Diagnostic>,
+    comments: OnceCell<Vec<CommentInfo>>,
 }
 
 impl<'a> Context<'a> {
@@ -24,7 +35,7 @@ impl<'a> Context<'a> {
         parsed: &'a Parsed<'a>,
         directives: Directives,
     ) -> Self {
-        Self { source, parsed, directives, diagnostics: Vec::new() }
+        Self { source, parsed, directives, diagnostics: Vec::new(), comments: OnceCell::new() }
     }
 
     /// The file being linted.
@@ -48,6 +59,41 @@ impl<'a> Context<'a> {
     /// Source bytes covered by `span`.
     pub fn text(&self, span: Span) -> &'a [u8] {
         self.source.slice(span)
+    }
+
+    /// Line and column of a byte offset.
+    pub fn line_col(&self, offset: u32) -> LineCol {
+        self.source.line_col(offset)
+    }
+
+    /// Text of a 1-based line, without its line terminator.
+    pub fn line_text(&self, line: u32) -> &'a [u8] {
+        self.source.line_text(line)
+    }
+
+    /// Byte range of a 1-based line, without its line terminator.
+    pub fn line_span(&self, line: u32) -> Span {
+        let start = self.source.lines().line_start(line);
+        let len = u32::try_from(self.source.line_text(line).len()).unwrap_or(u32::MAX);
+        Span::new(start, start + len)
+    }
+
+    /// Number of lines in the file.
+    pub fn line_count(&self) -> u32 {
+        self.source.line_count()
+    }
+
+    /// Every comment in the file, in source order. Built once per file.
+    pub fn comments(&self) -> &[CommentInfo] {
+        self.comments.get_or_init(|| {
+            self.parsed
+                .comments()
+                .map(|comment| {
+                    let span = comment.location().span();
+                    CommentInfo { span, line: self.source.line_col(span.start).line }
+                })
+                .collect()
+        })
     }
 
     /// Reports an offense at `span` with the rule's default severity.

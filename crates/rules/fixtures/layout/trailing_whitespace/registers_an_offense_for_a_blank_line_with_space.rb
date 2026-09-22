@@ -1,0 +1,2 @@
+  
+^^ Trailing whitespace detected.

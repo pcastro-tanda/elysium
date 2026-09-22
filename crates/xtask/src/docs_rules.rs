@@ -1,0 +1,159 @@
+//! `cargo xtask docs-rules`: writes `docs/rules/<dept>/<snake>.md` and an
+//! index from the registered rules' metadata. Output is deterministic, so
+//! CI can check the tree is committed.
+
+use std::collections::BTreeMap;
+use std::fmt::Write as _;
+use std::fs;
+use std::process::ExitCode;
+
+use anyhow::{Context as _, Result};
+use linter::{ConfigDefault, FixAvailability, RuleMeta};
+use rules::ALL_RULES;
+
+use crate::bench::workspace_root;
+
+pub(crate) fn run() -> Result<ExitCode> {
+    let root = workspace_root().join("docs/rules");
+    let mut by_department: BTreeMap<&str, Vec<&'static RuleMeta>> = BTreeMap::new();
+    for meta in ALL_RULES {
+        by_department.entry(meta.department.name()).or_default().push(meta);
+    }
+
+    let mut written = 0usize;
+    for metas in by_department.values_mut() {
+        metas.sort_by_key(|meta| meta.name);
+        for meta in metas.iter() {
+            let (dept, snake) = cop_path(meta);
+            let dir = root.join(&dept);
+            fs::create_dir_all(&dir).with_context(|| format!("creating {}", dir.display()))?;
+            let path = dir.join(format!("{snake}.md"));
+            fs::write(&path, rule_page(meta))
+                .with_context(|| format!("writing {}", path.display()))?;
+            written += 1;
+        }
+    }
+
+    let index = index_page(&by_department);
+    fs::create_dir_all(&root)?;
+    fs::write(root.join("README.md"), index)?;
+    println!("wrote {written} rule page(s) and an index under {}", root.display());
+    Ok(ExitCode::SUCCESS)
+}
+
+/// `Layout/TrailingWhitespace` -> `("layout", "trailing_whitespace")`.
+fn cop_path(meta: &RuleMeta) -> (String, String) {
+    let (dept, name) = meta.name.split_once('/').unwrap_or(("misc", meta.name));
+    (dept.to_ascii_lowercase(), snake_case(name))
+}
+
+fn snake_case(name: &str) -> String {
+    let mut out = String::with_capacity(name.len() + 8);
+    for (i, ch) in name.char_indices() {
+        if ch.is_ascii_uppercase() {
+            if i > 0 {
+                out.push('_');
+            }
+            out.push(ch.to_ascii_lowercase());
+        } else {
+            out.push(ch);
+        }
+    }
+    out
+}
+
+fn fix_label(fix: FixAvailability) -> &'static str {
+    match fix {
+        FixAvailability::None => "none",
+        FixAvailability::Safe => "safe",
+        FixAvailability::Unsafe => "unsafe",
+    }
+}
+
+fn default_label(default: ConfigDefault) -> String {
+    match default {
+        ConfigDefault::Bool(value) => value.to_string(),
+        ConfigDefault::Int(value) => value.to_string(),
+        ConfigDefault::Float(value) => value.to_string(),
+        ConfigDefault::Str(value) => format!("`{value}`"),
+        ConfigDefault::StrList(values) => {
+            if values.is_empty() {
+                "`[]`".to_string()
+            } else {
+                values.iter().map(|value| format!("`{value}`")).collect::<Vec<_>>().join(", ")
+            }
+        }
+        ConfigDefault::Nil => "`nil`".to_string(),
+    }
+}
+
+fn rule_page(meta: &RuleMeta) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "# {}\n", meta.name);
+    let _ = writeln!(out, "{}\n", meta.summary);
+    let _ = writeln!(out, "| | |");
+    let _ = writeln!(out, "| --- | --- |");
+    let _ = writeln!(out, "| Department | {} |", meta.department.name());
+    let _ = writeln!(out, "| Enabled by default | {} |", meta.enabled_by_default);
+    let _ = writeln!(out, "| Default severity | {} |", meta.severity.name());
+    let _ = writeln!(out, "| Fix | {} |", fix_label(meta.fix));
+    let _ = writeln!(out, "| Stability | {} |", meta.stability.name());
+    let _ = writeln!(out);
+    let _ = writeln!(out, "{}\n", meta.explanation);
+
+    let _ = writeln!(out, "## Options\n");
+    if meta.config.is_empty() {
+        let _ = writeln!(out, "This rule has no options.\n");
+    } else {
+        let _ = writeln!(out, "| Name | Default | Allowed values | Description |");
+        let _ = writeln!(out, "| --- | --- | --- | --- |");
+        for option in meta.config {
+            let allowed = if option.allowed.is_empty() {
+                String::new()
+            } else {
+                option.allowed.iter().map(|v| format!("`{v}`")).collect::<Vec<_>>().join(", ")
+            };
+            let _ = writeln!(
+                out,
+                "| {} | {} | {allowed} | {} |",
+                option.name,
+                default_label(option.default),
+                option.doc
+            );
+        }
+        let _ = writeln!(out);
+    }
+
+    let _ = writeln!(out, "## Blind spots\n");
+    if meta.blind_spots.trim().is_empty() {
+        let _ = writeln!(out, "None recorded.");
+    } else {
+        let _ = writeln!(out, "{}", meta.blind_spots);
+    }
+    out
+}
+
+fn index_page(by_department: &BTreeMap<&str, Vec<&'static RuleMeta>>) -> String {
+    let mut out = String::new();
+    let _ = writeln!(out, "# Rules\n");
+    let total: usize = by_department.values().map(Vec::len).sum();
+    let _ = writeln!(out, "{total} rule(s) implemented. Generated by `cargo xtask docs-rules`.\n");
+    for (department, metas) in by_department {
+        let _ = writeln!(out, "## {department}\n");
+        let _ = writeln!(out, "| Cop | Fix | Stability | Summary |");
+        let _ = writeln!(out, "| --- | --- | --- | --- |");
+        for meta in metas {
+            let (dept, snake) = cop_path(meta);
+            let _ = writeln!(
+                out,
+                "| [{}]({dept}/{snake}.md) | {} | {} | {} |",
+                meta.name,
+                fix_label(meta.fix),
+                meta.stability.name(),
+                meta.summary
+            );
+        }
+        let _ = writeln!(out);
+    }
+    out
+}
