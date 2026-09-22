@@ -101,41 +101,98 @@ begin
     require 'rubocop'
     require 'rspec'
     require 'rubocop/rspec/support'
+    Dir[File.join(#{rubocop_src.inspect}, 'spec/support/**/*.rb')].sort.each { |f| require f }
     require 'json'
 
     CAPTURES = []
 
     module CaptureOffense
+      # Pure documentation/metadata keys never belong in a fixture .yml override.
+      DOC_ONLY_KEYS = %w[
+        Description StyleGuide StyleGuideAlias Reference References
+        VersionAdded VersionChanged VersionRemoved Details DocumentationReference
+      ].freeze
+      # Forced by the shared :config context (Enabled => true, AutoCorrect => 'always')
+      # regardless of what the spec's own cop_config says; never a real per-case override
+      # unless the spec's cop_config itself sets AutoCorrect, which \`raw\` below already covers.
+      SYNTHETIC_KEYS = %w[Enabled AutoCorrect].freeze
+
       def current_path
         self.class.parent_groups.reverse.map(&:description) + [RSpec.current_example.description]
       end
 
-      # Only the keys the spec's cop_config actually changes relative to
-      # RuboCop's real default configuration for this cop — a spec may set
-      # `let(:cop_config)` to a hash that happens to restate a default value
-      # (as trailing-comma style specs do for every EnforcedStyleForMultiline
-      # variant, including the default `no_comma`), which must not produce a
-      # fixture .yml per the contract ("Absent -> RuboCop defaults").
-      def cop_config_overrides
-        return {} if cop_config.empty?
+      # `nil` in a spec's cop_config (e.g. `'AllowedPatterns' => nil`) means "unset", which is
+      # only meaningfully comparable to the real default once normalized to that option's shape
+      # (boolean options: false; list options: []) instead of literal nil.
+      def normalize_option(value, default_value)
+        return value unless value.nil?
 
-        real_defaults = RuboCop::ConfigLoader.default_configuration.for_cop(cop_class)
-        cop_config.reject { |k, v| real_defaults[k] == v }
+        case default_value
+        when true, false then false
+        when Array then []
+        else value
+        end
       end
 
+      def diff_against_defaults(hash, real_defaults, exclude: [], keys: hash.keys)
+        keys.each_with_object({}) do |k, acc|
+          next if exclude.include?(k)
+
+          normalized = normalize_option(hash[k], real_defaults[k])
+          acc[k] = normalized unless normalized == real_defaults[k]
+        end
+      end
+
+      # Only the keys the spec's *effective* config actually changes relative to RuboCop's real
+      # default configuration for this cop. Most specs build their config via the shared :config
+      # context (defaults.merge(cop_config)), so diffing the raw `cop_config` let value already
+      # finds every override. A few specs (e.g. Layout::LineLength) define their own `let(:config)`
+      # that bypasses that merge entirely, so an option a spec never mentions can still run with a
+      # non-default effective value; diffing the cop's actual merged config against real defaults
+      # (skipping doc-only and test-harness-synthetic keys already covered by `raw`) catches those.
+      def cop_config_overrides
+        real_defaults = RuboCop::ConfigLoader.default_configuration.for_cop(cop_class)
+        cop_config.empty? ? {} : diff_against_defaults(cop_config, real_defaults)
+      end
+
+      # Supplemental diff against the cop's actual merged config, computed only after the real
+      # expect_offense/expect_no_offenses has run so building/reading `cop` here never disturbs
+      # state (e.g. exclude_limit's config_to_allow_offenses tracking) that the investigation
+      # itself depends on. Walks the union of both key sets (not just `effective`'s own keys) so
+      # a key that's simply absent from `effective` — because a spec-local `let(:config)` skipped
+      # the normal defaults merge — but has a non-empty/non-false real default is still caught.
+      # Deliberately does NOT exclude keys already in `raw`: a spec-local `let(:config)` that
+      # ignores `cop_config` entirely (as Layout::LineLength's own top-of-file override does)
+      # makes `raw` (built from the `cop_config` let) stale for every key, so the effective,
+      # actually-applied value must win on conflict — callers merge as `raw.merge(extra)`.
+      def effective_cop_config_extra(raw)
+        real_defaults = RuboCop::ConfigLoader.default_configuration.for_cop(cop_class)
+        effective = cop.config.for_cop(cop_class)
+        diff_against_defaults(
+          effective, real_defaults,
+          exclude: DOC_ONLY_KEYS + SYNTHETIC_KEYS,
+          keys: effective.keys | real_defaults.keys
+        )
+      end
 
       def expect_offense(source, file = nil, severity: nil, chomp: false, **replacements)
+        raw = cop_config_overrides
         entry = {
           'kind' => 'offense',
           'path' => current_path,
           'file' => file,
-          'cop_config' => cop_config_overrides,
+          'cop_config' => raw,
           'other_cops' => other_cops,
           'ruby_version' => ruby_version
         }
         result = super
-        expected_annotations = parse_annotations(source, **replacements)
-        entry['annotated'] = expected_annotations.to_s
+        entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
+        # Reuse the offenses `super` already found instead of re-parsing annotations via
+        # `parse_annotations`, which also calls `set_formatter_options` and would wipe out
+        # state (e.g. exclude_limit's config_to_allow_offenses tracking) that `super`'s own
+        # investigation just populated.
+        parsed = ::RuboCop::RSpec::ExpectOffense::AnnotatedSource.parse(format_offense(source, **replacements))
+        entry['annotated'] = parsed.with_offense_annotations(result).to_s
         CAPTURES << entry
         @__last_entry = entry
         result
@@ -150,17 +207,25 @@ begin
         result
       end
 
+      def expect_no_corrections
+        result = super
+        @__last_entry['no_corrections'] = true if @__last_entry
+        result
+      end
+
       def expect_no_offenses(source, file = nil)
+        raw = cop_config_overrides
         entry = {
           'kind' => 'no_offense',
           'path' => current_path,
           'file' => file,
           'source' => source,
-          'cop_config' => cop_config_overrides,
+          'cop_config' => raw,
           'other_cops' => other_cops,
           'ruby_version' => ruby_version
         }
         result = super
+        entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
         CAPTURES << entry
         @__last_entry = entry
         result
@@ -236,6 +301,14 @@ begin
     text.downcase.gsub(/[^a-z0-9]+/, '_').gsub(/_+/, '_').gsub(/\A_|_\z/, '')
   end
 
+  def yaml_value(v)
+    case v
+    when nil then '~'
+    when Array then "[#{v.map(&:to_s).join(', ')}]"
+    else v.inspect.gsub('"', '')
+    end
+  end
+
   LEADING_CONNECTORS = /\A(with|when|context|for|behaves like)\s+/i.freeze
 
   assigned_names = Set.new
@@ -288,9 +361,9 @@ begin
     yml_lines = []
     yml_lines << "# file: #{file_comment}" if file_comment
     yml_lines << "AllCops:\n  TargetRubyVersion: #{rv}" if needs_ruby_version
-    yml_lines << "#{options[:cop]}:\n#{cop_config.map { |k, v| "  #{k}: #{v.inspect.gsub('"', '')}" }.join("\n")}" unless cop_config.empty?
+    yml_lines << "#{options[:cop]}:\n#{cop_config.map { |k, v| "  #{k}: #{yaml_value(v)}" }.join("\n")}" unless cop_config.empty?
     other_cops.each do |name_, settings|
-      body = settings.is_a?(Hash) ? settings.map { |k, v| "  #{k}: #{v.inspect.gsub('"', '')}" }.join("\n") : "  #{settings}"
+      body = settings.is_a?(Hash) ? settings.map { |k, v| "  #{k}: #{yaml_value(v)}" }.join("\n") : "  #{yaml_value(settings)}"
       yml_lines << "#{name_}:\n#{body}"
     end
     File.write(File.join(out_dir, "#{name}.yml"), "#{yml_lines.join("\n")}\n")

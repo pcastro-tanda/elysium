@@ -15,6 +15,7 @@ use linter::{
 use ruby_ast::{Node, NodeKind};
 
 pub mod layout;
+pub mod style;
 
 /// Registers every rule in one place.
 ///
@@ -36,6 +37,21 @@ macro_rules! rule_set {
 }
 
 rule_set! {
+    layout::line_length::LineLength,
+    style::frozen_string_literal_comment::FrozenStringLiteralComment,
+    style::string_literals::StringLiterals,
+    layout::trailing_empty_lines::TrailingEmptyLines,
+    layout::indentation_width::IndentationWidth,
+    layout::empty_lines::EmptyLines,
+    layout::indentation_consistency::IndentationConsistency,
+    style::documentation::Documentation,
+    style::guard_clause::GuardClause,
+    style::if_unless_modifier::IfUnlessModifier,
+    style::hash_syntax::HashSyntax,
+    style::mutable_constant::MutableConstant,
+    style::trailing_comma_in_arguments::TrailingCommaInArguments,
+    style::trailing_comma_in_hash_literal::TrailingCommaInHashLiteral,
+    style::trailing_comma_in_array_literal::TrailingCommaInArrayLiteral,
     layout::trailing_whitespace::TrailingWhitespace,
 }
 

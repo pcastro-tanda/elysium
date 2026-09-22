@@ -20,6 +20,10 @@ use crate::bench::{build_release_cli, workspace_root};
 /// Where the per-rule conformance table lives, relative to the workspace root.
 const TABLE_PATH: &str = "docs/conformance/rules.md";
 
+/// The rbenv Ruby version under which every `<app>.rubocop.Gemfile` side
+/// bundle is installed (see [`side_gemfile`]).
+const SIDE_GEMFILE_RUBY_VERSION: &str = "3.4.2";
+
 /// `cargo xtask conformance` arguments.
 #[derive(Debug, Args)]
 pub(crate) struct ConformanceArgs {
@@ -225,25 +229,53 @@ fn uses_bundler(app: &Path) -> bool {
         .is_ok_and(|lock| lock.lines().any(|line| line.trim_start().starts_with("rubocop ")))
 }
 
+/// A side Gemfile at `<corpus>/<app-name>.rubocop.Gemfile`, next to the app
+/// checkout, pinning RuboCop and its plugins independently of the app's own
+/// `Gemfile`. Used when the app's own bundle can't be installed (e.g. a
+/// `.ruby-version` pin unavailable via rbenv, or a native extension that
+/// fails to build) but a scratch bundle for RuboCop alone still can be.
+fn side_gemfile(app: &Path) -> Option<PathBuf> {
+    let name = app.file_name()?.to_string_lossy().into_owned();
+    let parent = app.parent().unwrap_or_else(|| Path::new("."));
+    let candidate = parent.join(format!("{name}.rubocop.Gemfile"));
+    candidate.is_file().then_some(candidate)
+}
+
 /// Runs RuboCop and returns its JSON report.
 ///
-/// An app whose `Gemfile.lock` pins RuboCop is run through Bundler so the
-/// pinned version and its plugins are used; when that bundle is not
-/// installed (common for a corpus checkout), the run falls back to the
-/// `rubocop` on `PATH` rather than failing.
+/// Tried in order: a side Gemfile pinning RuboCop for this app (see
+/// [`side_gemfile`]), then the app's own bundle when its `Gemfile.lock` pins
+/// RuboCop, then the `rubocop` on `PATH`. Each step falls through to the
+/// next on failure rather than failing outright, since the corpus checkouts
+/// commonly can't install their full bundle on this machine.
 fn run_rubocop(app: &Path, rule: &str, defaults: bool) -> Result<String> {
+    if let Some(gemfile) = side_gemfile(app) {
+        match rubocop_once(app, rule, defaults, true, Some(&gemfile)) {
+            Ok(json) => return Ok(json),
+            Err(err) => eprintln!(
+                "note: `BUNDLE_GEMFILE={} bundle exec rubocop` failed ({err}); falling back",
+                gemfile.display()
+            ),
+        }
+    }
     if uses_bundler(app) {
-        match rubocop_once(app, rule, defaults, true) {
+        match rubocop_once(app, rule, defaults, true, None) {
             Ok(json) => return Ok(json),
             Err(err) => eprintln!(
                 "note: `bundle exec rubocop` failed ({err}); falling back to the `rubocop` on PATH"
             ),
         }
     }
-    rubocop_once(app, rule, defaults, false)
+    rubocop_once(app, rule, defaults, false, None)
 }
 
-fn rubocop_once(app: &Path, rule: &str, defaults: bool, bundler: bool) -> Result<String> {
+fn rubocop_once(
+    app: &Path,
+    rule: &str,
+    defaults: bool,
+    bundler: bool,
+    gemfile: Option<&Path>,
+) -> Result<String> {
     let mut command = if bundler {
         let mut command = Command::new("bundle");
         command.arg("exec").arg("rubocop");
@@ -255,11 +287,20 @@ fn rubocop_once(app: &Path, rule: &str, defaults: bool, bundler: bool) -> Result
         .args(["--only", rule, "--format", "json", "--cache", "false"])
         .current_dir(app)
         .env("RUBOCOP_CACHE_ROOT", std::env::temp_dir().join("xtask-rubocop-cache"));
+    if let Some(gemfile) = gemfile {
+        command.env("BUNDLE_GEMFILE", gemfile);
+        // Corpus apps often pin a `.ruby-version` unavailable on this
+        // machine (e.g. an exact patch release rbenv never built). The side
+        // Gemfile's bundle was installed under this interpreter, so force
+        // rbenv to use it regardless of the app's own pin.
+        command.env("RBENV_VERSION", SIDE_GEMFILE_RUBY_VERSION);
+    }
     if defaults {
         command.arg("--force-default-config");
     }
     eprintln!(
-        "running {}rubocop --only {rule}{} in {} ...",
+        "running {}{}rubocop --only {rule}{} in {} ...",
+        gemfile.map(|g| format!("BUNDLE_GEMFILE={} ", g.display())).unwrap_or_default(),
         if bundler { "bundle exec " } else { "" },
         if defaults { " --force-default-config" } else { "" },
         app.display()
