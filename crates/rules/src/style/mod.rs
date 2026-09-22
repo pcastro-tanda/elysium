@@ -7,6 +7,7 @@ pub mod hash_syntax;
 pub mod if_unless_modifier;
 pub mod mutable_constant;
 pub mod string_literals;
+pub mod trailing_comma;
 pub mod trailing_comma_in_arguments;
 pub mod trailing_comma_in_array_literal;
 pub mod trailing_comma_in_hash_literal;
