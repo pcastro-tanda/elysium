@@ -1,3 +1,0 @@
-  if /aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa/
-    bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb
-  end

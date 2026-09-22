@@ -1,1 +1,0 @@
-method(:puts).(key: value)

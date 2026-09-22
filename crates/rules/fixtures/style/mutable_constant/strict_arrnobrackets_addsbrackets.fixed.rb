@@ -1,1 +1,0 @@
-XXX = [YYY, ZZZ].freeze

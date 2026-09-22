@@ -1,3 +1,0 @@
-x = <<HEREDOC
-  Hi#{'   '}
-HEREDOC

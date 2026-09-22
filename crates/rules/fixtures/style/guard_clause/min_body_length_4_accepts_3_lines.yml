@@ -1,4 +1,0 @@
-Layout/LineLength:
-  Max: 80
-Style/GuardClause:
-  MinBodyLength: 4

@@ -3,4 +3,5 @@ Layout/LineLength:
   AllowHeredoc: false
   AllowURI: false
   AllowQualifiedName: false
+  URISchemes: []
   AllowCopDirectives: false

@@ -1,2 +1,0 @@
-object.attr = {foo:}
-pass

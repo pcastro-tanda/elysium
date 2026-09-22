@@ -1,2 +1,0 @@
-foo if bar ||
-               baz

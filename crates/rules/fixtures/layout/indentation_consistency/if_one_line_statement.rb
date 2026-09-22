@@ -1,1 +1,0 @@
-if cond then func1 else func2 end

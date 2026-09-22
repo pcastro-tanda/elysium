@@ -1,1 +1,0 @@
-CONST = Something.new.freeze

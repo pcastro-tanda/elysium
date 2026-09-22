@@ -1,4 +1,0 @@
-Layout/AccessModifierIndentation:
-  EnforcedStyle: 'outdent'
-Layout/EndAlignment:
-  EnforcedStyleAlignWith: 'variable'

@@ -1,3 +1,0 @@
-(create :foo, bar:)
-
-pass

@@ -1,4 +1,0 @@
-begin
-ensure
-  something
-end

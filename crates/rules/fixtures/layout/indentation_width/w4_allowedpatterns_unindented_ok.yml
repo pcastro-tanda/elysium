@@ -1,5 +1,0 @@
-Layout/IndentationWidth:
-  Width: 4
-  AllowedPatterns: ['^\s*module', '^\s*(els)?if.*[A-Z][a-z]+']
-Layout/EndAlignment:
-  EnforcedStyleAlignWith: 'variable'

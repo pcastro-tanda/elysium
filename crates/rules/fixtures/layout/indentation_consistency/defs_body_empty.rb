@@ -1,2 +1,0 @@
-def self.test
-end

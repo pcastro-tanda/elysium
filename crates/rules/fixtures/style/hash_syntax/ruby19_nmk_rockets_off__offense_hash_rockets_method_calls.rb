@@ -1,2 +1,0 @@
-func(3, :a => 0)
-        ^^^^^ Use the new Ruby 1.9 hash syntax.

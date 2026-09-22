@@ -1,1 +1,0 @@
-CONST ||= FOO - BAR

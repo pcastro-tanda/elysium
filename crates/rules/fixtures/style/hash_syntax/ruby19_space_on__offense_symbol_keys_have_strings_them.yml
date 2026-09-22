@@ -1,4 +1,0 @@
-AllCops:
-  TargetRubyVersion: 2.2
-Style/HashSyntax:
-  EnforcedShorthandSyntax: always

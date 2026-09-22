@@ -1,2 +1,0 @@
-a = func do
-end

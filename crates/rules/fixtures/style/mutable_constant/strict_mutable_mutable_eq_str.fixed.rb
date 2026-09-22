@@ -1,1 +1,0 @@
-CONST = 'str'.freeze
