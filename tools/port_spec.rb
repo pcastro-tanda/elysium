@@ -192,13 +192,54 @@ begin
         # state (e.g. exclude_limit's config_to_allow_offenses tracking) that `super`'s own
         # investigation just populated.
         parsed = ::RuboCop::RSpec::ExpectOffense::AnnotatedSource.parse(format_offense(source, **replacements))
-        entry['annotated'] = parsed.with_offense_annotations(result).to_s
+        annotated = parsed.with_offense_annotations(result).to_s
+        # `chomp: true` means RuboCop itself linted `plain_source.chomp` (one trailing "\\n"
+        # stripped from the code, before annotations existed). The fixture harness reconstructs
+        # source by splitting the .rb on "\\n", dropping annotation lines, and rejoining with
+        # "\\n", so the file's own trailing newline becomes the source's; stripping exactly one
+        # trailing "\\n" from the annotated dump reproduces that chomp at the file level.
+        annotated = annotated.delete_suffix("\\n") if chomp
+        entry['annotated'] = annotated
         CAPTURES << entry
         @__last_entry = entry
         result
       end
 
       def expect_correction(correction, loop: true, source: nil)
+        if source && !@__last_entry
+          # No preceding expect_offense in this example: run the cop ourselves (the same
+          # investigation path RuboCop's own expect_correction takes) so this still yields a
+          # real annotated .rb instead of falling through as a bare, unannotated source (which
+          # the harness would treat as an expect_no_offenses case and fail).
+          raw = cop_config_overrides
+          expected_annotations = parse_annotations(source, raise_error: false)
+          plain = expected_annotations.plain_source
+          @processed_source = parse_processed_source(plain)
+          offenses = _investigate(cop, @processed_source)
+          # `with_offense_annotations` concatenates an inserted annotation directly onto the
+          # preceding line when that line lacks its own trailing "\\n" (plain `plain`-less
+          # source, e.g. `source: 'x = 0'`). Pad with one synthetic "\\n" so the annotation
+          # always lands on its own physical line, then strip that padding back off the
+          # rendered result — same trick as `chomp` above — so the .rb file's own
+          # trailing-newline status still matches `plain`, not the padded copy.
+          render_source = plain.end_with?("\\n") ? plain : "\#{plain}\\n"
+          annotated = ::RuboCop::RSpec::ExpectOffense::AnnotatedSource
+                        .new(render_source.each_line.to_a, [])
+                        .with_offense_annotations(offenses)
+                        .to_s
+          annotated = annotated.delete_suffix("\\n") unless plain.end_with?("\\n")
+          entry = {
+            'kind' => 'offense',
+            'path' => current_path,
+            'file' => nil,
+            'cop_config' => raw.merge(effective_cop_config_extra(raw)),
+            'other_cops' => other_cops,
+            'ruby_version' => ruby_version,
+            'annotated' => annotated
+          }
+          CAPTURES << entry
+          @__last_entry = entry
+        end
         result = super
         if @__last_entry
           @__last_entry['correction'] = correction
