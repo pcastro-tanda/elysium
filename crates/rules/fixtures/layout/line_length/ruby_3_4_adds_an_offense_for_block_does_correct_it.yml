@@ -2,6 +2,7 @@ AllCops:
   TargetRubyVersion: 3.4
 Layout/LineLength:
   Max: 40
+  AllowedPatterns: ~
   AutoCorrect: true
   SplitStrings: true
   AllowHeredoc: false

@@ -809,6 +809,7 @@ version = "0.1.0"
 dependencies = [
  "config",
  "linter",
+ "regex",
  "ruby_ast",
  "ruby_source",
 ]

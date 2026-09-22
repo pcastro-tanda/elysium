@@ -1,6 +1,7 @@
 Layout/LineLength:
   Max: 30
+  AllowedPatterns: ~
   AllowHeredoc: false
   AllowQualifiedName: false
-  URISchemes: []
+  URISchemes: ~
   AllowCopDirectives: false

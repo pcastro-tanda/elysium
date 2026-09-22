@@ -122,15 +122,15 @@ begin
         self.class.parent_groups.reverse.map(&:description) + [RSpec.current_example.description]
       end
 
-      # `nil` in a spec's cop_config (e.g. `'AllowedPatterns' => nil`) means "unset", which is
-      # only meaningfully comparable to the real default once normalized to that option's shape
-      # (boolean options: false; list options: []) instead of literal nil.
+      # A spec may set an option to nil that RuboCop defaults to a list or a
+      # boolean. Ruby treats nil as falsy, so a nil boolean equals false; a nil
+      # list is a real override (RuboCop code paths distinguish `nil` from
+      # `[]`, e.g. `URISchemes: nil` matches every scheme) and is kept as `~`.
       def normalize_option(value, default_value)
         return value unless value.nil?
 
         case default_value
         when true, false then false
-        when Array then []
         else value
         end
       end

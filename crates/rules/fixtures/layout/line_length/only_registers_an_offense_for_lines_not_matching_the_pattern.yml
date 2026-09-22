@@ -1,6 +1,6 @@
 Layout/LineLength:
   Max: 18
-  AllowedPatterns: [^\s*test\s, (?-mix:^\s*def\s+test_)]
+  AllowedPatterns: ["^\\s*test\\s", "(?-mix:^\\s*def\\s+test_)"]
   AllowHeredoc: false
   AllowURI: false
   AllowQualifiedName: false

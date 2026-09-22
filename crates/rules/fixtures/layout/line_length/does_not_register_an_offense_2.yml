@@ -3,3 +3,4 @@ Layout/LineLength:
   AllowHeredoc: false
   AllowURI: false
   AllowCopDirectives: false
+  AllowedPatterns: ~

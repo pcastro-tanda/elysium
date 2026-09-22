@@ -1,5 +1,6 @@
 Layout/LineLength:
   Max: 80
+  AllowedPatterns: ~
   AllowHeredoc: false
   AllowURI: false
   AllowQualifiedName: false

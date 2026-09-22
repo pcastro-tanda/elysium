@@ -5,3 +5,4 @@ Layout/LineLength:
   AllowURI: false
   AllowQualifiedName: false
   AllowCopDirectives: false
+  AllowedPatterns: ~
