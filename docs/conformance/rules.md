@@ -7,6 +7,6 @@ text differs (RuboCop versions word some messages differently).
 | rule | app | rubocop | truth | ours | missing | extra | message mismatch | agreement | date |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Layout/TrailingWhitespace | discourse (defaults) | 1.91.0 | 117 | 117 | 0 | 0 | 0 | 100.0% | 2026-09-22 |
-| Layout/TrailingWhitespace | discourse | 1.91.0 | 46 | 0 | 46 | 0 | 0 | 0.0% | 2026-09-22 |
+| Layout/TrailingWhitespace | discourse | 1.91.0 | 46 | 46 | 0 | 0 | 0 | 100.0% | 2026-09-22 |
 | Layout/TrailingWhitespace | forem | 1.63.4 | 1053 | 1048 | 5 | 0 | 1048 | 99.5% | 2026-09-22 |
 | Layout/TrailingWhitespace | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-22 |

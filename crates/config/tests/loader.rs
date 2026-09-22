@@ -601,6 +601,36 @@ fn file_matching_honours_all_cops_and_cop_clusivity() {
 }
 
 #[test]
+fn cop_targeting_ignores_all_cops_include_for_already_discovered_files() {
+    // `script/discourse`-style extension-less scripts never match `AllCops`'s
+    // `Include` (`**/*.rb`, ...); they are only ever selected as lint
+    // targets through the discoverer's shebang fallback (see
+    // `discover::ruby_shebang`, crates/cli). RuboCop's own
+    // `Cop::Base#relevant_file?` never re-checks `AllCops`'s `Include`/
+    // `Exclude` per cop, only the cop's own; `is_cop_enabled_for`/
+    // `is_cop_targeting` must match that, or every such shebang-only
+    // script silently loses every cop that goes through `CopOverride`
+    // (`DisabledByDefault`, `--only`, per-cop `Include`/`Exclude`/
+    // `Severity`).
+    let project = Project::new();
+    project.write(
+        ".rubocop.yml",
+        concat!(
+            "AllCops:\n  DisabledByDefault: true\n",
+            "Layout/TrailingWhitespace:\n  Enabled: true\n",
+        ),
+    );
+    let config = project.load(".rubocop.yml");
+    let relative = Path::new("script/discourse");
+    assert!(
+        !config.file_matcher().is_target(relative),
+        "no extension, so AllCops Include misses it"
+    );
+    assert!(config.is_cop_enabled_for("Layout/TrailingWhitespace", relative));
+    assert!(config.is_cop_targeting("Layout/TrailingWhitespace", relative));
+}
+
+#[test]
 fn requested_extensions_are_recorded_and_ignored() {
     let project = Project::new();
     project.write(

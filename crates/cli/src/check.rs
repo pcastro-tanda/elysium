@@ -79,12 +79,12 @@ pub fn prepare(args: &CheckArgs) -> Result<Session> {
         eprintln!("warning: `{extension}` is not supported yet; its cops use default settings");
     }
 
-    let overrides = cop_overrides(&cfg);
     let parse_options = ParseOptions {
         version: ruby_version(cfg.all_cops().target_ruby_version),
         partial_script: true,
     };
     let rule_set = select_rules(&cfg, &args.only, &args.except)?;
+    let overrides = cop_overrides(&cfg, &args.only);
     Ok(Session { cfg, root, overrides, parse_options, rule_set })
 }
 
@@ -239,11 +239,14 @@ pub fn run(args: &CheckArgs) -> Result<ExitCode> {
 pub struct CopOverride {
     name: &'static str,
     severity: Option<Severity>,
+    /// Named by `--only`: runs even when the configuration disables it,
+    /// but still honours its `Include`/`Exclude`.
+    forced: bool,
 }
 
 /// Precomputes [`CopOverride`]s once per run so per-file settings building
 /// stays cheap.
-fn cop_overrides(cfg: &LoadedConfig) -> Vec<CopOverride> {
+fn cop_overrides(cfg: &LoadedConfig, only: &[String]) -> Vec<CopOverride> {
     cfg.cops()
         .filter(|(_, cop)| {
             !cop.enabled
@@ -254,14 +257,17 @@ fn cop_overrides(cfg: &LoadedConfig) -> Vec<CopOverride> {
         .map(|(name, cop)| CopOverride {
             name: linter::intern_rule_name(name),
             severity: cop.severity,
+            forced: only.iter().any(|sel| selects(sel, name)),
         })
         .collect()
 }
 
 /// Builds the [`linter::FileSettings`] for one file: cops absent from
 /// `overrides` stay enabled at their default severity; cops present are
-/// re-checked against [`LoadedConfig::is_cop_enabled_for`] (which folds in
-/// both `AllCops` and per-cop `Include`/`Exclude`) for `relative`.
+/// re-checked against [`LoadedConfig::is_cop_enabled_for`] (per-cop
+/// `Include`/`Exclude` for `relative`; `AllCops`'s `Include`/`Exclude` was
+/// already applied once, at discovery, when `relative` was selected as a
+/// target).
 pub fn file_settings(
     cfg: &LoadedConfig,
     overrides: &[CopOverride],
@@ -269,7 +275,12 @@ pub fn file_settings(
 ) -> linter::FileSettings {
     let mut settings = linter::FileSettings::all_enabled();
     for over in overrides {
-        if cfg.is_cop_enabled_for(over.name, relative) {
+        let enabled = if over.forced {
+            cfg.is_cop_targeting(over.name, relative)
+        } else {
+            cfg.is_cop_enabled_for(over.name, relative)
+        };
+        if enabled {
             if let Some(severity) = over.severity {
                 settings.set_severity(over.name, severity);
             }

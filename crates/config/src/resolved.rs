@@ -334,12 +334,26 @@ impl LoadedConfig {
     }
 
     /// Whether a cop should inspect a file (`relative_path` is relative to
-    /// [`LoadedConfig::root`]).
+    /// [`LoadedConfig::root`]). Mirrors RuboCop's `Cop::Base#relevant_file?`:
+    /// only the cop's own `Include`/`Exclude` (merged with its department,
+    /// see [`LoadedConfig::cop_file_matcher`]) is consulted. `AllCops`'s
+    /// `Include`/`Exclude` is matched exactly once, at file discovery
+    /// (`discover::discover`, which also applies RuboCop's shebang fallback
+    /// for extension-less scripts); re-matching it here — without that
+    /// fallback — would silently disable every cop for a shebang-only
+    /// script that discovery had already selected as a target.
     pub fn is_cop_enabled_for(&self, name: &str, relative_path: &Path) -> bool {
         let Some(cop) = self.cop(name) else { return false };
-        if !cop.enabled || !self.matcher.is_target(relative_path) {
+        if !cop.enabled {
             return false;
         }
+        self.cop_matchers.get(name).is_none_or(|matcher| matcher.is_target(relative_path))
+    }
+
+    /// Like [`LoadedConfig::is_cop_enabled_for`] but ignoring the cop's
+    /// `Enabled` flag: RuboCop's `--only` runs a disabled cop while still
+    /// honouring its `Include`/`Exclude`.
+    pub fn is_cop_targeting(&self, name: &str, relative_path: &Path) -> bool {
         self.cop_matchers.get(name).is_none_or(|matcher| matcher.is_target(relative_path))
     }
 
