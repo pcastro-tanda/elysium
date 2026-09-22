@@ -28,6 +28,7 @@
 # --rubocop-src are performed; a scratch Gemfile is written under a temp
 # directory and resolved with `bundle lock --local`.
 
+require 'yaml'
 require 'optparse'
 require 'fileutils'
 require 'tmpdir'
@@ -342,11 +343,14 @@ begin
     text.downcase.gsub(/[^a-z0-9]+/, '_').gsub(/_+/, '_').gsub(/\A_|_\z/, '')
   end
 
+  # Serializes one option value as an inline YAML scalar or flow sequence,
+  # quoting through Psych so regex sources and special strings round-trip.
   def yaml_value(v)
     case v
     when nil then '~'
-    when Array then "[#{v.map(&:to_s).join(', ')}]"
-    else v.inspect.gsub('"', '')
+    when Array then "[#{v.map { |e| yaml_value(e) }.join(', ')}]"
+    when String then YAML.dump(v).sub(/\A---\s*/, '').chomp
+    else v.to_s
     end
   end
 
