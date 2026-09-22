@@ -284,11 +284,19 @@ begin
           # rendered result — same trick as `chomp` above — so the .rb file's own
           # trailing-newline status still matches `plain`, not the padded copy.
           render_source = plain.end_with?("\\n") ? plain : "\#{plain}\\n"
+          lines = render_source.each_line.to_a
+          # An offense past the last line (RuboCop reports a missing final blank line at
+          # the position after the trailing "\\n") needs a physical line to hang off: the
+          # harness splits on "\\n" and so already sees that empty last line.
+          phantom = offenses.any? { |o| o.line > lines.length }
+          lines << "\\n" if phantom
           annotated = ::RuboCop::RSpec::ExpectOffense::AnnotatedSource
-                        .new(render_source.each_line.to_a, [])
+                        .new(lines, [])
                         .with_offense_annotations(offenses)
                         .to_s
-          annotated = annotated.delete_suffix("\\n") unless plain.end_with?("\\n")
+          # Without the padding newline the harness rebuilds exactly `plain`: for the
+          # phantom line, ["x = 0", ""] joined by "\\n" is "x = 0\\n".
+          annotated = annotated.delete_suffix("\\n") if phantom || !plain.end_with?("\\n")
           entry = {
             'kind' => 'offense',
             'path' => current_path,

@@ -203,6 +203,9 @@ impl IndentationWidth {
     }
 
     fn on_while_node(&mut self, ctx: &mut Context<'_>, node: &Node<'_>) {
+        if self.ignored.contains(&node.span().start) {
+            return;
+        }
         let w = node.as_while_node().expect("kind matched");
         self.on_while_until(
             ctx,
@@ -214,6 +217,9 @@ impl IndentationWidth {
     }
 
     fn on_until_node(&mut self, ctx: &mut Context<'_>, node: &Node<'_>) {
+        if self.ignored.contains(&node.span().start) {
+            return;
+        }
         let u = node.as_until_node().expect("kind matched");
         self.on_while_until(
             ctx,
@@ -415,9 +421,6 @@ impl IndentationWidth {
         statements: Option<Node<'_>>,
         base: Span,
     ) {
-        if self.ignored.contains(&keyword.start) {
-            return;
-        }
         // RuboCop's `single_line_condition?`: skip when the predicate itself starts on a
         // different line than the keyword (rare multi-line-condition edge case).
         if ctx.line_col(keyword.start).line != ctx.line_col(predicate.start).line {
@@ -477,8 +480,14 @@ impl IndentationWidth {
     /// `if`/`while`/`until` node, check it against a base chosen by `Layout/EndAlignment`'s
     /// style instead of the ordinary auto-visited base.
     fn check_assignment(&mut self, ctx: &mut Context<'_>, whole: Span, value: Node<'_>) {
-        let rhs = match value {
-            Node::IfNode { .. } | Node::WhileNode { .. } | Node::UntilNode { .. } => value,
+        // RuboCop's `first_part_of_call_chain`: a conditional value can be wrapped in a
+        // trailing method chain (`var = if a; 1; end.foo.bar`); unwind down the receivers to
+        // the root the chain was built on. Prism's `CallNode` (unlike whitequark's separate
+        // block-wrapper node) already carries its own attached block, so only the `receiver`
+        // chain needs walking.
+        let Some(rhs) = first_part_of_call_chain(value) else { return };
+        let rhs = match rhs {
+            Node::IfNode { .. } | Node::WhileNode { .. } | Node::UntilNode { .. } => rhs,
             _ => return,
         };
         let rhs_span = rhs.span();
@@ -625,6 +634,21 @@ fn def_through_bare_chain(mut node: Node<'_>) -> Option<(ruby_ast::node::DefNode
                 node = next;
             }
             _ => return None,
+        }
+    }
+}
+
+/// RuboCop's `first_part_of_call_chain`: unwinds a trailing call chain (`....end.foo.bar`)
+/// down to whatever the chain was built on. Prism attaches a block directly to the `CallNode`
+/// it belongs to (no separate block-wrapper node to unwrap), so only `receiver` needs walking.
+fn first_part_of_call_chain(mut node: Node<'_>) -> Option<Node<'_>> {
+    loop {
+        match &node {
+            Node::CallNode { .. } => {
+                let call = node.as_call_node().expect("kind matched");
+                node = call.receiver()?;
+            }
+            _ => return Some(node),
         }
     }
 }
@@ -980,9 +1004,7 @@ end
         blind_spots: "\
 Does not track parent pointers, so `leftmost_modifier_of` (chained bare-modifier calls such as
 `foo private def bar; end`) approximates with the innermost call's own location; only a single
-level of `modifier def` nesting is verified against fixtures. `first_part_of_call_chain` (a
-conditional assigned through a trailing method/block chain, e.g. `var = if a; 1; end.freeze`) is
-not unwound; only a bare conditional value is recognized. `Layout/AccessModifierIndentation`'s
+level of `modifier def` nesting is verified against fixtures. `Layout/AccessModifierIndentation`'s
 `macro?`/`in_macro_scope?` nuance is approximated by a simple bare-call-name check (no scope
 verification). Autocorrection does not special-case parenthesized multi-statement bodies (RuboCop's
 `parentheses?` guard); it always narrows to the first statement. Non-heredoc multi-line string/
