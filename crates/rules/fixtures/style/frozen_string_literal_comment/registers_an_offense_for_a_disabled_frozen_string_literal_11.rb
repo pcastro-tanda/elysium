@@ -1,0 +1,7 @@
+#!/usr/bin/env ruby
+# encoding: utf-8
+#
+# These are more comments
+# frozen_string_literal: false
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Frozen string literal comment must be set to `true`.
+puts 1

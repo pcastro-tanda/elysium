@@ -1,0 +1,3 @@
+#: () -> String
+def hash
+end

@@ -1,0 +1,4 @@
+Layout/IndentationWidth:
+  Width: 3
+Layout/LineLength:
+  Max: 28

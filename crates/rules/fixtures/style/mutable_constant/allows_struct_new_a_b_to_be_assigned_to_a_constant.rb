@@ -1,0 +1,1 @@
+CONST = Struct.new(:a, :b)

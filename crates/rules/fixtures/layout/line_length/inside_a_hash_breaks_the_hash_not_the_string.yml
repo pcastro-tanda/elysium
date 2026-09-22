@@ -1,0 +1,8 @@
+Layout/LineLength:
+  Max: 40
+  AutoCorrect: true
+  SplitStrings: true
+  AllowHeredoc: false
+  AllowURI: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false

@@ -1,0 +1,6 @@
+Layout/LineLength:
+  Max: 80
+  URISchemes: [otherprotocol]
+  AllowHeredoc: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false

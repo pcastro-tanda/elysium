@@ -1,0 +1,4 @@
+Layout/IndentationStyle:
+  IndentationWidth: 2
+Layout/LineLength:
+  Max: 22

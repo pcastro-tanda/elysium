@@ -1,0 +1,1 @@
+TOP_TEST = Something.new

@@ -1,0 +1,4 @@
+Layout/IndentationConsistency:
+  EnforcedStyle: 'indented_internal_methods'
+Layout/EndAlignment:
+  EnforcedStyleAlignWith: 'variable'

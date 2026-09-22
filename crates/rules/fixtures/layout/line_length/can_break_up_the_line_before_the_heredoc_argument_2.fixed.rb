@@ -1,0 +1,3 @@
+foo(xxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxxx, 
+<<~STRING)
+STRING

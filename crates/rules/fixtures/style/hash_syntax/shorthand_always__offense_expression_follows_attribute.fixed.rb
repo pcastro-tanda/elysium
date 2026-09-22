@@ -1,0 +1,2 @@
+object.attr = {foo:}
+pass

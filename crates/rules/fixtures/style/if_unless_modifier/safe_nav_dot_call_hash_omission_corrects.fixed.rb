@@ -1,0 +1,1 @@
+obj&.(attr:) if condition

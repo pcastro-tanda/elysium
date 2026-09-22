@@ -1,0 +1,3 @@
+FOO = <<-HERE.freeze
+  SOMETHING
+HERE

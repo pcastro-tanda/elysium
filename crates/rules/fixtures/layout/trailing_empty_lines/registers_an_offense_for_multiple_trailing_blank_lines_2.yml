@@ -1,0 +1,2 @@
+Layout/TrailingEmptyLines:
+  EnforcedStyle: final_blank_line

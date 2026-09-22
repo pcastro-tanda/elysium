@@ -1,0 +1,6 @@
+Layout/LineLength:
+  Max: 10
+  AllowHeredoc: false
+  AllowURI: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false

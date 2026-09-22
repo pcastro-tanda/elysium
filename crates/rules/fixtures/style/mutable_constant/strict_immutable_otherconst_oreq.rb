@@ -1,0 +1,1 @@
+CONST ||= OTHER_CONST

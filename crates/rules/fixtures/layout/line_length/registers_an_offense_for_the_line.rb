@@ -1,0 +1,3 @@
+          # Some documentation comment...
+          # See: https://github.com/rubocop/rubocop and then words that are not part of a URL
+                                                                                ^^^^^^^^^^^^^ Line is too long. [93/80]

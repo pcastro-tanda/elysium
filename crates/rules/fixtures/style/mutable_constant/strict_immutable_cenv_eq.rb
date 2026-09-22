@@ -1,0 +1,1 @@
+CONST = ::ENV['foo']

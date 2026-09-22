@@ -1,0 +1,5 @@
+Style/HashSyntax:
+  PreferHashRocketsForNonAlnumEndingSymbols: true
+  SupportedStyles: [ruby19, hash_rockets]
+  EnforcedShorthandSyntax: always
+  SupportedShorthandSyntax: [always, never]

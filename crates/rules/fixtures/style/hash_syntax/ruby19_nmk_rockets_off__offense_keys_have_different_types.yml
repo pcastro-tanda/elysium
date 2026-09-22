@@ -1,0 +1,2 @@
+Style/HashSyntax:
+  EnforcedStyle: ruby19_no_mixed_keys

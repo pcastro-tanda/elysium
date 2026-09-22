@@ -1,0 +1,2 @@
+foo if bar ||
+               baz

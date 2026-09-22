@@ -1,0 +1,3 @@
+<<~MESSAGE
+  #{'hello' * 1} #{'world' * 2} #{'hello' * 1} #{'world' * 2} #{'hello' * 1} #{'world' * 2}
+MESSAGE

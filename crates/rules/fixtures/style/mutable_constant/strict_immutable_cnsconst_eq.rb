@@ -1,0 +1,1 @@
+CONST = ::Namespace::OTHER_CONST
