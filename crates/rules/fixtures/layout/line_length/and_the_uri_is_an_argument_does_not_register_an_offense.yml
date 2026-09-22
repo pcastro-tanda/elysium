@@ -3,3 +3,5 @@ Layout/LineLength:
   AllowHeredoc: false
   AllowCopDirectives: false
   AllowedPatterns: ~
+Layout/IndentationStyle:
+  IndentationWidth: 2

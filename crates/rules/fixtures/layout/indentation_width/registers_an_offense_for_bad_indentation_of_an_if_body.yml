@@ -1,2 +1,5 @@
 Layout/IndentationWidth:
   Width: 4
+  AllowedPatterns: ~
+Layout/EndAlignment:
+  EnforcedStyleAlignWith: variable

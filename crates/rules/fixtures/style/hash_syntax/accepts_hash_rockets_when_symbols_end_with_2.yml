@@ -3,3 +3,5 @@ Style/HashSyntax:
   SupportedStyles: [ruby19, hash_rockets]
   EnforcedShorthandSyntax: always
   SupportedShorthandSyntax: [always, never]
+Layout/SpaceAroundOperators:
+  AllowForAlignment: false

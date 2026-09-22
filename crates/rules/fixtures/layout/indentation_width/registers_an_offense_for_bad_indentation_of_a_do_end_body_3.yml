@@ -1,2 +1,6 @@
 AllCops:
   TargetRubyVersion: 3.4
+Layout/IndentationWidth:
+  AllowedPatterns: ~
+Layout/EndAlignment:
+  EnforcedStyleAlignWith: variable

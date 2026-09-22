@@ -1,2 +1,6 @@
 Style/Documentation:
-  Exclude: []
+  AllowedConstants: ~
+  Exclude: ~
+Style/CommentAnnotation:
+  Keywords: [TODO, FIXME, OPTIMIZE, HACK, REVIEW]
+  RequireColon: false

@@ -1,3 +1,6 @@
 Style/Documentation:
   AllowedConstants: [ClassMethods]
-  Exclude: []
+  Exclude: ~
+Style/CommentAnnotation:
+  Keywords: [TODO, FIXME, OPTIMIZE, HACK, REVIEW]
+  RequireColon: false

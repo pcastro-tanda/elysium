@@ -113,10 +113,22 @@ begin
         Description StyleGuide StyleGuideAlias Reference References
         VersionAdded VersionChanged VersionRemoved Details DocumentationReference
       ].freeze
+      # Enumerates the cop's own supported values for another key (e.g. `SupportedStyles` for
+      # `EnforcedStyle`, `SupportedStylesAlignWith` for `EnforcedStyleAlignWith`); metadata about
+      # what's *possible*, never a per-case override, so never belongs in a fixture .yml.
+      SUPPORTED_STYLES_KEY = /\ASupportedStyles/.freeze
       # Forced by the shared :config context (Enabled => true, AutoCorrect => 'always')
       # regardless of what the spec's own cop_config says; never a real per-case override
-      # unless the spec's cop_config itself sets AutoCorrect, which \`raw\` below already covers.
+      # unless the spec's cop_config itself sets AutoCorrect, which `raw` below already covers.
       SYNTHETIC_KEYS = %w[Enabled AutoCorrect].freeze
+      # `AllCops` keys worth reproducing as a peer override when a spec-local `let(:config)`
+      # sets them away from RuboCop's real defaults. Excludes every other `AllCops` key (cache
+      # paths, formatter selection, doc URLs, …) that never affects cop behavior and would just
+      # be noise. `TargetRubyVersion` is handled separately via `ruby_version`/`needs_ruby_version`.
+      ALL_COPS_OVERRIDE_KEYS = %w[
+        TargetRubyVersion TargetRailsVersion StringLiteralsFrozenByDefault
+        ActiveSupportExtensionsEnabled DisabledByDefault EnabledByDefault NewCops
+      ].freeze
 
       def current_path
         self.class.parent_groups.reverse.map(&:description) + [RSpec.current_example.description]
@@ -137,7 +149,7 @@ begin
 
       def diff_against_defaults(hash, real_defaults, exclude: [], keys: hash.keys)
         keys.each_with_object({}) do |k, acc|
-          next if exclude.include?(k)
+          next if exclude.include?(k) || k.match?(SUPPORTED_STYLES_KEY)
 
           normalized = normalize_option(hash[k], real_defaults[k])
           acc[k] = normalized unless normalized == real_defaults[k]
@@ -176,6 +188,53 @@ begin
         )
       end
 
+      # Peer cops and AllCops keys the spec's *effective* config (cop.config, the merged
+      # RuboCop::Config actually handed to the cop under test) sets away from RuboCop's real
+      # defaults. Most specs only ever touch peer cops via `let(:other_cops)`, which the shared
+      # :config context merges into `config` alongside the cop under test — already captured
+      # verbatim as `other_cops` at entry-creation time. A few specs (e.g.
+      # Layout::IndentationWidth, Layout::LineLength) instead define their own `let(:config) {
+      # RuboCop::Config.new(...) }` naming peer cops directly, bypassing `other_cops` entirely;
+      # walking every `cop.config` key that looks like a cop name (contains '/') and diffing its
+      # `for_cop` value against real defaults catches those too. Unlike the cop-under-test diff,
+      # SYNTHETIC_KEYS is NOT excluded here: `Enabled`/`AutoCorrect` on a *peer* cop are genuine,
+      # meaningful overrides (e.g. `Layout/LineLength: { Enabled: false }`), never a test-harness
+      # artifact. A `nil` peer value, unlike a `nil` cop_config value, is never kept as `~`: it
+      # only means the manually-built `RuboCop::Config` never mentioned that peer cop's key at
+      # all (the peer was never configured for *any* option, cop_config or otherwise), so it's
+      # unset noise, not an intentional override. `AllCops` is restricted to a small allowlist of
+      # keys that actually affect cop behavior (formatter/cache/doc-URL keys are noise);
+      # `TargetRubyVersion` is excluded here — already handled separately via `ruby_version`.
+      def effective_peer_overrides
+        default_config = RuboCop::ConfigLoader.default_configuration
+        effective = cop.config
+        peers = {}
+        effective.to_h.each_key do |key|
+          next unless key.include?('/')
+          next if key == cop_class.cop_name
+
+          cop_effective = effective.for_cop(key)
+          real_defaults = default_config.for_cop(key)
+          diffed = diff_against_defaults(
+            cop_effective, real_defaults,
+            exclude: DOC_ONLY_KEYS,
+            keys: cop_effective.keys | real_defaults.keys
+          )
+          diffed.reject! { |_, v| v.nil? }
+          peers[key] = diffed unless diffed.empty?
+        end
+        all_cops_effective = effective['AllCops'] || {}
+        all_cops_defaults = default_config['AllCops'] || {}
+        all_cops_diff = diff_against_defaults(
+          all_cops_effective, all_cops_defaults,
+          exclude: DOC_ONLY_KEYS + ['TargetRubyVersion'],
+          keys: ALL_COPS_OVERRIDE_KEYS
+        )
+        all_cops_diff.reject! { |_, v| v.nil? }
+        peers['AllCops'] = all_cops_diff unless all_cops_diff.empty?
+        peers
+      end
+
       def expect_offense(source, file = nil, severity: nil, chomp: false, **replacements)
         raw = cop_config_overrides
         entry = {
@@ -188,6 +247,7 @@ begin
         }
         result = super
         entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
+        entry['other_cops'] = effective_peer_overrides.merge(entry['other_cops'])
         # Reuse the offenses `super` already found instead of re-parsing annotations via
         # `parse_annotations`, which also calls `set_formatter_options` and would wipe out
         # state (e.g. exclude_limit's config_to_allow_offenses tracking) that `super`'s own
@@ -234,7 +294,7 @@ begin
             'path' => current_path,
             'file' => nil,
             'cop_config' => raw.merge(effective_cop_config_extra(raw)),
-            'other_cops' => other_cops,
+            'other_cops' => effective_peer_overrides.merge(other_cops),
             'ruby_version' => ruby_version,
             'annotated' => annotated
           }
@@ -268,6 +328,7 @@ begin
         }
         result = super
         entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
+        entry['other_cops'] = effective_peer_overrides.merge(entry['other_cops'])
         CAPTURES << entry
         @__last_entry = entry
         result
@@ -396,16 +457,18 @@ begin
     end
 
     cop_config = c['cop_config'] || {}
-    other_cops = c['other_cops'] || {}
+    other_cops = (c['other_cops'] || {}).dup
+    all_cops = other_cops.delete('AllCops') || {}
     rv = c['ruby_version']
     needs_ruby_version = rv && rv.to_f != default_ruby_version
+    all_cops = { 'TargetRubyVersion' => rv }.merge(all_cops) if needs_ruby_version
     file_comment = c['file']
 
-    next if cop_config.empty? && other_cops.empty? && !needs_ruby_version && !file_comment
+    next if cop_config.empty? && other_cops.empty? && all_cops.empty? && !file_comment
 
     yml_lines = []
     yml_lines << "# file: #{file_comment}" if file_comment
-    yml_lines << "AllCops:\n  TargetRubyVersion: #{rv}" if needs_ruby_version
+    yml_lines << "AllCops:\n#{all_cops.map { |k, v| "  #{k}: #{yaml_value(v)}" }.join("\n")}" unless all_cops.empty?
     yml_lines << "#{options[:cop]}:\n#{cop_config.map { |k, v| "  #{k}: #{yaml_value(v)}" }.join("\n")}" unless cop_config.empty?
     other_cops.each do |name_, settings|
       body = settings.is_a?(Hash) ? settings.map { |k, v| "  #{k}: #{yaml_value(v)}" }.join("\n") : "  #{yaml_value(settings)}"

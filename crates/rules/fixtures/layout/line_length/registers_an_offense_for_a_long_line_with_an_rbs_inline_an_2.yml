@@ -5,3 +5,5 @@ Layout/LineLength:
   AllowQualifiedName: false
   AllowCopDirectives: false
   AllowedPatterns: ~
+Layout/IndentationStyle:
+  IndentationWidth: 2

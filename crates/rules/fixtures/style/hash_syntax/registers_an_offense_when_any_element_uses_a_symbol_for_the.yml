@@ -2,4 +2,4 @@ Style/HashSyntax:
   SupportedStyles: [ruby19, hash_rockets]
   UseHashRocketsWithSymbolValues: true
   EnforcedShorthandSyntax: ~
-  SupportedShorthandSyntax: []
+  SupportedShorthandSyntax: ~

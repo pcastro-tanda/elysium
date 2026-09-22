@@ -1,0 +1,6 @@
+Layout/IndentationWidth:
+  AllowedPatterns: ~
+Layout/EndAlignment:
+  EnforcedStyleAlignWith: variable
+Layout/DefEndAlignment:
+  EnforcedStyleAlignWith: def

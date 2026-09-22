@@ -1,0 +1,6 @@
+Layout/IndentationWidth:
+  AllowedPatterns: ~
+Layout/AccessModifierIndentation:
+  EnforcedStyle: outdent
+Layout/EndAlignment:
+  EnforcedStyleAlignWith: variable

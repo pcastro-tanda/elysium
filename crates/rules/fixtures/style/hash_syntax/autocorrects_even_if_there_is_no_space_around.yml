@@ -1,4 +1,7 @@
 Style/HashSyntax:
   SupportedStyles: [ruby19, hash_rockets]
   EnforcedShorthandSyntax: ~
-  SupportedShorthandSyntax: []
+  SupportedShorthandSyntax: ~
+Layout/SpaceAroundOperators:
+  Enabled: false
+  AllowForAlignment: false

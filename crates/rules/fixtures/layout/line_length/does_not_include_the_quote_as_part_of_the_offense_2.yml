@@ -4,3 +4,5 @@ Layout/LineLength:
   AllowURI: false
   AllowCopDirectives: false
   AllowedPatterns: ~
+Layout/IndentationStyle:
+  IndentationWidth: 2

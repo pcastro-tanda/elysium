@@ -5,3 +5,8 @@ Layout/LineLength:
   AllowQualifiedName: false
   URISchemes: ~
   AllowCopDirectives: false
+Layout/IndentationWidth:
+  Width: 1
+Layout/IndentationStyle:
+  Enabled: false
+  IndentationWidth: 2

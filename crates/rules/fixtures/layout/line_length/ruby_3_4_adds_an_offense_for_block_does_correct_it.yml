@@ -9,3 +9,5 @@ Layout/LineLength:
   AllowURI: false
   AllowQualifiedName: false
   AllowCopDirectives: false
+Layout/IndentationStyle:
+  IndentationWidth: 2
