@@ -98,9 +98,13 @@ pub fn option_value(value: &YamlValue) -> OptionValue {
     }
 }
 
-/// A cop's configured options, in the rule-facing representation.
+/// A cop's configured options, in the rule-facing representation, plus its
+/// resolved `Enabled` flag so a rule can mirror RuboCop's `for_enabled_cop`
+/// (a disabled peer's options do not apply).
 fn cop_options(cop: &CopConfig) -> Vec<(String, OptionValue)> {
-    cop.options.iter().map(|(key, value)| (key.clone(), option_value(value))).collect()
+    std::iter::once(("Enabled".to_string(), OptionValue::Bool(cop.enabled)))
+        .chain(cop.options.iter().map(|(key, value)| (key.clone(), option_value(value))))
+        .collect()
 }
 
 /// Every cop's options plus `AllCops`, so a rule can read another cop's
