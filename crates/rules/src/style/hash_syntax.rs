@@ -13,20 +13,25 @@
 //! The mixin's parenthesization/ancestor logic (`require_hash_value?`,
 //! `def_node_that_require_parentheses`, `last_expression?`, ...) needs
 //! parent/sibling information Prism's value-typed nodes don't carry
-//! natively. `file_start` walks the whole tree once with a generic
-//! [`ruby_ast::Visitor`] to build a parent map, an ordered sibling-list map,
-//! and a small set of precomputed per-node facts (parenthesized?,
-//! modifier-form?, assignment-chain?, ...); the per-hash checks below query
-//! those maps instead of re-deriving them from raw nodes.
+//! natively. Rather than re-walking the whole tree once per file, this rule
+//! subscribes to every node kind [`compute_facts`] recognizes (calls,
+//! modifier-form conditionals, parenthesized groups, assignment writers)
+//! plus [`NodeKind::StatementsNode`], and fills two small per-file caches
+//! as the engine's single traversal reaches them: `facts` (parenthesized?,
+//! receiver, modifier-form?, ...) and `right_siblings` (which direct
+//! `StatementsNode` items are not the last one). When a hash literal is
+//! entered, [`Context::ancestors`] gives its true ancestor chain for free;
+//! the per-hash checks below walk that chain (via [`AncestorView`]),
+//! consulting the caches only for facts a bare `NodeKind` can't carry.
 
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 use linter::{
     Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
-    OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
+    NodeInfo, OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::node::AssocNode;
-use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind, Visitor};
+use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 const MSG_19: &str = "Use the new Ruby 1.9 hash syntax.";
@@ -68,9 +73,9 @@ enum Bucket {
     Omittable,
 }
 
-/// A node identity: span plus kind, unique enough to key the ancestor maps
-/// (two distinct nodes sharing both a span and a kind do not occur in
-/// practice for the node kinds these maps track).
+/// A node identity: span plus kind, unique enough to key the fact/sibling
+/// caches (two distinct nodes sharing both a span and a kind do not occur
+/// in practice for the node kinds these caches track).
 type Key = (Span, NodeKind);
 
 /// Precomputed facts about one node, gathered while it is visited (before
@@ -101,114 +106,118 @@ struct Facts {
     is_parens_group: bool,
 }
 
-/// Parent, sibling-order, and fact lookups built once per file by
-/// [`MapBuilder`].
-#[derive(Debug, Default, Clone)]
-struct AncestorMaps {
-    parent_of: HashMap<Key, Key>,
-    children_of: HashMap<Key, Vec<Key>>,
-    facts: HashMap<Key, Facts>,
+/// A per-hash-literal view over the file-wide `facts`/`right_siblings`
+/// caches plus the ancestor chain [`Context::ancestors`] captured when the
+/// hash itself was entered (outermost first, excluding the hash). Answers
+/// the same parent/sibling questions a whole-tree parent/child map used to,
+/// by walking that chain instead of following parent pointers.
+struct AncestorView<'a> {
+    ancestors: &'a [NodeInfo],
+    facts: &'a HashMap<Key, Facts>,
+    right_siblings: &'a HashSet<Key>,
 }
 
-impl AncestorMaps {
-    fn facts_of(&self, key: Key) -> Facts {
-        self.facts.get(&key).cloned().unwrap_or_default()
+impl AncestorView<'_> {
+    fn facts_of(&self, info: NodeInfo) -> Facts {
+        self.facts.get(&(info.span, info.kind)).cloned().unwrap_or_default()
     }
 
-    fn has_right_sibling(&self, key: Key) -> bool {
-        let Some(parent) = self.parent_of.get(&key) else { return false };
-        let Some(kids) = self.children_of.get(parent) else { return false };
-        match kids.iter().position(|k| *k == key) {
-            Some(i) => i + 1 < kids.len(),
-            None => false,
-        }
+    fn has_right_sibling(&self, info: NodeInfo) -> bool {
+        self.right_siblings.contains(&(info.span, info.kind))
     }
 
-    /// RuboCop's `find_ancestor_method_dispatch_node`: the nearest `Call`/
-    /// `Super`/`Yield` ancestor of the hash at `hash_key` (transparently
-    /// skipping the [`NodeKind::ArgumentsNode`] wrapper Prism inserts,
-    /// which whitequark's flatter AST has no equivalent of), excluding
-    /// `[]`/`[]=` calls.
-    fn dispatch_ancestor(&self, hash_key: Key) -> Option<Key> {
-        let parent = *self.parent_of.get(&hash_key)?;
-        let ancestor = if parent.1 == NodeKind::ArgumentsNode {
-            *self.parent_of.get(&parent)?
+    /// RuboCop's `find_ancestor_method_dispatch_node`: the index (within
+    /// `self.ancestors`) of the nearest `Call`/`Super`/`Yield` ancestor of
+    /// the hash currently being visited (transparently skipping the
+    /// [`NodeKind::ArgumentsNode`] wrapper Prism inserts, which
+    /// whitequark's flatter AST has no equivalent of), excluding `[]`/`[]=`
+    /// calls.
+    fn dispatch_ancestor(&self) -> Option<usize> {
+        let parent_idx = self.ancestors.len().checked_sub(1)?;
+        let parent = self.ancestors[parent_idx];
+        let idx = if parent.kind == NodeKind::ArgumentsNode {
+            parent_idx.checked_sub(1)?
         } else {
-            parent
+            parent_idx
         };
-        if !matches!(ancestor.1, NodeKind::CallNode | NodeKind::SuperNode | NodeKind::YieldNode) {
+        let ancestor = self.ancestors[idx];
+        if !matches!(ancestor.kind, NodeKind::CallNode | NodeKind::SuperNode | NodeKind::YieldNode)
+        {
             return None;
         }
         if self.facts_of(ancestor).is_bracket {
             return None;
         }
-        Some(ancestor)
+        Some(idx)
     }
 
-    /// RuboCop's `method_dispatch_as_argument?`: `key`'s effective parent
-    /// (skipping the `ArgumentsNode` wrapper) is itself a `Call`/`Super`/
-    /// `Yield` node.
-    fn method_dispatch_as_argument(&self, key: Key) -> bool {
-        let Some(&parent) = self.parent_of.get(&key) else { return false };
-        let effective = if parent.1 == NodeKind::ArgumentsNode {
-            self.parent_of.get(&parent).copied()
+    /// RuboCop's `method_dispatch_as_argument?`: the ancestor at `idx`'s
+    /// effective parent (skipping the `ArgumentsNode` wrapper) is itself a
+    /// `Call`/`Super`/`Yield` node.
+    fn method_dispatch_as_argument(&self, idx: usize) -> bool {
+        let Some(parent_idx) = idx.checked_sub(1) else { return false };
+        let parent = self.ancestors[parent_idx];
+        let effective = if parent.kind == NodeKind::ArgumentsNode {
+            parent_idx.checked_sub(1).map(|i| self.ancestors[i])
         } else {
             Some(parent)
         };
         matches!(
-            effective.map(|e| e.1),
+            effective.map(|e| e.kind),
             Some(NodeKind::CallNode | NodeKind::SuperNode | NodeKind::YieldNode)
         )
     }
 
     /// RuboCop's `last_expression?`.
-    fn last_expression(&self, key: Key) -> bool {
-        if self.has_right_sibling(key) {
+    fn last_expression(&self, idx: usize) -> bool {
+        if self.has_right_sibling(self.ancestors[idx]) {
             return false;
         }
-        let mut cur = self.parent_of.get(&key).copied();
-        let mut assignment = None;
-        while let Some(k) = cur {
-            if self.facts_of(k).is_chain_assignment {
-                assignment = Some(k);
+        let mut cur = idx;
+        let mut assignment_idx = None;
+        while cur > 0 {
+            cur -= 1;
+            if self.facts_of(self.ancestors[cur]).is_chain_assignment {
+                assignment_idx = Some(cur);
                 break;
             }
-            cur = self.parent_of.get(&k).copied();
         }
-        let Some(mut asg) = assignment else { return true };
-        while let Some(&p) = self.parent_of.get(&asg) {
+        let Some(mut asg_idx) = assignment_idx else { return true };
+        while asg_idx > 0 {
+            let p = self.ancestors[asg_idx - 1];
             if self.facts_of(p).is_chain_assignment {
-                asg = p;
+                asg_idx -= 1;
             } else {
                 break;
             }
         }
-        !self.has_right_sibling(asg)
+        !self.has_right_sibling(self.ancestors[asg_idx])
     }
 
     /// RuboCop's `require_hash_value_for_around_hash_literal?`.
-    fn require_value_for_around_literal(&self, hash_key: Key) -> bool {
-        let Some(ancestor) = self.dispatch_ancestor(hash_key) else { return false };
-        if hash_key.1 == NodeKind::HashNode {
+    fn require_value_for_around_literal(&self, hash_kind: NodeKind, hash_span: Span) -> bool {
+        let Some(idx) = self.dispatch_ancestor() else { return false };
+        if hash_kind == NodeKind::HashNode {
             // `!node.parent.braces?`: a braced hash is never the receiver
             // of, or a bare keyword-argument to, anything that would need
             // disambiguating.
             return false;
         }
+        let ancestor = self.ancestors[idx];
         let facts = self.facts_of(ancestor);
-        if facts.receiver == Some(hash_key.0) {
+        if facts.receiver == Some(hash_span) {
             // `use_element_of_hash_literal_as_receiver?`.
             return false;
         }
         if facts.parenthesized {
             return false;
         }
-        let mut cur = self.parent_of.get(&ancestor).copied();
-        while let Some(k) = cur {
-            if self.facts_of(k).is_modifier {
+        let mut cur = idx;
+        while cur > 0 {
+            cur -= 1;
+            if self.facts_of(self.ancestors[cur]).is_modifier {
                 return true;
             }
-            cur = self.parent_of.get(&k).copied();
         }
         false
     }
@@ -216,21 +225,20 @@ impl AncestorMaps {
     /// RuboCop's `def_node_that_require_parentheses`, returning the
     /// whitespace span to replace with `(` and the offset to insert `)`
     /// after, if the call needs wrapping.
-    fn parens_needed(&self, hash_key: Key, last_pair_eligible: bool) -> Option<(Span, u32)> {
+    fn parens_needed(&self, last_pair_eligible: bool) -> Option<(Span, u32)> {
         if !last_pair_eligible {
             return None;
         }
-        let ancestor = self.dispatch_ancestor(hash_key)?;
+        let idx = self.dispatch_ancestor()?;
+        let ancestor = self.ancestors[idx];
         let facts = self.facts_of(ancestor);
         if facts.is_assignment_method || facts.parenthesized {
             return None;
         }
-        if let Some(&parent) = self.parent_of.get(&ancestor) {
-            if self.facts_of(parent).is_parens_group {
-                return None;
-            }
+        if idx > 0 && self.facts_of(self.ancestors[idx - 1]).is_parens_group {
+            return None;
         }
-        if self.last_expression(ancestor) && !self.method_dispatch_as_argument(ancestor) {
+        if self.last_expression(idx) && !self.method_dispatch_as_argument(idx) {
             return None;
         }
         if facts.args.is_empty() {
@@ -241,30 +249,28 @@ impl AncestorMaps {
         let selector = facts.selector?;
         Some((Span::new(selector.end, first_arg.start), last_arg.end))
     }
-}
 
-/// Walks the whole tree once (independent of [`HashSyntax`]'s own
-/// `enter`/`leave` subscription) to build [`AncestorMaps`].
-struct MapBuilder {
-    stack: Vec<Key>,
-    maps: AncestorMaps,
-}
-
-impl<'pr> Visitor<'pr> for MapBuilder {
-    fn enter(&mut self, node: &Node<'pr>) {
-        let key: Key = (node.span(), node.kind());
-        if let Some(&parent) = self.stack.last() {
-            self.maps.parent_of.insert(key, parent);
-            self.maps.children_of.entry(parent).or_default().push(key);
+    /// RuboCop's `hash_node.parent&.return_type? && !hash_node.braces?`.
+    fn needs_brace_wrap(&self, hash_kind: NodeKind) -> bool {
+        if hash_kind != NodeKind::KeywordHashNode {
+            return false;
         }
-        self.stack.push(key);
-        if let Some(facts) = compute_facts(node) {
-            self.maps.facts.insert(key, facts);
-        }
+        let Some(parent_idx) = self.ancestors.len().checked_sub(1) else { return false };
+        let parent = self.ancestors[parent_idx];
+        let effective = if parent.kind == NodeKind::ArgumentsNode {
+            parent_idx.checked_sub(1).map(|i| self.ancestors[i])
+        } else {
+            Some(parent)
+        };
+        effective.is_some_and(|e| e.kind == NodeKind::ReturnNode)
     }
 
-    fn leave(&mut self, _node: &Node<'pr>) {
-        self.stack.pop();
+    /// RuboCop's `argument_without_space?`: the hash starts exactly where
+    /// an enclosing bare call's selector ends (no space between them).
+    fn argument_without_space(&self, hash_span: Span) -> bool {
+        let Some(idx) = self.dispatch_ancestor() else { return false };
+        let Some(selector) = self.facts_of(self.ancestors[idx]).selector else { return false };
+        selector.end == hash_span.start
     }
 }
 
@@ -406,7 +412,13 @@ pub struct HashSyntax {
     use_hash_rockets_with_symbol_values: bool,
     prefer_hash_rockets_for_non_alnum_ending_symbols: bool,
     target_ruby_version: f64,
-    maps: AncestorMaps,
+    /// Facts about every `Call`/`Super`/`Yield`/modifier-conditional/
+    /// parentheses-group/assignment-writer node seen so far this file,
+    /// filled as the engine's single traversal reaches them.
+    facts: HashMap<Key, Facts>,
+    /// Direct `StatementsNode` items that are not their body's last item,
+    /// filled as each `StatementsNode` is entered.
+    right_siblings: HashSet<Key>,
 }
 
 impl HashSyntax {
@@ -463,6 +475,7 @@ impl HashSyntax {
         flag_colon: bool,
         msg: &'static str,
         force_rockets: bool,
+        view: &AncestorView<'_>,
         ctx: &mut Context<'_>,
     ) {
         let mut wrapped_in_braces = false;
@@ -481,11 +494,11 @@ impl HashSyntax {
             let fix = if to_rockets {
                 fix_to_hash_rockets(pair)
             } else {
-                let wrap = !wrapped_in_braces && needs_brace_wrap(&self.maps, hash_key);
+                let wrap = !wrapped_in_braces && view.needs_brace_wrap(hash_key.1);
                 if wrap {
                     wrapped_in_braces = true;
                 }
-                fix_to_ruby19(&self.maps, hash_key, pair, hash, wrap)
+                fix_to_ruby19(view, hash_key, pair, hash, wrap)
             };
             ctx.report_with_fix(&Self::META, offense_span, msg, fix);
         }
@@ -496,19 +509,20 @@ impl HashSyntax {
         hash: &Node<'_>,
         hash_key: Key,
         pairs: &[AssocNode<'_>],
+        view: &AncestorView<'_>,
         ctx: &mut Context<'_>,
     ) {
         let force_rockets = self.force_hash_rockets(pairs);
         if self.style == Style::HashRockets || force_rockets {
-            self.check(hash, hash_key, pairs, true, MSG_HASH_ROCKETS, force_rockets, ctx);
+            self.check(hash, hash_key, pairs, true, MSG_HASH_ROCKETS, force_rockets, view, ctx);
             return;
         }
         match self.style {
             Style::Ruby19NoMixedKeys => {
                 if self.sym_indices(pairs) {
-                    self.check(hash, hash_key, pairs, false, MSG_19, false, ctx);
+                    self.check(hash, hash_key, pairs, false, MSG_19, false, view, ctx);
                 } else {
-                    self.check(hash, hash_key, pairs, true, MSG_NO_MIXED_KEYS, false, ctx);
+                    self.check(hash, hash_key, pairs, true, MSG_NO_MIXED_KEYS, false, view, ctx);
                 }
             }
             Style::NoMixedKeys => {
@@ -521,90 +535,92 @@ impl HashSyntax {
                         !first_is_colon,
                         MSG_NO_MIXED_KEYS,
                         false,
+                        view,
                         ctx,
                     );
                 } else {
-                    self.check(hash, hash_key, pairs, true, MSG_NO_MIXED_KEYS, false, ctx);
+                    self.check(hash, hash_key, pairs, true, MSG_NO_MIXED_KEYS, false, view, ctx);
                 }
             }
             Style::Ruby19 => {
                 if self.sym_indices(pairs) {
-                    self.check(hash, hash_key, pairs, false, MSG_19, false, ctx);
+                    self.check(hash, hash_key, pairs, false, MSG_19, false, view, ctx);
                 }
             }
             Style::HashRockets => unreachable!("handled above"),
         }
     }
+}
 
-    /// RuboCop's `require_hash_value?`.
-    fn require_hash_value(&self, hash_key: Key, pair: &AssocNode<'_>) -> bool {
-        if pair.key().as_symbol_node().is_none() {
-            return true;
-        }
-        if self.maps.require_value_for_around_literal(hash_key) {
-            return true;
-        }
-        let value = pair.value();
-        if value.as_call_node().is_none() && value.as_local_variable_read_node().is_none() {
-            return true;
-        }
-        let key_text = stripped_symbol_text(pair.key().location().as_slice(), false);
-        let value_text = value.location().as_slice();
-        key_text != value_text || key_text.ends_with(b"!") || key_text.ends_with(b"?")
+fn require_hash_value(hash_key: Key, pair: &AssocNode<'_>, view: &AncestorView<'_>) -> bool {
+    if pair.key().as_symbol_node().is_none() {
+        return true;
     }
+    if view.require_value_for_around_literal(hash_key.1, hash_key.0) {
+        return true;
+    }
+    let value = pair.value();
+    if value.as_call_node().is_none() && value.as_local_variable_read_node().is_none() {
+        return true;
+    }
+    let key_text = stripped_symbol_text(pair.key().location().as_slice(), false);
+    let value_text = value.location().as_slice();
+    key_text != value_text || key_text.ends_with(b"!") || key_text.ends_with(b"?")
+}
 
-    /// RuboCop's `register_offense` for the shorthand mixin: replaces the
-    /// whole pair, optionally also wrapping the enclosing bare call in
-    /// parentheses when omitting the last pair's value would otherwise be
-    /// ambiguous.
-    #[allow(clippy::too_many_arguments)]
-    fn emit_shorthand(
-        &self,
-        hash_key: Key,
-        pair: &AssocNode<'_>,
-        last_pair: &AssocNode<'_>,
-        msg: &'static str,
-        replacement: Vec<u8>,
-        offense_span: Span,
-        adds_parens: bool,
-        ctx: &mut Context<'_>,
-    ) {
-        let mut edits = vec![Edit::replace(pair.location().span(), replacement)];
-        if adds_parens {
-            let last_eligible = pair_is_shortenable(last_pair);
-            if let Some((open, close_at)) = self.maps.parens_needed(hash_key, last_eligible) {
-                if pair.location().span() == last_pair.location().span() {
-                    edits.push(Edit::replace(open, b"(".to_vec()));
-                    edits.push(Edit::insert(close_at, b")".to_vec()));
-                } else {
-                    // The opening paren only needs inserting once; attach it
-                    // to every offending pair is harmless in RuboCop (same
-                    // edit, deduped by its rewriter) but our fixes apply
-                    // independently, so only the pair that is itself the
-                    // last one carries both edits, and earlier pairs in the
-                    // same hash carry neither (the last pair's own fix, or
-                    // a not-yet-processed sibling, supplies them).
-                }
+/// RuboCop's `register_offense` for the shorthand mixin: replaces the
+/// whole pair, optionally also wrapping the enclosing bare call in
+/// parentheses when omitting the last pair's value would otherwise be
+/// ambiguous.
+#[allow(clippy::too_many_arguments)]
+fn emit_shorthand(
+    pair: &AssocNode<'_>,
+    last_pair: &AssocNode<'_>,
+    msg: &'static str,
+    replacement: Vec<u8>,
+    offense_span: Span,
+    adds_parens: bool,
+    view: &AncestorView<'_>,
+    ctx: &mut Context<'_>,
+) {
+    let mut edits = vec![Edit::replace(pair.location().span(), replacement)];
+    if adds_parens {
+        let last_eligible = pair_is_shortenable(last_pair);
+        if let Some((open, close_at)) = view.parens_needed(last_eligible) {
+            if pair.location().span() == last_pair.location().span() {
+                edits.push(Edit::replace(open, b"(".to_vec()));
+                edits.push(Edit::insert(close_at, b")".to_vec()));
+            } else {
+                // The opening paren only needs inserting once; attach it
+                // to every offending pair is harmless in RuboCop (same
+                // edit, deduped by its rewriter) but our fixes apply
+                // independently, so only the pair that is itself the
+                // last one carries both edits, and earlier pairs in the
+                // same hash carry neither (the last pair's own fix, or
+                // a not-yet-processed sibling, supplies them).
             }
         }
-        let fix = Fix { applicability: Applicability::Safe, edits };
-        ctx.report_with_fix(&Self::META, offense_span, msg, fix);
     }
+    let fix = Fix { applicability: Applicability::Safe, edits };
+    ctx.report_with_fix(&HashSyntax::META, offense_span, msg, fix);
+}
 
+impl HashSyntax {
     fn check_pair_shorthand(
         &self,
         hash_key: Key,
         pair: &AssocNode<'_>,
         last_pair: &AssocNode<'_>,
+        view: &AncestorView<'_>,
         ctx: &mut Context<'_>,
     ) {
         let omitted = pair.value().as_implicit_node().is_some();
         match self.shorthand {
             Shorthand::Always => {
-                if omitted || self.require_hash_value(hash_key, pair) {
+                if omitted || require_hash_value(hash_key, pair, view) {
                     return;
                 }
-                self.emit_omit(hash_key, pair, last_pair, OMIT_HASH_VALUE_MSG, ctx);
+                emit_omit(pair, last_pair, OMIT_HASH_VALUE_MSG, view, ctx);
             }
             Shorthand::Never => {
                 if !omitted {
@@ -615,19 +631,18 @@ impl HashSyntax {
             Shorthand::Either | Shorthand::Consistent | Shorthand::EitherConsistent => {}
         }
     }
+}
 
-    fn emit_omit(
-        &self,
-        hash_key: Key,
-        pair: &AssocNode<'_>,
-        last_pair: &AssocNode<'_>,
-        msg: &'static str,
-        ctx: &mut Context<'_>,
-    ) {
-        let replacement = pair.key().location().as_slice().to_vec();
-        let offense_span = pair.value().span();
-        self.emit_shorthand(hash_key, pair, last_pair, msg, replacement, offense_span, true, ctx);
-    }
+fn emit_omit(
+    pair: &AssocNode<'_>,
+    last_pair: &AssocNode<'_>,
+    msg: &'static str,
+    view: &AncestorView<'_>,
+    ctx: &mut Context<'_>,
+) {
+    let replacement = pair.key().location().as_slice().to_vec();
+    let offense_span = pair.value().span();
+    emit_shorthand(pair, last_pair, msg, replacement, offense_span, true, view, ctx);
 }
 
 fn emit_include(pair: &AssocNode<'_>, msg: &'static str, ctx: &mut Context<'_>) {
@@ -643,7 +658,13 @@ fn emit_include(pair: &AssocNode<'_>, msg: &'static str, ctx: &mut Context<'_>) 
 }
 
 impl HashSyntax {
-    fn check_mixed_shorthand(&self, hash_key: Key, pairs: &[AssocNode<'_>], ctx: &mut Context<'_>) {
+    fn check_mixed_shorthand(
+        &self,
+        hash_key: Key,
+        pairs: &[AssocNode<'_>],
+        view: &AncestorView<'_>,
+        ctx: &mut Context<'_>,
+    ) {
         if self.target_ruby_version <= 3.0
             || (hash_key.1 != NodeKind::HashNode && hash_key.1 != NodeKind::KeywordHashNode)
         {
@@ -655,7 +676,7 @@ impl HashSyntax {
             .map(|p| {
                 let b = if p.value().as_implicit_node().is_some() {
                     Bucket::Omitted
-                } else if self.require_hash_value(hash_key, p) {
+                } else if require_hash_value(hash_key, p, view) {
                     Bucket::Needed
                 } else {
                     Bucket::Omittable
@@ -678,7 +699,7 @@ impl HashSyntax {
             } else {
                 for (b, p) in &buckets {
                     if *b == Bucket::Omittable {
-                        self.emit_omit(hash_key, p, last_pair, DO_NOT_MIX_OMIT_VALUE_MSG, ctx);
+                        emit_omit(p, last_pair, DO_NOT_MIX_OMIT_VALUE_MSG, view, ctx);
                     }
                 }
             }
@@ -692,12 +713,18 @@ impl HashSyntax {
         }
         if has_omittable {
             for (_, p) in &buckets {
-                self.emit_omit(hash_key, p, last_pair, OMIT_HASH_VALUE_MSG, ctx);
+                emit_omit(p, last_pair, OMIT_HASH_VALUE_MSG, view, ctx);
             }
         }
     }
 
-    fn check_shorthand(&self, hash_key: Key, pairs: &[AssocNode<'_>], ctx: &mut Context<'_>) {
+    fn check_shorthand(
+        &self,
+        hash_key: Key,
+        pairs: &[AssocNode<'_>],
+        view: &AncestorView<'_>,
+        ctx: &mut Context<'_>,
+    ) {
         if self.target_ruby_version <= 3.0 {
             return;
         }
@@ -706,11 +733,11 @@ impl HashSyntax {
             Shorthand::Always | Shorthand::Never => {
                 let Some(last_pair) = pairs.last() else { return };
                 for pair in pairs {
-                    self.check_pair_shorthand(hash_key, pair, last_pair, ctx);
+                    self.check_pair_shorthand(hash_key, pair, last_pair, view, ctx);
                 }
             }
             Shorthand::Consistent | Shorthand::EitherConsistent => {
-                self.check_mixed_shorthand(hash_key, pairs, ctx);
+                self.check_mixed_shorthand(hash_key, pairs, view, ctx);
             }
         }
     }
@@ -737,30 +764,8 @@ fn operator_span(pair: &AssocNode<'_>, key_span: Span) -> Span {
     }
 }
 
-/// RuboCop's `argument_without_space?`: the hash starts exactly where an
-/// enclosing bare call's selector ends (no space between them).
-fn argument_without_space(maps: &AncestorMaps, hash_key: Key) -> bool {
-    let Some(ancestor) = maps.dispatch_ancestor(hash_key) else { return false };
-    let Some(selector) = maps.facts_of(ancestor).selector else { return false };
-    selector.end == hash_key.0.start
-}
-
-/// RuboCop's `hash_node.parent&.return_type? && !hash_node.braces?`.
-fn needs_brace_wrap(maps: &AncestorMaps, hash_key: Key) -> bool {
-    if hash_key.1 != NodeKind::KeywordHashNode {
-        return false;
-    }
-    let Some(&parent) = maps.parent_of.get(&hash_key) else { return false };
-    let effective = if parent.1 == NodeKind::ArgumentsNode {
-        maps.parent_of.get(&parent).copied()
-    } else {
-        Some(parent)
-    };
-    effective.is_some_and(|e| e.1 == NodeKind::ReturnNode)
-}
-
 fn fix_to_ruby19(
-    maps: &AncestorMaps,
+    view: &AncestorView<'_>,
     hash_key: Key,
     pair: &AssocNode<'_>,
     hash: &Node<'_>,
@@ -771,7 +776,7 @@ fn fix_to_ruby19(
     let pair_span = pair.location().span();
     let value_span = pair.value().span();
     let mut replacement = Vec::new();
-    if argument_without_space(maps, hash_key) {
+    if view.argument_without_space(hash_key.0) {
         replacement.push(b' ');
     }
     replacement.extend_from_slice(sym);
@@ -855,7 +860,44 @@ value omission syntax (default `either`):
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
         stability: Stability::Nursery,
-        kinds: &[NodeKind::HashNode, NodeKind::KeywordHashNode],
+        kinds: &[
+            NodeKind::HashNode,
+            NodeKind::KeywordHashNode,
+            NodeKind::StatementsNode,
+            NodeKind::CallNode,
+            NodeKind::SuperNode,
+            NodeKind::YieldNode,
+            NodeKind::IfNode,
+            NodeKind::UnlessNode,
+            NodeKind::WhileNode,
+            NodeKind::UntilNode,
+            NodeKind::ParenthesesNode,
+            NodeKind::LocalVariableWriteNode,
+            NodeKind::LocalVariableAndWriteNode,
+            NodeKind::LocalVariableOrWriteNode,
+            NodeKind::LocalVariableOperatorWriteNode,
+            NodeKind::InstanceVariableWriteNode,
+            NodeKind::InstanceVariableAndWriteNode,
+            NodeKind::InstanceVariableOrWriteNode,
+            NodeKind::InstanceVariableOperatorWriteNode,
+            NodeKind::ClassVariableWriteNode,
+            NodeKind::ClassVariableAndWriteNode,
+            NodeKind::ClassVariableOrWriteNode,
+            NodeKind::ClassVariableOperatorWriteNode,
+            NodeKind::GlobalVariableWriteNode,
+            NodeKind::GlobalVariableAndWriteNode,
+            NodeKind::GlobalVariableOrWriteNode,
+            NodeKind::GlobalVariableOperatorWriteNode,
+            NodeKind::ConstantWriteNode,
+            NodeKind::ConstantAndWriteNode,
+            NodeKind::ConstantOrWriteNode,
+            NodeKind::ConstantOperatorWriteNode,
+            NodeKind::ConstantPathWriteNode,
+            NodeKind::ConstantPathAndWriteNode,
+            NodeKind::ConstantPathOrWriteNode,
+            NodeKind::ConstantPathOperatorWriteNode,
+            NodeKind::MultiWriteNode,
+        ],
         config: &[
             ConfigOption {
                 name: "EnforcedStyle",
@@ -893,11 +935,21 @@ category.
 
 The `EnforcedShorthandSyntax` mixin's parenthesization logic
 (`def_node_that_require_parentheses`, `last_expression?`,
-`method_dispatch_as_argument?`) is re-derived here from a generic
-parent/sibling map built once per file (see the module docs), rather than
-RuboCop-AST's live `node.parent`/`node.right_sibling`/`each_ancestor`; it
-matches RuboCop's cop-spec-verified cases but has not been proven against
-every possible nesting.
+`method_dispatch_as_argument?`) is re-derived here from the ancestor chain
+`Context::ancestors` gives for free at the hash's own visit, plus a small
+per-file cache of facts about `Call`/`Super`/`Yield`/modifier-conditional/
+parentheses-group/assignment-writer nodes (see the module docs), rather
+than RuboCop-AST's live `node.parent`/`node.right_sibling`/`each_ancestor`;
+it matches RuboCop's cop-spec-verified cases but has not been proven
+against every possible nesting. In particular, `right_sibling?` is only
+tracked for direct `StatementsNode` items (matching every real body:
+method/block bodies, `if`/`unless`/`while`/`until`/`begin`/`rescue`
+branches, since Prism always wraps them); an ancestor call or assignment
+that instead sits as, e.g., an array element or a hash value is treated as
+having no right sibling, which only risks the false-negative direction
+(skipping a parenthesization that RuboCop would still consider safe to
+skip in that position anyway, or emitting one RuboCop's mixin would already
+render unambiguous).
 
 `TargetRubyVersion` is read via `AllCops` peer options for the `<= 3.0`
 (shorthand syntax unsupported) and `<= 2.1` (quoted-symbol ruby19 syntax
@@ -938,30 +990,63 @@ every pair but one's fix collide and get dropped instead).",
             prefer_hash_rockets_for_non_alnum_ending_symbols: options
                 .bool("PreferHashRocketsForNonAlnumEndingSymbols"),
             target_ruby_version,
-            maps: AncestorMaps::default(),
+            facts: HashMap::new(),
+            right_siblings: HashSet::new(),
         })
     }
 
-    fn file_start(&mut self, ctx: &mut Context<'_>) {
-        let mut builder = MapBuilder { stack: Vec::new(), maps: AncestorMaps::default() };
-        ruby_ast::walk(&ctx.parsed().root(), &mut builder);
-        self.maps = builder.maps;
+    fn file_start(&mut self, _ctx: &mut Context<'_>) {
+        self.facts.clear();
+        self.right_siblings.clear();
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
         let elements = match node.kind() {
+            NodeKind::StatementsNode => {
+                self.record_statements(node);
+                return;
+            }
             NodeKind::HashNode => node.as_hash_node().expect("kind matched").elements(),
             NodeKind::KeywordHashNode => {
                 node.as_keyword_hash_node().expect("kind matched").elements()
             }
-            _ => return,
+            _ => {
+                if let Some(facts) = compute_facts(node) {
+                    self.facts.insert((node.span(), node.kind()), facts);
+                }
+                return;
+            }
         };
         let pairs: Vec<AssocNode<'_>> = elements.iter().filter_map(|n| n.as_assoc_node()).collect();
         if pairs.is_empty() {
             return;
         }
         let hash_key: Key = (node.span(), node.kind());
-        self.check_shorthand(hash_key, &pairs, ctx);
-        self.check_style(node, hash_key, &pairs, ctx);
+        let ancestors: Vec<NodeInfo> = ctx.ancestors().to_vec();
+        let view = AncestorView {
+            ancestors: &ancestors,
+            facts: &self.facts,
+            right_siblings: &self.right_siblings,
+        };
+        self.check_shorthand(hash_key, &pairs, &view, ctx);
+        self.check_style(node, hash_key, &pairs, &view, ctx);
+    }
+}
+
+impl HashSyntax {
+    /// Records, for every direct item of this `StatementsNode`'s body
+    /// except the last, that it has a right sibling (RuboCop-AST's
+    /// `Node#right_sibling`, restricted to the one container shape that
+    /// matters here -- see the `blind_spots` note).
+    fn record_statements(&mut self, node: &Node<'_>) {
+        let stmts = node.as_statements_node().expect("kind matched");
+        let body = stmts.body();
+        let len = body.len();
+        if len < 2 {
+            return;
+        }
+        for item in body.iter().take(len - 1) {
+            self.right_siblings.insert((item.span(), item.kind()));
+        }
     }
 }
