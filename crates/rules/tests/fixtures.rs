@@ -302,6 +302,17 @@ fn char_count(bytes: &[u8]) -> u32 {
     u32::try_from(bytes.iter().filter(|&&b| (b & 0xC0) != 0x80).count()).unwrap_or(u32::MAX)
 }
 
+/// The path the linted source claims to have: the `# file: NAME` comment on
+/// the first line of the case's `.yml` (RuboCop's `expect_offense(src,
+/// 'name.rb')` argument), else RuboCop's default buffer name `(string)`.
+/// Cops such as `Lint/DuplicateMethods` embed it in their messages.
+fn source_name(case: &Path) -> PathBuf {
+    let name = std::fs::read_to_string(case.with_extension("yml")).ok().and_then(|yml| {
+        yml.lines().next().and_then(|l| l.strip_prefix("# file: ")).map(str::to_owned)
+    });
+    PathBuf::from(name.unwrap_or_else(|| "(string)".to_string()))
+}
+
 fn run_case(meta: &'static RuleMeta, case: &Path) -> Result<(), String> {
     let bytes = std::fs::read(case).map_err(|err| format!("cannot read case: {err}"))?;
     let (source_bytes, expected) = parse_annotated(&bytes);
@@ -313,7 +324,7 @@ fn run_case(meta: &'static RuleMeta, case: &Path) -> Result<(), String> {
         partial_script: true,
     };
 
-    let source = SourceFile::new(case.to_path_buf(), source_bytes.clone());
+    let source = SourceFile::new(source_name(case), source_bytes.clone());
     let parsed = Parsed::parse_with(&source, options);
     if parsed.has_errors() {
         let messages: Vec<String> = parsed.errors().map(|e| e.message).collect();
