@@ -198,16 +198,32 @@ Prism) are never checked, since RuboCop doesn't check them either.",
         let Some(closing) = call.closing_loc() else { return };
         let closing_span = closing.span();
 
-        let last_raw = args_list.last().expect("checked non-empty");
+        // RuboCop/whitequark's `send` AST folds an explicit `&blk`-style block-pass argument
+        // into the trailing position of `node.arguments` (`node.last_argument` is the
+        // `block_pass` node, so `put_comma`/`should_have_comma?` treat it as the call's last
+        // item). Prism instead exposes it via `CallNode#block` as a `BlockArgumentNode`,
+        // separate from `arguments()` - recover the same "last argument" view here. A `do...end`
+        // /`{}` block is a `BlockNode` and is left alone: RuboCop's `send` node never includes it
+        // either.
+        let block_pass = call.block().filter(|b| matches!(b, Node::BlockArgumentNode { .. }));
+        let last_item_is_block_pass = block_pass.is_some();
+        let last_raw_span = block_pass.as_ref().map_or_else(
+            || args_list.last().expect("checked non-empty").location().span(),
+            |bp| bp.location().span(),
+        );
         let node_span = Span::new(node.location().span().start, closing_span.end);
         let selector_line = Some(call.message_loc().map_or_else(
             || ctx.line_col(node_span.start).line,
             |m| ctx.line_col(m.span().start).line,
         ));
-        let last_is_braced_hash = matches!(last_raw, Node::HashNode { .. });
-        let last_item_is_block_pass = matches!(last_raw, Node::BlockArgumentNode { .. });
-        let any_heredoc = trailing_comma::any_heredoc(ctx, args_list.iter());
-        let elements = elements(ctx, &args_list);
+        let last_is_braced_hash = block_pass.is_none()
+            && matches!(args_list.last().expect("checked non-empty"), Node::HashNode { .. });
+        let any_heredoc = trailing_comma::any_heredoc(ctx, args_list.iter())
+            || block_pass.as_ref().is_some_and(|bp| trailing_comma::is_heredoc(ctx, bp));
+        let mut elements = elements(ctx, &args_list);
+        if let Some(bp) = &block_pass {
+            elements.push(bp.location().span());
+        }
 
         let target = TrailingCommaNode {
             elements,

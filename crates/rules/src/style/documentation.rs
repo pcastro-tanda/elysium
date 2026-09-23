@@ -18,15 +18,12 @@ const DEFAULT_ANNOTATION_KEYWORDS: &[&str] =
 /// nested nodes can build a fully qualified identifier (RuboCop's
 /// `node.each_ancestor(:class, :module)`) and check `#:nodoc: all`
 /// inheritance (RuboCop's `nodoc_comment?` walking `node.parent`).
-#[derive(Debug, Clone)]
-struct Ancestor {
-    /// RuboCop's `qualify_const(n.identifier)` for this ancestor, precomputed
-    /// since [`Node`] cannot be kept in `'static` rule state.
-    qualified: String,
-    /// 1-based line of the `class`/`module` keyword, for the `:nodoc: all`
-    /// check on this ancestor.
-    own_line: u32,
-}
+///
+/// Only the qualified name is kept here: the declaration line used by
+/// `nodoc_applies` is instead read from `ctx.ancestors()`, keyed by
+/// position among the `ClassNode`/`ModuleNode` ancestors (which is what
+/// this vector's index also tracks).
+type Ancestor = String;
 
 /// Checks for missing top-level documentation of classes and modules.
 #[derive(Debug, Clone)]
@@ -46,7 +43,7 @@ impl Documentation {
     /// RuboCop's `identifier`: the fully qualified name of `constant_path`,
     /// prefixed by every enclosing `class`/`module` ancestor's own name.
     fn identifier(&self, ctx: &Context<'_>, constant_path: &Node<'_>) -> String {
-        let mut parts: Vec<String> = self.ancestors.iter().map(|a| a.qualified.clone()).collect();
+        let mut parts: Vec<String> = self.ancestors.clone();
         parts.push(qualify(ctx, constant_path));
         replace_first(&parts.join("::"), "::::", "::")
     }
@@ -78,17 +75,6 @@ impl Documentation {
         found_any && found_non_special
     }
 
-    /// RuboCop's `nodoc_self_or_outer_module?`, minus the `compact_namespace?`
-    /// branch (see `META.blind_spots`): true when the node's own declaration
-    /// line carries a bare `#:nodoc:` (or `#:nodoc: all`), or any actual
-    /// `class`/`module` ancestor's declaration line carries `#:nodoc: all`.
-    fn nodoc_applies(&self, ctx: &Context<'_>, own_line: u32) -> bool {
-        if nodoc_matches_line(ctx, own_line, false) {
-            return true;
-        }
-        self.ancestors.iter().any(|a| nodoc_matches_line(ctx, a.own_line, true))
-    }
-
     /// RuboCop's `check`, shared by `on_class` (only when the class has a
     /// body) and `on_module` (unconditionally).
     fn check(
@@ -109,7 +95,7 @@ impl Documentation {
         if self.is_allowed_constant(ctx, constant_path) {
             return;
         }
-        if self.nodoc_applies(ctx, own_line) {
+        if nodoc_applies(ctx, own_line) {
             return;
         }
         if include_statement_only_body(body) {
@@ -248,7 +234,7 @@ end
                 if let Some(body) = &body {
                     self.check(ctx, node, "class", &constant_path, Some(body), own_line);
                 }
-                self.ancestors.push(Ancestor { qualified, own_line });
+                self.ancestors.push(qualified);
             }
             NodeKind::ModuleNode => {
                 let module = node.as_module_node().expect("kind matched");
@@ -257,7 +243,7 @@ end
                 let own_line = ctx.line_col(module.location().span().start).line;
                 let qualified = qualify(ctx, &constant_path);
                 self.check(ctx, node, "module", &constant_path, body.as_ref(), own_line);
-                self.ancestors.push(Ancestor { qualified, own_line });
+                self.ancestors.push(qualified);
             }
             _ => {}
         }
@@ -546,4 +532,20 @@ fn nodoc_matches_line(ctx: &Context<'_>, line: u32, require_all: bool) -> bool {
         Some(comment) => is_nodoc(ctx.text(comment.span), require_all),
         None => false,
     }
+}
+
+/// RuboCop's `nodoc_self_or_outer_module?`, minus the `compact_namespace?`
+/// branch (see `META.blind_spots`): true when the node's own declaration
+/// line carries a bare `#:nodoc:` (or `#:nodoc: all`), or any actual
+/// `class`/`module` ancestor's declaration line carries `#:nodoc: all`.
+/// Ancestor declaration lines are read from `ctx.ancestors()` (filtered to
+/// `ClassNode`/`ModuleNode`) rather than tracked separately by the rule.
+fn nodoc_applies(ctx: &Context<'_>, own_line: u32) -> bool {
+    if nodoc_matches_line(ctx, own_line, false) {
+        return true;
+    }
+    ctx.ancestors()
+        .iter()
+        .filter(|a| matches!(a.kind, NodeKind::ClassNode | NodeKind::ModuleNode))
+        .any(|a| nodoc_matches_line(ctx, ctx.line_col(a.span.start).line, true))
 }

@@ -8,7 +8,7 @@ use linter::{
     OptionError, OptionValue, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::node::StatementsNode;
-use ruby_ast::{walk, LocationExt as _, Node, NodeKind, Visitor};
+use ruby_ast::{LocationExt as _, Node, NodeKind};
 use ruby_source::Span;
 
 /// RuboCop's `MSG`.
@@ -31,6 +31,13 @@ pub struct GuardClause {
     /// assignment (`result = if ... end`), so `on_if` can skip them the way
     /// RuboCop's `node.parent&.assignment?` does.
     assigned_if_starts: HashSet<u32>,
+    /// `(span, name)` for every `LocalVariableWriteNode` seen so far this
+    /// file, in source order, so `assigned_lvar_used_in_if_branch` can query
+    /// a bounded span range instead of walking the if-node's subtree.
+    local_writes: Vec<(Span, Box<[u8]>)>,
+    /// `(span, name)` for every `LocalVariableReadNode` seen so far this
+    /// file, in source order.
+    local_reads: Vec<(Span, Box<[u8]>)>,
 }
 
 impl Rule for GuardClause {
@@ -107,6 +114,7 @@ not flagged.",
             NodeKind::IfNode,
             NodeKind::UnlessNode,
             NodeKind::LocalVariableWriteNode,
+            NodeKind::LocalVariableReadNode,
             NodeKind::InstanceVariableWriteNode,
             NodeKind::ClassVariableWriteNode,
             NodeKind::GlobalVariableWriteNode,
@@ -159,18 +167,33 @@ bare call.",
             allow_consecutive_conditionals: options.bool("AllowConsecutiveConditionals"),
             max_line_length,
             assigned_if_starts: HashSet::new(),
+            local_writes: Vec::new(),
+            local_reads: Vec::new(),
         })
     }
 
     fn file_start(&mut self, _ctx: &mut Context<'_>) {
         self.assigned_if_starts.clear();
+        self.local_writes.clear();
+        self.local_reads.clear();
     }
 
-    fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
+    fn enter(&mut self, node: &Node<'_>, _ctx: &mut Context<'_>) {
         match node {
             Node::LocalVariableWriteNode { .. } => {
                 let n = node.as_local_variable_write_node().expect("kind matched");
                 self.note_assignment(&n.value());
+                self.local_writes.push((
+                    node.location().span(),
+                    n.name_loc().as_slice().to_vec().into_boxed_slice(),
+                ));
+            }
+            Node::LocalVariableReadNode { .. } => {
+                let n = node.as_local_variable_read_node().expect("kind matched");
+                self.local_reads.push((
+                    node.location().span(),
+                    n.location().as_slice().to_vec().into_boxed_slice(),
+                ));
             }
             Node::InstanceVariableWriteNode { .. } => {
                 let n = node.as_instance_variable_write_node().expect("kind matched");
@@ -196,6 +219,17 @@ bare call.",
                 let n = node.as_multi_write_node().expect("kind matched");
                 self.note_assignment(&n.value());
             }
+            _ => {}
+        }
+    }
+
+    /// Runs the def-ending-body and general `on_if` checks after the
+    /// node's own subtree -- including any local-variable reads/writes it
+    /// contains, recorded by `enter` above -- has been fully visited, so
+    /// `assigned_lvar_used_in_if_branch` can query `local_writes`/
+    /// `local_reads` by span instead of walking the subtree here.
+    fn leave(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
+        match node {
             Node::DefNode { .. } => {
                 let n = node.as_def_node().expect("kind matched");
                 self.check_ending_body(n.body(), ctx);
@@ -232,7 +266,7 @@ impl GuardClause {
     /// in one of its branches.
     fn handle_if(&self, node: &Node<'_>, ctx: &mut Context<'_>) {
         let Some(shape) = shape_of(node) else { return };
-        if accepted(&shape, false, &self.assigned_if_starts, ctx) {
+        if self.accepted(&shape, false, ctx) {
             return;
         }
         let (guard, kw, side) = if let Some(g) = guard_clause_of(&shape.if_branch, ctx) {
@@ -277,7 +311,7 @@ impl GuardClause {
     /// with `return`.
     fn check_ending_if(&self, node: &Node<'_>, prev_is_if: bool, ctx: &mut Context<'_>) {
         let Some(shape) = shape_of(node) else { return };
-        if accepted(&shape, true, &self.assigned_if_starts, ctx) {
+        if self.accepted(&shape, true, ctx) {
             return;
         }
         if !min_body_length_ok(&shape, self.min_body_length, ctx) {
@@ -300,6 +334,46 @@ impl GuardClause {
             Branch::Multi(s) => Some(s.as_node()),
         };
         self.check_ending_body(sub_body, ctx);
+    }
+
+    /// RuboCop's `accepted_form?`.
+    fn accepted(&self, shape: &Shape<'_>, ending: bool, ctx: &Context<'_>) -> bool {
+        self.accepted_if(shape, ending)
+            || predicate_multiline(shape, ctx)
+            || self.assigned_if_starts.contains(&shape.node.location().span().start)
+    }
+
+    /// RuboCop's `accepted_if?`.
+    fn accepted_if(&self, shape: &Shape<'_>, ending: bool) -> bool {
+        let modifier_form = shape.end_span.is_none();
+        if modifier_form
+            || elsif_conditional(&shape.else_branch)
+            || self.assigned_lvar_used_in_if_branch(shape)
+        {
+            return true;
+        }
+        if ending {
+            shape.has_else
+        } else {
+            !shape.has_else || shape.is_elsif
+        }
+    }
+
+    /// RuboCop's `assigned_lvar_used_in_if_branch?`, querying the
+    /// `local_writes`/`local_reads` recorded by `enter` instead of walking
+    /// the predicate/branch subtrees here.
+    fn assigned_lvar_used_in_if_branch(&self, shape: &Shape<'_>) -> bool {
+        if matches!(shape.if_branch, Branch::Empty) {
+            return false;
+        }
+        let predicate_span = shape.predicate.location().span();
+        let mut assigned = names_within(&self.local_writes, predicate_span).peekable();
+        if assigned.peek().is_none() {
+            return false;
+        }
+        let Some(used_span) = branch_span(&shape.if_branch) else { return false };
+        let used: HashSet<&[u8]> = names_within(&self.local_reads, used_span).collect();
+        assigned.any(|name| used.contains(name))
     }
 }
 
@@ -422,34 +496,6 @@ fn shape_of<'pr>(node: &Node<'pr>) -> Option<Shape<'pr>> {
     }
 }
 
-/// RuboCop's `accepted_form?`.
-fn accepted(
-    shape: &Shape<'_>,
-    ending: bool,
-    assigned_if_starts: &HashSet<u32>,
-    ctx: &Context<'_>,
-) -> bool {
-    accepted_if(shape, ending)
-        || predicate_multiline(shape, ctx)
-        || assigned_if_starts.contains(&shape.node.location().span().start)
-}
-
-/// RuboCop's `accepted_if?`.
-fn accepted_if(shape: &Shape<'_>, ending: bool) -> bool {
-    let modifier_form = shape.end_span.is_none();
-    if modifier_form
-        || elsif_conditional(&shape.else_branch)
-        || assigned_lvar_used_in_if_branch(shape)
-    {
-        return true;
-    }
-    if ending {
-        shape.has_else
-    } else {
-        !shape.has_else || shape.is_elsif
-    }
-}
-
 /// RuboCop's `IfNode#elsif_conditional?`.
 fn elsif_conditional(else_branch: &Branch<'_>) -> bool {
     let Branch::Single(n) = else_branch else { return false };
@@ -465,47 +511,16 @@ fn predicate_multiline(shape: &Shape<'_>, ctx: &Context<'_>) -> bool {
     ctx.line_col(span.start).line != ctx.line_col(last).line
 }
 
-/// RuboCop's `assigned_lvar_used_in_if_branch?`.
-fn assigned_lvar_used_in_if_branch(shape: &Shape<'_>) -> bool {
-    if matches!(shape.if_branch, Branch::Empty) {
-        return false;
-    }
-    let mut assigned = HashSet::new();
-    collect_names(&shape.predicate, true, &mut assigned);
-    if assigned.is_empty() {
-        return false;
-    }
-    let mut used = HashSet::new();
-    match &shape.if_branch {
-        Branch::Empty => return false,
-        Branch::Single(n) => collect_names(n, false, &mut used),
-        Branch::Multi(s) => collect_names(&s.as_node(), false, &mut used),
-    }
-    assigned.iter().any(|name| used.contains(name))
-}
-
-/// Collects local-variable names: written names (`want_write`) from
-/// `LocalVariableWriteNode`, or read names from `LocalVariableReadNode`.
-fn collect_names<'pr>(root: &Node<'pr>, want_write: bool, out: &mut HashSet<&'pr [u8]>) {
-    struct Collector<'o, 'pr> {
-        want_write: bool,
-        out: &'o mut HashSet<&'pr [u8]>,
-    }
-    impl<'pr> Visitor<'pr> for Collector<'_, 'pr> {
-        fn enter(&mut self, node: &Node<'pr>) {
-            if self.want_write {
-                if let Node::LocalVariableWriteNode { .. } = node {
-                    let n = node.as_local_variable_write_node().expect("kind matched");
-                    self.out.insert(n.name_loc().as_slice());
-                }
-            } else if let Node::LocalVariableReadNode { .. } = node {
-                let n = node.as_local_variable_read_node().expect("kind matched");
-                self.out.insert(n.location().as_slice());
-            }
-        }
-    }
-    let mut collector = Collector { want_write, out };
-    walk(root, &mut collector);
+/// Names among `pairs` (source-ordered `(span, name)`, as recorded by
+/// [`GuardClause::enter`]) whose span lies entirely within `range`, located
+/// with a binary search instead of a subtree walk.
+fn names_within(pairs: &[(Span, Box<[u8]>)], range: Span) -> impl Iterator<Item = &[u8]> {
+    let start = pairs.partition_point(|(span, _)| span.start < range.start);
+    pairs[start..]
+        .iter()
+        .take_while(move |(span, _)| span.start < range.end)
+        .filter(move |(span, _)| span.end <= range.end)
+        .map(|(_, name)| name.as_ref())
 }
 
 /// A matched guard clause: the span whose source text is used to build the

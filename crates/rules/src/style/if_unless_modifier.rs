@@ -10,7 +10,7 @@ use linter::{
 };
 use regex::Regex;
 use ruby_ast::node::{CallNode, Location, StatementsNode};
-use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind, Visitor};
+use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 /// RuboCop's `MSG_USE_MODIFIER`.
@@ -54,6 +54,18 @@ pub struct IfUnlessModifier {
     /// Spans whose parent shape means an `if`/`unless` there needs
     /// parentheses when written in modifier form (RuboCop's `parenthesize?`).
     paren_targets: HashSet<Span>,
+    /// Spans of every `LocalVariableWriteNode` seen so far this file, in
+    /// source order (RuboCop's `non_eligible_condition?`).
+    lvasgn_spans: Vec<Span>,
+    /// Spans of every `MatchPredicateNode`/`MatchRequiredNode` seen so far
+    /// this file, in source order (RuboCop's `pattern_matching_nodes`).
+    match_pattern_spans: Vec<Span>,
+    /// Spans of every `IfNode`/`UnlessNode` seen so far this file, in
+    /// source order (RuboCop's `nested_conditional?`).
+    conditional_spans: Vec<Span>,
+    /// `(span, name)` for every `defined?(lvar)`/`defined?(call)` seen so
+    /// far this file, in source order (RuboCop's `defined_nodes`).
+    defined_calls: Vec<(Span, Box<[u8]>)>,
 }
 
 impl IfUnlessModifier {
@@ -176,6 +188,9 @@ end
             NodeKind::ClassVariableWriteNode,
             NodeKind::GlobalVariableWriteNode,
             NodeKind::ConstantWriteNode,
+            NodeKind::MatchPredicateNode,
+            NodeKind::MatchRequiredNode,
+            NodeKind::DefinedNode,
         ],
         config: &[],
         blind_spots: "\
@@ -256,6 +271,10 @@ trailing-word extensions.",
             next_sibling_line: HashMap::new(),
             chained_receivers: HashSet::new(),
             paren_targets: HashSet::new(),
+            lvasgn_spans: Vec::new(),
+            match_pattern_spans: Vec::new(),
+            conditional_spans: Vec::new(),
+            defined_calls: Vec::new(),
         })
     }
 
@@ -264,6 +283,10 @@ trailing-word extensions.",
         self.next_sibling_line.clear();
         self.chained_receivers.clear();
         self.paren_targets.clear();
+        self.lvasgn_spans.clear();
+        self.match_pattern_spans.clear();
+        self.conditional_spans.clear();
+        self.defined_calls.clear();
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
@@ -293,6 +316,7 @@ trailing-word extensions.",
             Node::LocalVariableWriteNode { .. } => {
                 let n = node.as_local_variable_write_node().expect("kind matched");
                 self.paren_targets.insert(n.value().span());
+                self.lvasgn_spans.push(node.span());
             }
             Node::InstanceVariableWriteNode { .. } => {
                 let n = node.as_instance_variable_write_node().expect("kind matched");
@@ -310,6 +334,44 @@ trailing-word extensions.",
                 let n = node.as_constant_write_node().expect("kind matched");
                 self.paren_targets.insert(n.value().span());
             }
+            Node::MatchPredicateNode { .. } | Node::MatchRequiredNode { .. } => {
+                self.match_pattern_spans.push(node.span());
+            }
+            Node::DefinedNode { .. } => {
+                let defined = node.as_defined_node().expect("kind matched");
+                let argument = defined.value();
+                let name: Option<&[u8]> = match &argument {
+                    Node::LocalVariableReadNode { .. } => Some(
+                        argument
+                            .as_local_variable_read_node()
+                            .expect("kind matched")
+                            .name()
+                            .as_slice(),
+                    ),
+                    Node::CallNode { .. } => {
+                        Some(argument.as_call_node().expect("kind matched").name().as_slice())
+                    }
+                    _ => None,
+                };
+                if let Some(name) = name {
+                    self.defined_calls.push((node.span(), name.to_vec().into_boxed_slice()));
+                }
+            }
+            Node::IfNode { .. } | Node::UnlessNode { .. } => {
+                self.conditional_spans.push(node.span());
+            }
+            _ => {}
+        }
+    }
+
+    /// Runs the actual `if`/`unless` checks after the node's own condition
+    /// and body -- including any nested conditionals, pattern matches,
+    /// local-variable writes, and `defined?` calls they contain, recorded
+    /// by `enter` above -- have been fully visited, so the various
+    /// `contains X anywhere in this subtree` checks can query the recorded
+    /// spans instead of walking the subtree here.
+    fn leave(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
+        match node {
             Node::IfNode { .. } => self.check_if(node, ctx),
             Node::UnlessNode { .. } => self.check_unless(node, ctx),
             _ => {}
@@ -453,12 +515,38 @@ impl IfUnlessModifier {
         if is_endless_def_body(body) {
             return true;
         }
-        if has_match_pattern(condition) {
+        if self.has_match_pattern(condition.span()) {
             return true;
         }
         let empty = Vec::new();
         let left_names = self.left_assigned_names.get(&own_span).unwrap_or(&empty);
-        any_defined_is_undefined(condition, left_names)
+        self.any_defined_is_undefined(condition.span(), left_names)
+    }
+
+    /// RuboCop's `pattern_matching_nodes(condition).any?`: `condition` or
+    /// any descendant is `foo in pattern` / `foo => pattern`, found via the
+    /// `match_pattern_spans` recorded by `enter` instead of a subtree walk.
+    fn has_match_pattern(&self, condition_span: Span) -> bool {
+        any_span_within(&self.match_pattern_spans, condition_span)
+    }
+
+    /// RuboCop's `non_eligible_condition?`: any descendant (including the
+    /// condition itself) is a bare local variable assignment.
+    fn has_lvasgn(&self, condition_span: Span) -> bool {
+        any_span_within(&self.lvasgn_spans, condition_span)
+    }
+
+    /// RuboCop's `node.nested_conditional?`: the body contains (anywhere)
+    /// another `if`/`unless`.
+    fn has_nested_conditional(&self, body: Option<&StatementsNode<'_>>) -> bool {
+        let Some(body) = body else { return false };
+        any_span_within(&self.conditional_spans, body.location().span())
+    }
+
+    /// RuboCop's `defined_nodes(condition).any? { defined_argument_is_undefined? }`.
+    fn any_defined_is_undefined(&self, condition_span: Span, left_names: &[Box<str>]) -> bool {
+        names_within(&self.defined_calls, condition_span)
+            .any(|name| !left_names.iter().any(|assigned| assigned.as_bytes() == name))
     }
 
     /// RuboCop's `too_long_due_to_modifier?` plus the offense/fix for the
@@ -651,7 +739,7 @@ impl IfUnlessModifier {
         if self.chained_receivers.contains(&node_span) {
             return;
         }
-        if has_nested_conditional(body.as_ref()) {
+        if self.has_nested_conditional(body.as_ref()) {
             return;
         }
         if nonempty_line_count(ctx, node_span) > 3 {
@@ -679,7 +767,7 @@ impl IfUnlessModifier {
         if ctx.comments().iter().any(|c| c.line >= body_first_line && c.line <= body_last_line) {
             return;
         }
-        if has_lvasgn(condition) {
+        if self.has_lvasgn(condition.span()) {
             return;
         }
         if !self.modifier_fits_on_single_line(
@@ -785,89 +873,27 @@ fn is_endless_def_body(body: Option<&StatementsNode<'_>>) -> bool {
     item.as_def_node().expect("kind matched").equal_loc().is_some()
 }
 
-/// RuboCop's `pattern_matching_nodes(condition).any?`: `condition` or any
-/// descendant is `foo in pattern` / `foo => pattern`.
-fn has_match_pattern(condition: &Node<'_>) -> bool {
-    let mut found = false;
-    walk_visit(condition, &mut |n| {
-        if matches!(n, Node::MatchPredicateNode { .. } | Node::MatchRequiredNode { .. }) {
-            found = true;
-        }
-    });
-    found
-}
-
 /// RuboCop's `named_capture_in_condition?`: `condition.match_with_lvasgn_type?`.
 fn condition_has_match_write(condition: &Node<'_>) -> bool {
     matches!(condition, Node::MatchWriteNode { .. })
 }
-
-/// RuboCop's `non_eligible_condition?`: any descendant (including
-/// `condition` itself) is a bare local variable assignment.
-fn has_lvasgn(condition: &Node<'_>) -> bool {
-    let mut found = false;
-    walk_visit(condition, &mut |n| {
-        if matches!(n, Node::LocalVariableWriteNode { .. }) {
-            found = true;
-        }
-    });
-    found
+/// True when any span in `spans` (source-ordered, as recorded by `enter`)
+/// lies entirely within `range`, found with a binary search instead of a
+/// subtree walk.
+fn any_span_within(spans: &[Span], range: Span) -> bool {
+    let start = spans.partition_point(|s| s.start < range.start);
+    spans[start..].iter().take_while(|s| s.start < range.end).any(|s| s.end <= range.end)
 }
 
-/// RuboCop's `node.nested_conditional?`: the body contains (anywhere,
-/// including at its own top level) another `if`/`unless`/ternary.
-fn has_nested_conditional(body: Option<&StatementsNode<'_>>) -> bool {
-    let Some(body) = body else { return false };
-    let mut found = false;
-    for item in &body.body() {
-        walk_visit(&item, &mut |n| {
-            if matches!(n, Node::IfNode { .. } | Node::UnlessNode { .. }) {
-                found = true;
-            }
-        });
-    }
-    found
-}
-
-/// RuboCop's `defined_nodes(condition).any? { defined_argument_is_undefined? }`.
-fn any_defined_is_undefined(condition: &Node<'_>, left_names: &[Box<str>]) -> bool {
-    let mut found = false;
-    walk_visit(condition, &mut |n| {
-        if found {
-            return;
-        }
-        let Node::DefinedNode { .. } = n else { return };
-        let defined = n.as_defined_node().expect("kind matched");
-        let argument = defined.value();
-        let name: &[u8] = match &argument {
-            Node::LocalVariableReadNode { .. } => {
-                argument.as_local_variable_read_node().expect("kind matched").name().as_slice()
-            }
-            Node::CallNode { .. } => {
-                argument.as_call_node().expect("kind matched").name().as_slice()
-            }
-            _ => return,
-        };
-        if !left_names.iter().any(|assigned| assigned.as_bytes() == name) {
-            found = true;
-        }
-    });
-    found
-}
-
-/// Generic descendant walk (including the root) used for the several
-/// `each_node`/`each_descendant` scans above.
-fn walk_visit<'pr>(root: &Node<'pr>, pred: &mut dyn FnMut(&Node<'pr>)) {
-    struct V<'a, 'pr> {
-        pred: &'a mut dyn FnMut(&Node<'pr>),
-    }
-    impl<'pr> Visitor<'pr> for V<'_, 'pr> {
-        fn enter(&mut self, node: &Node<'pr>) {
-            (self.pred)(node);
-        }
-    }
-    let mut visitor = V { pred };
-    ruby_ast::walk(root, &mut visitor);
+/// Names among `pairs` (source-ordered `(span, name)`, as recorded by
+/// `enter`) whose span lies entirely within `range`.
+fn names_within(pairs: &[(Span, Box<[u8]>)], range: Span) -> impl Iterator<Item = &[u8]> {
+    let start = pairs.partition_point(|(span, _)| span.start < range.start);
+    pairs[start..]
+        .iter()
+        .take_while(move |(span, _)| span.start < range.end)
+        .filter(move |(span, _)| span.end <= range.end)
+        .map(|(_, name)| name.as_ref())
 }
 
 /// RuboCop's `nonempty_line_count`: non-blank lines within `span`.
