@@ -1,0 +1,1 @@
+foo = lambda do |diagnostic|;end

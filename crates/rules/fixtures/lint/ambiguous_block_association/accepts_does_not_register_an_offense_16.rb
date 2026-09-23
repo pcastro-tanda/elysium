@@ -1,0 +1,1 @@
+scope :active, -> { where(status: "active") }

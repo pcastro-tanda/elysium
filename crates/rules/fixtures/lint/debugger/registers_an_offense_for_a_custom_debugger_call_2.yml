@@ -1,0 +1,2 @@
+Lint/Debugger:
+  DebuggerMethods: {Custom: [custom_debugger]}

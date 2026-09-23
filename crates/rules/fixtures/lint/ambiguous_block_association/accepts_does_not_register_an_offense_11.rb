@@ -1,0 +1,1 @@
+{ f: "b"}.fetch(:a) do |e|;puts e;end

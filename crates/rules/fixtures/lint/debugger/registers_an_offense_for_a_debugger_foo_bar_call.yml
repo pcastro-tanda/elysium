@@ -1,0 +1,2 @@
+Lint/Debugger:
+  DebuggerMethods: [debugger.foo.bar]

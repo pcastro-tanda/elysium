@@ -1,0 +1,1 @@
+Proc.new { puts "proc" }

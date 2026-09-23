@@ -1,0 +1,2 @@
+class FooClass::BarClass
+end

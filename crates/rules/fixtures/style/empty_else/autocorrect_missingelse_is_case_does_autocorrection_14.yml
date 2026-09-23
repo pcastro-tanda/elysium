@@ -1,0 +1,3 @@
+Style/MissingElse:
+  Enabled: true
+  EnforcedStyle: case

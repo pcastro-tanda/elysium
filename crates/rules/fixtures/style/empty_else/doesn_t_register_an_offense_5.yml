@@ -1,0 +1,4 @@
+Style/EmptyElse:
+  AllowComments: true
+Style/MissingElse:
+  Enabled: true

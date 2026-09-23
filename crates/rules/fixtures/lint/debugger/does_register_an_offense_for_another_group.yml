@@ -1,0 +1,2 @@
+Lint/Debugger:
+  DebuggerRequires: {my_debugger: ~, other_debugger: [other_debugger/start]}

@@ -603,35 +603,34 @@ x if y.z.nil?
         blind_spots: "\
 One-line pattern matching (`in`/`=>`) is only handled for the top-level \
 `MatchPredicateNode`/`MatchRequiredNode` content case, not a full \
-ancestor-walk guard for nested cases. The heredoc-trailing-comma special \
-case in `ParenthesesCorrector` (`method(<<~X, ...)`) is not ported; such a \
-fix is skipped rather than emitted incorrectly. `Style/TernaryParentheses`'s \
-`Enabled` flag isn't checked (only its `EnforcedStyle` is read, assuming \
-enabled, matching the RuboCop default) because peer options can't expose \
-whether a peer cop is itself enabled; the same gap means \
-`Style/ParenthesesAroundCondition`'s `AllowInMultilineConditions` is \
-honored even when that cop is configured but disabled (RuboCop's \
-`for_enabled_cop` would ignore it there) -- chosen because honoring the \
-configured value avoids false positives in the far more common \
-enabled-peer case, at the cost of false negatives in the rare \
-disabled-peer-with-override case.",
+ancestor-walk guard for nested cases.",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
+        let ternary_enabled = options
+            .peer("Style/TernaryParentheses", "Enabled")
+            .and_then(linter::OptionValue::as_bool)
+            .unwrap_or(true);
         let style = options
             .peer("Style/TernaryParentheses", "EnforcedStyle")
             .and_then(|v| v.as_str())
             .map_or_else(|| "require_no_parentheses".to_string(), str::to_string);
-        let allow_in_multiline_conditions = options
-            .peer("Style/ParenthesesAroundCondition", "AllowInMultilineConditions")
+        let parens_around_condition_enabled = options
+            .peer("Style/ParenthesesAroundCondition", "Enabled")
             .and_then(linter::OptionValue::as_bool)
-            .unwrap_or(false);
+            .unwrap_or(true);
+        let allow_in_multiline_conditions = parens_around_condition_enabled
+            && options
+                .peer("Style/ParenthesesAroundCondition", "AllowInMultilineConditions")
+                .and_then(linter::OptionValue::as_bool)
+                .unwrap_or(false);
         Ok(Self {
             facts: HashMap::new(),
-            ternary_parentheses_required: matches!(
-                style.as_str(),
-                "require_parentheses" | "require_parentheses_when_complex"
-            ),
+            ternary_parentheses_required: ternary_enabled
+                && matches!(
+                    style.as_str(),
+                    "require_parentheses" | "require_parentheses_when_complex"
+                ),
             allow_in_multiline_conditions,
         })
     }

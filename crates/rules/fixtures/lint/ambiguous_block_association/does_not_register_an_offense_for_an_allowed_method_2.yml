@@ -1,0 +1,2 @@
+Lint/AmbiguousBlockAssociation:
+  AllowedPatterns: ["(?-mix:change)", "(?-mix:receive\\(.*?\\)\\.twice)"]

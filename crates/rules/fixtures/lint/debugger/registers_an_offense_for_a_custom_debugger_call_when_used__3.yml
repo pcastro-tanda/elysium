@@ -1,0 +1,4 @@
+AllCops:
+  TargetRubyVersion: 3.4
+Lint/Debugger:
+  DebuggerMethods: [custom_debugger]

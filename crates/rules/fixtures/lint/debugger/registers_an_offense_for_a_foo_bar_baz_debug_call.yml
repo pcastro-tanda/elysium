@@ -1,0 +1,2 @@
+Lint/Debugger:
+  DebuggerMethods: [Foo::Bar::Baz.debug]

@@ -1,0 +1,1 @@
+assert_equal posts.find { |p| p.title == "Foo" }, results.first

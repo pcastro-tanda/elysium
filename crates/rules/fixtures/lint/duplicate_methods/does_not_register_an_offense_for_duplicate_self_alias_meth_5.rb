@@ -1,0 +1,6 @@
+A = Class.new do
+  alias_method :some_method, :some_method
+  def some_method
+    implement 1
+  end
+end

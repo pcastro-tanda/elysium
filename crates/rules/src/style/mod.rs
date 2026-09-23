@@ -1,16 +1,24 @@
 //! `Style` department.
 
+pub mod accessor_grouping;
+pub mod class_and_module_children;
 pub mod documentation;
+pub mod empty_else;
 pub mod frozen_string_literal_comment;
 pub mod guard_clause;
 pub mod hash_syntax;
 pub mod if_unless_modifier;
+pub mod if_unless_modifier_of_if_unless;
 pub mod mutable_constant;
+pub mod numeric_literal_prefix;
 pub mod numeric_literals;
 pub mod redundant_condition;
 pub mod redundant_parentheses;
+pub mod redundant_regexp_character_class;
+pub mod redundant_regexp_escape;
 pub mod redundant_return;
 pub mod sole_nested_conditional;
+pub mod string_concatenation;
 pub mod string_literals;
 pub mod symbol_proc;
 pub mod trailing_comma;

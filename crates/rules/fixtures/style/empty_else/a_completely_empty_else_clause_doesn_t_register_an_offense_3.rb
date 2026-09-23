@@ -1,0 +1,1 @@
+case v; when a; foo else end

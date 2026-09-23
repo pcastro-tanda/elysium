@@ -1,0 +1,1 @@
+Hash[some_method(a) { |el| el }]

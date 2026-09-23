@@ -1,0 +1,1 @@
+Foo.bar(a) { |el| puts el }
