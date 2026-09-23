@@ -54,8 +54,10 @@ pub struct IfUnlessModifier {
     /// Spans whose parent shape means an `if`/`unless` there needs
     /// parentheses when written in modifier form (RuboCop's `parenthesize?`).
     paren_targets: HashSet<Span>,
-    /// Spans of every `LocalVariableWriteNode` seen so far this file, in
-    /// source order (RuboCop's `non_eligible_condition?`).
+    /// Spans of every whitequark-`lvasgn`-equivalent node seen so far this
+    /// file (`LocalVariableWriteNode`, the `+=`/`&&=`/`||=` operator-write
+    /// variants, and `LocalVariableTargetNode` for multiple-assignment
+    /// targets), in source order (RuboCop's `non_eligible_condition?`).
     lvasgn_spans: Vec<Span>,
     /// Spans of every `MatchPredicateNode`/`MatchRequiredNode` seen so far
     /// this file, in source order (RuboCop's `pattern_matching_nodes`).
@@ -184,6 +186,10 @@ end
             NodeKind::ArrayNode,
             NodeKind::AssocNode,
             NodeKind::LocalVariableWriteNode,
+            NodeKind::LocalVariableOperatorWriteNode,
+            NodeKind::LocalVariableAndWriteNode,
+            NodeKind::LocalVariableOrWriteNode,
+            NodeKind::LocalVariableTargetNode,
             NodeKind::InstanceVariableWriteNode,
             NodeKind::ClassVariableWriteNode,
             NodeKind::GlobalVariableWriteNode,
@@ -316,6 +322,27 @@ trailing-word extensions.",
             Node::LocalVariableWriteNode { .. } => {
                 let n = node.as_local_variable_write_node().expect("kind matched");
                 self.paren_targets.insert(n.value().span());
+                self.lvasgn_spans.push(node.span());
+            }
+            Node::LocalVariableOperatorWriteNode { .. }
+            | Node::LocalVariableAndWriteNode { .. }
+            | Node::LocalVariableOrWriteNode { .. } => {
+                // RuboCop's `non_eligible_condition?` (`lvasgn_type?`) also
+                // matches these: whitequark desugars every compound local
+                // assignment (`+=`/`&&=`/`||=`) into the same bare `lvasgn`
+                // node as plain `=`. Unlike `LocalVariableWriteNode`, these
+                // aren't added to `paren_targets`: that tracking is only for
+                // the fix's parenthesization/left-siblings reconstruction,
+                // already documented in `blind_spots` as accepting operator
+                // assignment as a false-negative-only gap there.
+                self.lvasgn_spans.push(node.span());
+            }
+            Node::LocalVariableTargetNode { .. } => {
+                // whitequark represents each target of a multiple
+                // assignment (`w, h = ...`) as its own bare `lvasgn` node
+                // (no value child), so `non_eligible_condition?` sees one
+                // per target; Prism groups them under `MultiWriteNode`, so
+                // this is the equivalent per-target node to record.
                 self.lvasgn_spans.push(node.span());
             }
             Node::InstanceVariableWriteNode { .. } => {

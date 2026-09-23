@@ -478,14 +478,17 @@ fn is_annotation(text: &[u8], keywords: &[String]) -> bool {
     let keyword_text = &rest_str[..keyword.len()];
     let after = &rest_str.as_bytes()[keyword.len()..];
 
-    let mut idx = 0;
-    while idx < after.len() && is_regex_ws(after[idx]) {
-        idx += 1;
+    // `(\s*:)?`: the colon group only consumes anything when a `:` is
+    // actually found after the whitespace run it allows; when it isn't
+    // found, the group matches empty (regex backtracking) rather than
+    // eating the whitespace, which stays available for the `(\s+)?` group
+    // below.
+    let mut ws_run = 0;
+    while ws_run < after.len() && is_regex_ws(after[ws_run]) {
+        ws_run += 1;
     }
-    let colon_present = idx < after.len() && after[idx] == b':';
-    if colon_present {
-        idx += 1;
-    }
+    let colon_present = ws_run < after.len() && after[ws_run] == b':';
+    let mut idx = if colon_present { ws_run + 1 } else { 0 };
 
     let space_start = idx;
     while idx < after.len() && is_regex_ws(after[idx]) {

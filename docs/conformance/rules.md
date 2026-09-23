@@ -30,8 +30,8 @@ text differs (RuboCop versions word some messages differently).
 | Layout/TrailingWhitespace | forem | 1.63.4 | 1053 | 1048 | 5 | 0 | 1048 | 99.5% | 2026-09-23 |
 | Layout/TrailingWhitespace | gitlab (defaults) | 1.81.7 | 6 | 6 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Layout/TrailingWhitespace | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/Documentation | discourse | 1.91.0 | 7141 | 7145 | 1 | 5 | 0 | 99.9% | 2026-09-23 |
-| Style/Documentation | forem | 1.63.4 | 1189 | 1185 | 5 | 1 | 0 | 99.6% | 2026-09-23 |
+| Style/Documentation | discourse | 1.91.0 | 7141 | 7141 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
+| Style/Documentation | forem | 1.63.4 | 1184 | 1185 | 0 | 1 | 0 | 99.9% | 2026-09-23 |
 | Style/Documentation | mastodon | 1.91.0 | 2045 | 2045 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Style/FrozenStringLiteralComment | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Style/FrozenStringLiteralComment | forem | 1.63.4 | 18 | 13 | 5 | 0 | 0 | 72.2% | 2026-09-23 |
@@ -42,8 +42,8 @@ text differs (RuboCop versions word some messages differently).
 | Style/HashSyntax | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Style/HashSyntax | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Style/HashSyntax | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/IfUnlessModifier | discourse | 1.91.0 | 2404 | 2411 | 0 | 7 | 24 | 99.7% | 2026-09-23 |
-| Style/IfUnlessModifier | forem | 1.63.4 | 270 | 266 | 5 | 1 | 265 | 98.1% | 2026-09-23 |
+| Style/IfUnlessModifier | discourse | 1.91.0 | 2404 | 2404 | 0 | 0 | 24 | 100.0% | 2026-09-23 |
+| Style/IfUnlessModifier | forem | 1.63.4 | 265 | 266 | 0 | 1 | 265 | 99.6% | 2026-09-23 |
 | Style/IfUnlessModifier | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Style/MutableConstant | discourse | 1.91.0 | 606 | 607 | 0 | 1 | 0 | 99.8% | 2026-09-23 |
 | Style/MutableConstant | forem | 1.63.4 | 30 | 25 | 5 | 0 | 0 | 83.3% | 2026-09-23 |
