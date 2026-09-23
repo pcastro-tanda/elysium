@@ -662,7 +662,7 @@ impl RedundantParentheses {
             return;
         }
         let span = Span::new(lparen.span().start, rparen.span().end);
-        self.report(ctx, span, "a variable", lparen.span(), rparen.span());
+        self.report(ctx, span, "a variable", lparen.span(), rparen.span(), None);
     }
 
     fn check_parens(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
@@ -813,7 +813,8 @@ impl RedundantParentheses {
                     report_span = pspan;
                 }
             }
-            self.offense(ctx, report_span, msg);
+            let heredoc_end = heredoc_end(&content, ctx);
+            self.offense_at(ctx, report_span, msg, heredoc_end);
             return;
         }
         if call_node(&content) {
@@ -1019,12 +1020,23 @@ impl RedundantParentheses {
     }
 
     fn offense(&mut self, ctx: &mut Context<'_>, span: Span, msg: &'static str) {
+        self.offense_at(ctx, span, msg, None);
+    }
+
+    fn offense_at(
+        &mut self,
+        ctx: &mut Context<'_>,
+        span: Span,
+        msg: &'static str,
+        heredoc_end: Option<u32>,
+    ) {
         self.report(
             ctx,
             span,
             msg,
             Span::new(span.start, span.start + 1),
             Span::new(span.end - 1, span.end),
+            heredoc_end,
         );
     }
 
@@ -1032,16 +1044,38 @@ impl RedundantParentheses {
     /// -- remove `(` plus trailing whitespace/newlines, remove `)` plus
     /// leading newlines, and (for a ternary condition directly touching
     /// `?`) insert a separating space.
-    fn report(&mut self, ctx: &mut Context<'_>, span: Span, msg: &str, open: Span, close: Span) {
+    fn report(
+        &mut self,
+        ctx: &mut Context<'_>,
+        span: Span,
+        msg: &str,
+        open: Span,
+        close: Span,
+        heredoc_end: Option<u32>,
+    ) {
         let message = format!("Don't use parentheses around {msg}.");
         let src = ctx.source().bytes();
         let open_end = final_pos(src, open.end, 1, true, true);
         let close_start = final_pos(src, close.start, -1, true, false).max(open_end);
 
-        let mut edits = vec![
-            Edit::delete(Span::new(open.start, open_end)),
-            Edit::delete(Span::new(close_start, close.end)),
-        ];
+        let mut edits = vec![Edit::delete(Span::new(open.start, open_end))];
+
+        let mut close_end = close.end;
+        if let Some(insert) = heredoc_end {
+            if only_closing_paren_before_comma(ctx, close.start) {
+                let mut comma_end = close.end;
+                while (comma_end as usize) < src.len()
+                    && matches!(src[comma_end as usize], b' ' | b'\t')
+                {
+                    comma_end += 1;
+                }
+                if src.get(comma_end as usize) == Some(&b',') {
+                    close_end = comma_end + 1;
+                    edits.push(Edit::insert(insert, b",".to_vec()));
+                }
+            }
+        }
+        edits.push(Edit::delete(Span::new(close_start, close_end)));
 
         if let Some(&(pspan, pkind)) = normalized_chain(ctx, &self.facts).first() {
             if pkind == NodeKind::IfNode {
@@ -1058,6 +1092,45 @@ impl RedundantParentheses {
 
         let fix = Fix { applicability: Applicability::Safe, edits };
         ctx.report_with_fix(&Self::META, span, Cow::Owned(message), fix);
+    }
+}
+
+/// RuboCop's `only_closing_paren_before_comma?`: the whole line containing
+/// `close_paren_pos` (a `)`), from column 0, matches `/\A\s*\)\s*,/`.
+fn only_closing_paren_before_comma(ctx: &Context<'_>, close_paren_pos: u32) -> bool {
+    let line = ctx.line_col(close_paren_pos).line;
+    let text = ctx.line_text(line);
+    let mut i = 0;
+    while i < text.len() && matches!(text[i], b' ' | b'\t') {
+        i += 1;
+    }
+    if text.get(i) != Some(&b')') {
+        return false;
+    }
+    i += 1;
+    while i < text.len() && matches!(text[i], b' ' | b'\t') {
+        i += 1;
+    }
+    text.get(i) == Some(&b',')
+}
+
+/// The end offset of a heredoc-opening string literal (`StringNode`-family
+/// whose opening delimiter is `<<...`), for `add_heredoc_comma`'s
+/// insertion point.
+fn heredoc_end(content: &Node<'_>, ctx: &Context<'_>) -> Option<u32> {
+    let opening = match content.kind() {
+        NodeKind::StringNode => content.as_string_node()?.opening_loc(),
+        NodeKind::InterpolatedStringNode => content.as_interpolated_string_node()?.opening_loc(),
+        NodeKind::XStringNode => Some(content.as_x_string_node()?.opening_loc()),
+        NodeKind::InterpolatedXStringNode => {
+            Some(content.as_interpolated_x_string_node()?.opening_loc())
+        }
+        _ => return None,
+    }?;
+    if ctx.text(opening.span()).starts_with(b"<<") {
+        Some(content.span().end)
+    } else {
+        None
     }
 }
 
