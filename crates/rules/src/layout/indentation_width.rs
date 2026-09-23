@@ -986,6 +986,7 @@ end
             NodeKind::RescueNode,
             NodeKind::EnsureNode,
             NodeKind::ForNode,
+            NodeKind::ParenthesesNode,
             NodeKind::CallNode,
             NodeKind::LocalVariableWriteNode,
             NodeKind::LocalVariableOperatorWriteNode,
@@ -1137,6 +1138,7 @@ lines; this has not triggered in the fixture set.",
             Node::RescueNode { .. } => self.on_rescue(ctx, node),
             Node::EnsureNode { .. } => self.on_ensure(ctx, node),
             Node::ForNode { .. } => self.on_for(ctx, node),
+            Node::ParenthesesNode { .. } => self.on_parentheses(ctx, node),
             Node::CallNode { .. } => self.on_call(ctx, node),
             Node::LocalVariableWriteNode { .. }
             | Node::LocalVariableOperatorWriteNode { .. }

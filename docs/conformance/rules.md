@@ -13,14 +13,14 @@ text differs (RuboCop versions word some messages differently).
 | Layout/IndentationConsistency | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Layout/IndentationConsistency | forem | 1.63.4 | 14 | 10 | 5 | 1 | 9 | 64.3% | 2026-09-23 |
 | Layout/IndentationConsistency | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/IndentationWidth | discourse | 1.91.0 | 71 | 33 | 39 | 1 | 0 | 45.1% | 2026-09-23 |
-| Layout/IndentationWidth | forem | 1.63.4 | 17 | 17 | 5 | 5 | 12 | 70.6% | 2026-09-23 |
-| Layout/IndentationWidth | gitlab (defaults) | 1.81.7 | 1 | 82 | 0 | 81 | 0 | 1.2% | 2026-09-23 |
+| Layout/IndentationWidth | discourse | 1.91.0 | 71 | 71 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
+| Layout/IndentationWidth | forem | 1.63.4 | 12 | 12 | 0 | 0 | 12 | 100.0% | 2026-09-23 |
+| Layout/IndentationWidth | gitlab (defaults) | 1.81.7 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Layout/IndentationWidth | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Layout/LineLength | discourse | 1.91.0 | 2024 | 2024 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Layout/LineLength | forem | 1.63.4 | 852 | 838 | 22 | 8 | 830 | 97.4% | 2026-09-23 |
-| Layout/LineLength | gitlab (defaults) | 1.81.7 | 12429 | 12428 | 2 | 1 | 0 | 100.0% | 2026-09-23 |
-| Layout/LineLength | mastodon | 1.91.0 | 0 | 2 | 0 | 2 | 0 | 0.0% | 2026-09-23 |
+| Layout/LineLength | gitlab (defaults) | 1.81.7 | 12429 | 12429 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
+| Layout/LineLength | mastodon | 1.91.0 | 0 | 1 | 0 | 1 | 0 | 0.0% | 2026-09-23 |
 | Layout/TrailingEmptyLines | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Layout/TrailingEmptyLines | forem | 1.63.4 | 117 | 112 | 5 | 0 | 112 | 95.7% | 2026-09-23 |
 | Layout/TrailingEmptyLines | gitlab (defaults) | 1.81.7 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
