@@ -70,6 +70,7 @@ struct FileReport {
 
 #[derive(Debug, Deserialize)]
 struct Offense {
+    cop_name: String,
     message: String,
     location: Location,
 }
@@ -105,8 +106,13 @@ pub(crate) fn run(args: &ConformanceArgs) -> Result<ExitCode> {
     let ours_json = run_elysium(&workspace, &app, &args.rule, args.defaults)?;
     let ours: Report = serde_json::from_str(&ours_json).context("parsing elysium report")?;
 
-    let truth_offenses = index(&truth);
-    let our_offenses = index(&ours);
+    // RuboCop's (and elysium's) `--only Cop/Name` still emits `Lint/Syntax`
+    // offenses (and possibly others) alongside the requested cop, so both
+    // sides are filtered down to the rule under test before comparing.
+    let syntax_truth = count_cop(&truth, "Lint/Syntax");
+    let syntax_ours = count_cop(&ours, "Lint/Syntax");
+    let truth_offenses = index(&truth, &args.rule);
+    let our_offenses = index(&ours, &args.rule);
 
     let mut matched = 0usize;
     let mut message_mismatch = 0usize;
@@ -138,7 +144,7 @@ pub(crate) fn run(args: &ConformanceArgs) -> Result<ExitCode> {
     };
 
     println!(
-        "rule: {}  app: {}  truth: {}  ours: {}  matched: {matched}  missing: {}  extra: {}  message_mismatch: {message_mismatch}  agreement: {:.2}%",
+        "rule: {}  app: {}  truth: {}  ours: {}  matched: {matched}  missing: {}  extra: {}  message_mismatch: {message_mismatch}  agreement: {:.2}%  syntax_truth: {syntax_truth}  syntax_ours: {syntax_ours}",
         args.rule,
         app.file_name().unwrap_or_default().to_string_lossy(),
         truth_offenses.len(),
@@ -171,12 +177,18 @@ pub(crate) fn run(args: &ConformanceArgs) -> Result<ExitCode> {
     Ok(ExitCode::SUCCESS)
 }
 
-/// Offenses keyed by `(relative path, line, column)`, mapped to their message.
-fn index(report: &Report) -> BTreeMap<Key, String> {
+/// Offenses keyed by `(relative path, line, column)`, mapped to their
+/// message, restricted to those whose `cop_name` is `rule`. RuboCop's (and
+/// elysium's) `--only Cop/Name` output still carries other cops' offenses
+/// (notably `Lint/Syntax`) alongside the requested one.
+fn index(report: &Report, rule: &str) -> BTreeMap<Key, String> {
     let mut out = BTreeMap::new();
     for file in &report.files {
         let path = file.path.trim_start_matches("./").to_string();
         for offense in &file.offenses {
+            if offense.cop_name != rule {
+                continue;
+            }
             out.insert(
                 (path.clone(), offense.location.start_line, offense.location.start_column),
                 offense.message.clone(),
@@ -184,6 +196,12 @@ fn index(report: &Report) -> BTreeMap<Key, String> {
         }
     }
     out
+}
+
+/// Count of offenses in `report` whose `cop_name` is `cop`, e.g. the
+/// `Lint/Syntax` offenses RuboCop keeps emitting under `--only`.
+fn count_cop(report: &Report, cop: &str) -> usize {
+    report.files.iter().flat_map(|file| &file.offenses).filter(|o| o.cop_name == cop).count()
 }
 
 fn print_samples(app: &Path, label: &str, keys: &[&Key]) {
