@@ -88,6 +88,17 @@ fn column_of(ctx: &Context<'_>, span: Span) -> i64 {
     column
 }
 
+/// RuboCop's `opening_line_start`: a synthetic base location at the first non-whitespace
+/// column of the line an opening delimiter (a parenthesized group's `(`) sits on.
+fn opening_line_start(ctx: &Context<'_>, opening: Span) -> Span {
+    let line = ctx.line_col(opening.start).line;
+    let line_span = ctx.line_span(line);
+    let text = ctx.line_text(line);
+    let col = text.iter().position(|&b| !b.is_ascii_whitespace()).unwrap_or(0);
+    let pos = line_span.start + u32::try_from(col).unwrap_or(0);
+    Span::new(pos, pos + 1)
+}
+
 impl IndentationWidth {
     /// RuboCop's `check_indentation`. `base` is the location the body is expected to be
     /// indented from; `style` names the message suffix (`"normal"` prints nothing).
@@ -373,6 +384,25 @@ impl IndentationWidth {
                 "normal",
             );
         }
+    }
+
+    /// RuboCop's `on_begin` for a parenthesized grouping expression (`(\n  foo\n)`; unrelated
+    /// to Prism's `BeginNode`, the `begin...end` keyword form handled by [`Self::on_begin`]
+    /// above). Indents the body one step from the line the opening parenthesis is on, but
+    /// only when the closing parenthesis is first on its line.
+    fn on_parentheses(&mut self, ctx: &mut Context<'_>, node: &Node<'_>) {
+        let parens = node.as_parentheses_node().expect("kind matched");
+        if !begins_its_line(ctx, parens.closing_loc().span()) {
+            return;
+        }
+        let Some(body) = parens.body() else { return };
+        let first = if let Node::StatementsNode { .. } = &body {
+            body.as_statements_node().expect("kind matched").body().first()
+        } else {
+            Some(body)
+        };
+        let base = opening_line_start(ctx, parens.opening_loc().span());
+        self.check_indentation(ctx, base, first, "normal");
     }
 
     fn on_if(&mut self, ctx: &mut Context<'_>, node: &Node<'_>, base: Span) {

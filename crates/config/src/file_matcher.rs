@@ -2,6 +2,17 @@ use std::path::{Path, PathBuf};
 
 use globset::{Glob, GlobBuilder, GlobSet, GlobSetBuilder};
 
+/// True when some `/`-separated component of `path` starts with `.` (other
+/// than `.`/`..`), i.e. the path RuboCop's `TargetFinder` considers hidden
+/// (`path.include?("/.")`, applied here per-component instead of as a
+/// substring test so it agrees with `Path`'s own segmentation).
+pub fn is_hidden_path(path: &Path) -> bool {
+    path.components().any(|component| match component {
+        std::path::Component::Normal(name) => name.to_str().is_some_and(|s| s.starts_with('.')),
+        _ => false,
+    })
+}
+
 /// RuboCop's `AllCops/Include` defaults (rubocop 1.82).
 pub const DEFAULT_INCLUDE: &[&str] = &[
     "**/*.rb",
@@ -83,9 +94,25 @@ struct Clusivity {
     relative: GlobSet,
     absolute: GlobSet,
     has_absolute: bool,
+    /// Subset of `relative`/`absolute` whose source pattern names a literal
+    /// dot path component (e.g. `**/.simplecov`), mirroring the only way
+    /// RuboCop's `File.fnmatch?` (no `FNM_DOTMATCH`) can match a hidden
+    /// path: the pattern must spell the leading dot itself rather than rely
+    /// on a wildcard.
+    dot_relative: GlobSet,
+    dot_absolute: GlobSet,
+    has_dot_absolute: bool,
     /// True when the configuration does not set this key at all, in which case
     /// RuboCop's `file_name_matches_any?` returns its default answer.
     unset: bool,
+}
+
+/// True when some `/`-separated component of `pattern` is a literal dot
+/// path (starts with `.`, and isn't `.`/`..`). Wildcards such as `*.rb` or
+/// `**` don't count: RuboCop's fnmatch-based matching only crosses into a
+/// hidden path when the pattern names the dot explicitly.
+fn has_explicit_dot_segment(pattern: &str) -> bool {
+    pattern.split('/').any(|segment| segment.starts_with('.') && segment != "." && segment != "..")
 }
 
 impl Clusivity {
@@ -95,29 +122,46 @@ impl Clusivity {
                 relative: GlobSet::empty(),
                 absolute: GlobSet::empty(),
                 has_absolute: false,
+                dot_relative: GlobSet::empty(),
+                dot_absolute: GlobSet::empty(),
+                has_dot_absolute: false,
                 unset: true,
             });
         };
         let mut relative = GlobSetBuilder::new();
         let mut absolute = GlobSetBuilder::new();
         let mut has_absolute = false;
+        let mut dot_relative = GlobSetBuilder::new();
+        let mut dot_absolute = GlobSetBuilder::new();
+        let mut has_dot_absolute = false;
         for pattern in patterns {
             let Ok(glob) = compile(pattern) else {
                 // RuboCop's `File.fnmatch?` treats a malformed pattern as a
                 // literal that simply never matches a real path.
                 continue;
             };
+            let dotted = has_explicit_dot_segment(pattern);
             if Path::new(pattern).is_absolute() {
                 has_absolute = true;
-                absolute.add(glob);
+                absolute.add(glob.clone());
+                if dotted {
+                    has_dot_absolute = true;
+                    dot_absolute.add(glob);
+                }
             } else {
-                relative.add(glob);
+                relative.add(glob.clone());
+                if dotted {
+                    dot_relative.add(glob);
+                }
             }
         }
         Ok(Self {
             relative: relative.build()?,
             absolute: absolute.build()?,
             has_absolute,
+            dot_relative: dot_relative.build()?,
+            dot_absolute: dot_absolute.build()?,
+            has_dot_absolute,
             unset: false,
         })
     }
@@ -130,6 +174,19 @@ impl Clusivity {
             return true;
         }
         self.has_absolute && self.absolute.is_match(root.join(relative))
+    }
+
+    /// Same as `is_match`, restricted to patterns that name a dot path
+    /// component explicitly. Used for paths RuboCop considers hidden, which
+    /// only ever match such a pattern (see `has_explicit_dot_segment`).
+    fn is_hidden_match(&self, root: &Path, relative: &Path) -> bool {
+        if self.unset {
+            return false;
+        }
+        if self.dot_relative.is_match(relative) {
+            return true;
+        }
+        self.has_dot_absolute && self.dot_absolute.is_match(root.join(relative))
     }
 }
 
@@ -170,6 +227,13 @@ impl FileMatcher {
     /// include pattern.
     pub fn is_included(&self, relative: &Path) -> bool {
         self.include.is_match(&self.root, relative, true)
+    }
+
+    /// True when `relative` is hidden (see [`is_hidden_path`]) and matches an
+    /// include pattern that itself names the dot path component explicitly,
+    /// mirroring RuboCop's `TargetFinder#to_inspect?` for a hidden file.
+    pub fn is_included_hidden(&self, relative: &Path) -> bool {
+        self.include.is_hidden_match(&self.root, relative)
     }
 
     /// True when `relative` matches an exclude pattern.
@@ -231,5 +295,19 @@ mod tests {
         let m = FileMatcher::rooted("/project", Some(&["lib/*.rb".to_string()]), None).unwrap();
         assert!(m.is_target(Path::new("lib/foo.rb")));
         assert!(!m.is_target(Path::new("lib/nested/foo.rb")), "* must not cross a separator");
+    }
+
+    #[test]
+    fn hidden_paths_need_an_explicit_dot_pattern() {
+        let m = FileMatcher::rubocop_defaults();
+        assert!(is_hidden_path(Path::new(".simplecov")));
+        assert!(is_hidden_path(Path::new(".devcontainer/x.rb")));
+        assert!(!is_hidden_path(Path::new("lib/a.rb")));
+
+        // `**/*.rb` never reaches into a hidden path.
+        assert!(!m.is_included_hidden(Path::new(".devcontainer/x.rb")));
+        // `**/.simplecov` spells out the dot, so it does.
+        assert!(m.is_included_hidden(Path::new(".simplecov")));
+        assert!(m.is_included_hidden(Path::new("lib/.simplecov")));
     }
 }

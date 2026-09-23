@@ -12,7 +12,7 @@
 use std::path::{Path, PathBuf};
 
 use anyhow::{Context as _, Result};
-use config::FileMatcher;
+use config::{is_hidden_path, FileMatcher};
 use globset::{Glob, GlobMatcher};
 use ignore::{WalkBuilder, WalkState};
 use parking_lot::Mutex;
@@ -127,9 +127,17 @@ fn walk(
                     return WalkState::Continue;
                 }
             }
-            if !opts.matcher.is_excluded(relative)
-                && (opts.matcher.is_included(relative) || (glob.is_none() && ruby_shebang(path)))
-            {
+            let included = if is_hidden_path(relative) {
+                // RuboCop only inspects a hidden file (any dot-prefixed path
+                // component) when it matches an Include pattern that itself
+                // spells out the dot; a bare extension pattern like
+                // `**/*.rb` never reaches into `.devcontainer/` or matches
+                // `.simplecov` by accident the way our glob engine would.
+                opts.matcher.is_included_hidden(relative)
+            } else {
+                opts.matcher.is_included(relative) || (glob.is_none() && ruby_shebang(path))
+            };
+            if !opts.matcher.is_excluded(relative) && included {
                 found.lock().push(path.to_path_buf());
             }
             WalkState::Continue
@@ -200,6 +208,39 @@ mod tests {
 
         let globbed = discover(&[PathBuf::from("d1/*.rb")], &opts).unwrap();
         assert_eq!(globbed.len(), (0..300).filter(|i| i % 7 == 1).count());
+
+        std::fs::remove_dir_all(&dir).unwrap();
+    }
+
+    #[test]
+    fn hidden_paths_are_skipped_unless_explicitly_dotted_or_named_directly() {
+        // Mirrors RuboCop's TargetFinder: `.devcontainer/x.rb` sits behind a
+        // hidden directory component and is never a target of a directory
+        // walk, even though `**/*.rb` would otherwise match it; `.simplecov`
+        // is itself hidden but is a target because AllCops/Include spells
+        // out `**/.simplecov` explicitly; `lib/a.rb` is a plain target.
+        let dir =
+            std::env::temp_dir().join(format!("elysium-discover-hidden-{}", std::process::id()));
+        let _ = std::fs::remove_dir_all(&dir);
+        std::fs::create_dir_all(dir.join(".devcontainer")).unwrap();
+        std::fs::write(dir.join(".devcontainer/x.rb"), b"1\n").unwrap();
+        std::fs::write(dir.join(".simplecov"), b"SimpleCov.start\n").unwrap();
+        std::fs::create_dir_all(dir.join("lib")).unwrap();
+        std::fs::write(dir.join("lib/a.rb"), b"1\n").unwrap();
+
+        let matcher = FileMatcher::rubocop_defaults();
+        let opts = Options { root: &dir, matcher: &matcher, gitignore: false };
+
+        let all = discover(std::slice::from_ref(&dir), &opts).unwrap();
+        assert_eq!(
+            all,
+            vec![dir.join(".simplecov"), dir.join("lib/a.rb")],
+            "hidden directory contents are skipped; the explicit dotfile Include still matches"
+        );
+
+        // A hidden file named directly on the command line is always linted.
+        let explicit = discover(&[PathBuf::from(".devcontainer/x.rb")], &opts).unwrap();
+        assert_eq!(explicit, vec![dir.join(".devcontainer/x.rb")]);
 
         std::fs::remove_dir_all(&dir).unwrap();
     }
