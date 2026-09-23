@@ -103,9 +103,19 @@ fn cop_options(cop: &CopConfig) -> Vec<(String, OptionValue)> {
     cop.options.iter().map(|(key, value)| (key.clone(), option_value(value))).collect()
 }
 
-/// Every cop's options, so a rule can read another cop's settings.
+/// Every cop's options plus `AllCops`, so a rule can read another cop's
+/// settings or global ones such as `TargetRubyVersion`.
 fn peer_options(cfg: &LoadedConfig) -> PeerOptions {
-    cfg.cops().map(|(name, cop)| (name.to_string(), cop_options(cop))).collect()
+    let mut peers: PeerOptions =
+        cfg.cops().map(|(name, cop)| (name.to_string(), cop_options(cop))).collect();
+    let all_cops = cfg
+        .all_cops()
+        .raw()
+        .iter()
+        .map(|(key, value)| (key.to_string(), option_value(value)))
+        .collect();
+    peers.insert("AllCops".to_string(), all_cops);
+    peers
 }
 
 /// Everything the slot list needs to decide whether a rule runs and with
