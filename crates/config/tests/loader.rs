@@ -717,6 +717,68 @@ fn severity_is_resolved_to_the_linter_type() {
     );
 }
 
+#[test]
+fn plugin_all_cops_exclude_appends_to_the_embedded_defaults() {
+    // rubocop-rails/config/default.yml ships `AllCops: Exclude: [bin/*, ...]`;
+    // RuboCop's `Plugin::ConfigurationIntegrator` unions that into the
+    // defaults instead of replacing RuboCop's own `Exclude` list.
+    let project = Project::new();
+    let gem_home = project.path().join("fake_gem_home");
+    std::fs::create_dir_all(gem_home.join("gems/rubocop-rails-2.37.0/config")).expect("mkdir");
+    std::fs::write(
+        gem_home.join("gems/rubocop-rails-2.37.0/config/default.yml"),
+        "AllCops:\n  Exclude:\n    - bin/*\n    - db/*schema.rb\n",
+    )
+    .expect("write gem default.yml");
+    project.write(".rubocop.yml", "plugins:\n  - rubocop-rails\n");
+
+    let loader = project.loader().with_gem_roots(vec![gem_home]);
+    let config = loader.load(Some(Path::new(".rubocop.yml"))).expect("plugin defaults load");
+    let exclude = &config.all_cops().exclude;
+    assert!(exclude.contains(&project.abs("bin/*")), "{exclude:?}");
+    assert!(exclude.contains(&project.abs("db/*schema.rb")), "{exclude:?}");
+    assert!(
+        exclude.contains(&project.abs("node_modules/**/*")),
+        "RuboCop's own Exclude entries survive the plugin merge: {exclude:?}"
+    );
+    assert!(
+        config.requested_extensions().is_empty(),
+        "the gem was found on disk, so it no longer needs the unsupported-extension warning"
+    );
+}
+
+#[test]
+fn plugin_cop_defaults_are_visible_through_cop_lookup() {
+    // rubocop-rails ships `Enabled`/`Include` for its own cops in
+    // `config/default.yml`; elysium merges that in below the user's config.
+    let project = Project::new();
+    let gem_home = project.path().join("fake_gem_home");
+    std::fs::create_dir_all(gem_home.join("gems/rubocop-rails-2.37.0/config")).expect("mkdir");
+    std::fs::write(
+        gem_home.join("gems/rubocop-rails-2.37.0/config/default.yml"),
+        "Rails/Blank:\n  Enabled: true\n  Include:\n    - 'app/**/*.rb'\n",
+    )
+    .expect("write gem default.yml");
+    project.write(".rubocop.yml", "plugins:\n  - rubocop-rails\n");
+
+    let loader = project.loader().with_gem_roots(vec![gem_home]);
+    let config = loader.load(Some(Path::new(".rubocop.yml"))).expect("plugin defaults load");
+    let cop = config.cop("Rails/Blank").expect("Rails/Blank is known once rubocop-rails merges in");
+    assert!(cop.enabled);
+    assert_eq!(cop.include, ["app/**/*.rb"]);
+}
+
+#[test]
+fn missing_extension_gem_still_warns() {
+    // No fake gem home is registered, so `rubocop-rails` cannot be found on
+    // disk and the existing "not supported yet" warning still applies.
+    let project = Project::new();
+    project.write(".rubocop.yml", "plugins:\n  - rubocop-rails\n");
+    let config = project.load(".rubocop.yml");
+    assert_eq!(config.requested_extensions(), ["rubocop-rails"]);
+    assert!(config.cop("Rails/Blank").is_none(), "no gem was found, so it contributes no cops");
+}
+
 /// Throwaway check against a real-world configuration; run with
 /// `cargo test -p config -- --ignored gitlab`.
 #[test]

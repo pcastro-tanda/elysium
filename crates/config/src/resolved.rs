@@ -164,6 +164,10 @@ pub struct LoadedConfig {
     matcher: FileMatcher,
     cop_matchers: BTreeMap<String, FileMatcher>,
     extensions: Vec<String>,
+    /// The subset of `extensions` whose gem was found on disk, whether or
+    /// not it shipped a `config/default.yml` (`ConfigLoader::merge_with_default`
+    /// already merged the latter in).
+    resolved_extensions: BTreeSet<String>,
     warnings: Vec<String>,
 }
 
@@ -174,6 +178,7 @@ impl LoadedConfig {
         loaded_path: Option<PathBuf>,
         root: PathBuf,
         extensions: Vec<String>,
+        resolved_extensions: Vec<String>,
         warnings: Vec<String>,
     ) -> Self {
         let all_cops = AllCops::from_raw(raw.get_mapping("AllCops").cloned().unwrap_or_default());
@@ -254,37 +259,29 @@ impl LoadedConfig {
             );
         }
 
-        // A cop whose configuration was overridden with `~` is deleted from
-        // the merged hash, but RuboCop still runs it with an empty config
-        // (`Config#for_cop` returns `{}`), so keep it as an unconfigured cop.
-        for name in DEFAULT_CONFIG.keys() {
-            if !name.contains('/') || raw.contains_key(name) || cops.contains_key(name) {
-                continue;
-            }
-            let mut params = Mapping::new();
-            let enabled_value = enabled_value(name, &params, &raw, all_cops.disabled_by_default);
-            params.insert("Enabled", enabled_value.clone());
-            cops.insert(
-                name.to_string(),
-                CopConfig {
-                    enabled: enabled_value.as_bool().unwrap_or(false),
-                    severity: None,
-                    include: Vec::new(),
-                    exclude: Vec::new(),
-                    options: std::iter::once(("Enabled".to_string(), enabled_value.clone()))
-                        .collect(),
-                    source: loaded_path.clone(),
-                    enabled_value,
-                    raw: params,
-                },
-            );
-        }
+        backfill_unconfigured_cops(
+            &raw,
+            loaded_path.as_deref(),
+            all_cops.disabled_by_default,
+            &mut cops,
+        );
 
         let matcher =
             FileMatcher::rooted(root.clone(), Some(&all_cops.include), Some(&all_cops.exclude))
                 .unwrap_or_else(|_| FileMatcher::rubocop_defaults());
 
-        Self { raw, loaded_path, root, all_cops, cops, matcher, cop_matchers, extensions, warnings }
+        Self {
+            raw,
+            loaded_path,
+            root,
+            all_cops,
+            cops,
+            matcher,
+            cop_matchers,
+            extensions,
+            resolved_extensions: resolved_extensions.into_iter().collect(),
+            warnings,
+        }
     }
 
     /// The directory paths in the configuration are relative to: the directory
@@ -357,13 +354,15 @@ impl LoadedConfig {
         self.cop_matchers.get(name).is_none_or(|matcher| matcher.is_target(relative_path))
     }
 
-    /// Extension gems requested through `require:`/`plugins:` whose default
-    /// configuration is not embedded yet.
+    /// Extension gems requested through `require:`/`plugins:` that could not
+    /// be located on disk, so their cops still run with only RuboCop's own
+    /// default settings.
     pub fn requested_extensions(&self) -> Vec<&str> {
         self.extensions
             .iter()
             .map(String::as_str)
             .filter(|name| KNOWN_EXTENSIONS.contains(name))
+            .filter(|name| !self.resolved_extensions.contains(*name))
             .collect()
     }
 
@@ -453,6 +452,38 @@ impl LoadedConfig {
             feed(feature.as_bytes(), &mut hash);
         }
         hash
+    }
+}
+
+/// A cop whose configuration was overridden with `~` is deleted from the
+/// merged hash, but RuboCop still runs it with an empty config
+/// (`Config#for_cop` returns `{}`), so keep it as an unconfigured cop.
+fn backfill_unconfigured_cops(
+    raw: &Mapping,
+    loaded_path: Option<&Path>,
+    disabled_by_default: bool,
+    cops: &mut BTreeMap<String, CopConfig>,
+) {
+    for name in DEFAULT_CONFIG.keys() {
+        if !name.contains('/') || raw.contains_key(name) || cops.contains_key(name) {
+            continue;
+        }
+        let mut params = Mapping::new();
+        let enabled_value = enabled_value(name, &params, raw, disabled_by_default);
+        params.insert("Enabled", enabled_value.clone());
+        cops.insert(
+            name.to_string(),
+            CopConfig {
+                enabled: enabled_value.as_bool().unwrap_or(false),
+                severity: None,
+                include: Vec::new(),
+                exclude: Vec::new(),
+                options: std::iter::once(("Enabled".to_string(), enabled_value.clone())).collect(),
+                source: loaded_path.map(Path::to_path_buf),
+                enabled_value,
+                raw: params,
+            },
+        );
     }
 }
 

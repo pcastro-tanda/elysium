@@ -20,6 +20,14 @@ pub(crate) struct GemSearch {
     pub use_environment: bool,
 }
 
+/// Outcome of looking up an extension gem's own `config/default.yml`.
+pub(crate) enum ExtensionDefaults {
+    /// The gem was located but ships no `config/default.yml` of its own.
+    NotShipped,
+    /// The gem's own default configuration file, ready to be read and merged.
+    Found(PathBuf),
+}
+
 impl GemSearch {
     /// Resolves `<gem_dir>/<relative_config_path>` the way
     /// `ConfigLoaderResolver#gem_config_path` does.
@@ -61,6 +69,25 @@ impl GemSearch {
                 Err(ConfigError::GemNotFound { gem: gem.to_string(), version, searched: roots })
             }
         }
+    }
+
+    /// Locates `<gem>/config/default.yml` the way `inherit_gem` locates a
+    /// gem's config, but treats a missing *file* as `NotShipped` rather than
+    /// an error: only a gem that cannot be found at all is an error. This is
+    /// how RuboCop injects a `require:`/`plugins:` gem's own defaults below
+    /// the embedded `config/default.yml`
+    /// (`Plugin::ConfigurationIntegrator`, `ConfigLoader.inject_defaults!`).
+    pub(crate) fn extension_defaults(
+        &self,
+        project_root: &Path,
+        gem: &str,
+    ) -> Result<ExtensionDefaults, ConfigError> {
+        let path = self.config_path(project_root, gem, "config/default.yml")?;
+        Ok(if path.is_file() {
+            ExtensionDefaults::Found(path)
+        } else {
+            ExtensionDefaults::NotShipped
+        })
     }
 
     /// Directories that directly contain `<gem>-<version>` entries.

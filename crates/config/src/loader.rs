@@ -196,12 +196,23 @@ impl ConfigLoader {
                 (file.hash, Some(file.path))
             }
         };
-        let resolved = self.merge_with_default(hash);
+        let gem_search_start = self.project_root().unwrap_or_else(|| {
+            loaded_path.as_deref().and_then(Path::parent).unwrap_or(&self.cwd).to_path_buf()
+        });
+        let (resolved, resolved_extensions) =
+            self.merge_with_default(hash, &gem_search_start, &state.extensions)?;
         let root = match &loaded_path {
             Some(path) => base_dir_for_path_parameters(path, &self.cwd, self.home.as_deref()),
             None => self.cwd.clone(),
         };
-        Ok(LoadedConfig::new(resolved, loaded_path, root, state.extensions, state.warnings))
+        Ok(LoadedConfig::new(
+            resolved,
+            loaded_path,
+            root,
+            state.extensions,
+            resolved_extensions,
+            state.warnings,
+        ))
     }
 
     /// RuboCop's `ConfigLoader.load_file`: read, resolve `inherit_gem`,
@@ -379,13 +390,49 @@ impl ConfigLoader {
         Ok(())
     }
 
-    /// `ConfigLoaderResolver#merge_with_default`.
-    fn merge_with_default(&self, user: Mapping) -> Mapping {
+    /// `ConfigLoaderResolver#merge_with_default`, extended to inject the
+    /// gem-shipped defaults of every resolvable `require:`/`plugins:` entry
+    /// below `config/default.yml`, the way RuboCop's
+    /// `Plugin::ConfigurationIntegrator` and `ConfigLoader.inject_defaults!`
+    /// do for plugins and legacy `require:` extensions respectively. Returns
+    /// the subset of `extensions` that were found on disk (whether or not
+    /// they ship a `config/default.yml`), so the caller can stop warning
+    /// about them.
+    fn merge_with_default(
+        &self,
+        user: Mapping,
+        gem_search_start: &Path,
+        extensions: &[String],
+    ) -> Result<(Mapping, Vec<String>), ConfigError> {
         let mut default = DEFAULT_CONFIG.clone();
         // RuboCop loads `config/default.yml` through `load_file` as well, and
         // that file is not named `.rubocop*`, so its `Exclude` entries are made
         // absolute against the working directory.
         make_excludes_absolute(&mut default, &self.cwd);
+
+        let mut resolved_extensions = Vec::new();
+        if self.allow_gem_lookup {
+            for gem in extensions {
+                if gem == "rubocop" {
+                    continue;
+                }
+                match self.gem_search.extension_defaults(gem_search_start, gem) {
+                    Ok(gems::ExtensionDefaults::Found(path)) => {
+                        let mut extension_default = read_yaml_configuration(&path)?;
+                        make_excludes_absolute(&mut extension_default, &self.cwd);
+                        default = merge_extension_defaults(&default, &extension_default);
+                        resolved_extensions.push(gem.clone());
+                    }
+                    Ok(gems::ExtensionDefaults::NotShipped) => {
+                        resolved_extensions.push(gem.clone());
+                    }
+                    Err(_) => {
+                        // Not found on disk; the caller keeps warning about it.
+                    }
+                }
+            }
+        }
+
         let all_cops = user.get_mapping("AllCops");
         let disabled_by_default =
             all_cops.and_then(|a| a.get("DisabledByDefault")).is_some_and(YamlValue::is_truthy);
@@ -408,8 +455,39 @@ impl ConfigLoader {
         override_enabled_for_disabled_departments(&default, &mut user);
 
         let inherit_mode = user.get_mapping("inherit_mode").cloned();
-        merge(&default, &user, MergeOpts { inherit_mode: inherit_mode.as_ref(), unset_nil: true })
+        let merged = merge(
+            &default,
+            &user,
+            MergeOpts { inherit_mode: inherit_mode.as_ref(), unset_nil: true },
+        );
+        Ok((merged, resolved_extensions))
     }
+}
+
+/// `Plugin::ConfigurationIntegrator#merge_plugin_config_into_default_config!`
+/// combined with `#merge_all_cop_settings`, simplified to the one special
+/// case elysium's supported extensions need: RuboCop always unions an
+/// extension's `AllCops/Exclude` into the accumulated defaults rather than
+/// letting it replace them (excluding `bin/*` should not un-exclude
+/// `**/app/assets/**/*`); every other key the extension sets overrides
+/// RuboCop's own default, exactly like a plain recursive hash merge.
+fn merge_extension_defaults(base: &Mapping, extension: &Mapping) -> Mapping {
+    let mut merged = merge(base, extension, MergeOpts { inherit_mode: None, unset_nil: false });
+    let Some(extension_all_cops) = extension.get_mapping("AllCops") else { return merged };
+    if !extension_all_cops.contains_key("Exclude") {
+        return merged;
+    }
+    let mut excludes =
+        base.get_mapping("AllCops").map(|a| a.get_string_list("Exclude")).unwrap_or_default();
+    for path in extension_all_cops.get_string_list("Exclude") {
+        if !excludes.contains(&path) {
+            excludes.push(path);
+        }
+    }
+    let all_cops = merged.get_mapping_mut("AllCops").expect("extension set AllCops");
+    all_cops
+        .insert("Exclude", YamlValue::Array(excludes.into_iter().map(YamlValue::String).collect()));
+    merged
 }
 
 /// `ConfigLoaderResolver#handle_disabled_by_default`.
