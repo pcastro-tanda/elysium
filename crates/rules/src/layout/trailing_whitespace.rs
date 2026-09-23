@@ -160,9 +160,8 @@ matching RuboCop's buffer handling.",
         };
         let source_len = u32::try_from(ctx.source().bytes().len()).unwrap_or(u32::MAX);
 
-        for line in 1..=last_line {
-            let span = ctx.line_span(line);
-            let text = ctx.line_text(line);
+        for (line, span) in ctx.lines().take_while(|&(line, _)| line <= last_line) {
+            let text = ctx.text(span);
             let Some(offset) = trailing_blank_start(text) else { continue };
             let heredoc = self.find_heredoc(line);
             if self.allow_in_heredoc && heredoc.is_some() {
@@ -233,21 +232,29 @@ fn indent_level(body: &[u8]) -> u32 {
 
 /// Byte offset of the trailing `[[:blank:]]` run of `line`, if it has one.
 fn trailing_blank_start(line: &[u8]) -> Option<usize> {
-    let mut start = line.len();
-    if let Ok(text) = std::str::from_utf8(line) {
-        for (index, ch) in text.char_indices().rev() {
-            if is_blank(ch) {
-                start = index;
-            } else {
-                break;
-            }
+    let mut end = line.len();
+    while end > 0 {
+        let last = line[end - 1];
+        if last == b' ' || last == b'\t' {
+            end -= 1;
+            continue;
         }
-    } else {
-        while start > 0 && matches!(line[start - 1], b' ' | b'\t') {
+        if last < 0x80 {
+            break;
+        }
+        // Possible trailing multi-byte Unicode blank: walk back to this
+        // character's lead byte and decode just that one character,
+        // instead of validating the whole line as UTF-8.
+        let mut start = end - 1;
+        while start > 0 && (line[start] & 0xC0) == 0x80 {
             start -= 1;
         }
+        match std::str::from_utf8(&line[start..end]).ok().and_then(|s| s.chars().next()) {
+            Some(ch) if is_blank(ch) => end = start,
+            _ => break,
+        }
     }
-    (start < line.len()).then_some(start)
+    (end < line.len()).then_some(end)
 }
 
 /// Ruby's `[[:blank:]]`: horizontal tab plus every Unicode space separator.

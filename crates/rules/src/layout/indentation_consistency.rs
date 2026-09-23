@@ -2,8 +2,6 @@
 //! `lib/rubocop/cop/layout/indentation_consistency.rb` plus its `Alignment`
 //! mixin and `AlignmentCorrector`.
 
-use std::collections::HashMap;
-
 use linter::{
     Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
     OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
@@ -25,27 +23,12 @@ enum Style {
     IndentedInternalMethods,
 }
 
-/// The immediate structural parent of a `StatementsNode`, precomputed once
-/// per file since Prism nodes carry no parent pointers. Mirrors what
-/// RuboCop's `node.parent` gives `base_column_for_normal_style`: whether
-/// that parent is the top-level program (whitequark's AST has no separate
-/// program wrapper, so its root `begin` node's `parent` is `nil`) and the
-/// parent's own display column.
-#[derive(Debug, Clone, Copy)]
-struct ParentInfo {
-    is_root: bool,
-    column: u32,
-}
-
 /// Checks for inconsistent indentation, ported from RuboCop's
 /// `IndentationConsistency` cop plus its `Alignment` mixin and
 /// `AlignmentCorrector`.
 #[derive(Debug, Clone)]
 pub struct IndentationConsistency {
     style: Style,
-    /// `StatementsNode` span-start -> immediate parent info, precomputed in
-    /// `file_start` (RuboCop's `node.parent`).
-    parents: HashMap<u32, ParentInfo>,
     /// Spans already reported by this rule in this file, in visitation
     /// order (RuboCop's `@current_offenses`): an offense nested inside one
     /// already reported is emitted without a fix instead of colliding with
@@ -162,16 +145,11 @@ cops.",
             "indented_internal_methods" => Style::IndentedInternalMethods,
             _ => Style::Normal,
         };
-        Ok(Self { style, parents: HashMap::new(), reported: Vec::new() })
+        Ok(Self { style, reported: Vec::new() })
     }
 
-    fn file_start(&mut self, ctx: &mut Context<'_>) {
-        self.parents.clear();
+    fn file_start(&mut self, _ctx: &mut Context<'_>) {
         self.reported.clear();
-        let root = ctx.parsed().root();
-        let mut walker = ParentWalker { ctx, stack: Vec::new(), parents: HashMap::new() };
-        walk(&root, &mut walker);
-        self.parents = walker.parents;
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
@@ -180,8 +158,7 @@ cops.",
         match self.style {
             Style::Normal => {
                 let first_raw = body.first();
-                let base_column =
-                    self.base_column_for_normal_style(ctx, first_raw.as_ref(), node.span().start);
+                let base_column = Self::base_column_for_normal_style(ctx, first_raw.as_ref());
                 let items: Vec<Node<'_>> =
                     body.iter().filter(|child| !is_bare_access_modifier(child)).collect();
                 self.check_alignment(ctx, &items, base_column);
@@ -209,21 +186,20 @@ impl IndentationConsistency {
     /// with the column of a bare access modifier that leads the raw
     /// (unfiltered) child list.
     fn base_column_for_normal_style(
-        &self,
         ctx: &Context<'_>,
         first_raw: Option<&Node<'_>>,
-        node_start: u32,
     ) -> Option<u32> {
         let first = first_raw?;
         if !is_bare_access_modifier(first) {
             return None;
         }
         let access_modifier_indent = display_column(ctx, first.span());
-        let parent = self.parents.get(&node_start)?;
-        if parent.is_root {
+        let parent = ctx.parent()?;
+        if parent.kind == NodeKind::ProgramNode {
             return Some(access_modifier_indent);
         }
-        (access_modifier_indent > parent.column).then_some(access_modifier_indent)
+        let parent_column = display_column(ctx, parent.span);
+        (access_modifier_indent > parent_column).then_some(access_modifier_indent)
     }
 
     /// RuboCop's `Alignment#check_alignment` + `#each_bad_alignment`.
@@ -265,33 +241,6 @@ impl IndentationConsistency {
             Some(fix) => ctx.report_with_fix(&Self::META, span, MSG, fix),
             None => ctx.report(&Self::META, span, MSG),
         }
-    }
-}
-
-/// Precomputes, for every `StatementsNode` in the tree, its immediate
-/// structural parent (kind + display column), since Prism nodes have no
-/// parent pointers and the check needs `node.parent` exactly once, only
-/// when the raw first child of a body is a bare access modifier.
-struct ParentWalker<'a, 'src> {
-    ctx: &'a Context<'src>,
-    stack: Vec<(bool, u32)>,
-    parents: HashMap<u32, ParentInfo>,
-}
-
-impl<'pr> Visitor<'pr> for ParentWalker<'_, '_> {
-    fn enter(&mut self, node: &Node<'pr>) {
-        let span = node.span();
-        if matches!(node, Node::StatementsNode { .. }) {
-            if let Some(&(is_root, column)) = self.stack.last() {
-                self.parents.insert(span.start, ParentInfo { is_root, column });
-            }
-        }
-        let is_program = matches!(node, Node::ProgramNode { .. });
-        self.stack.push((is_program, display_column(self.ctx, span)));
-    }
-
-    fn leave(&mut self, _node: &Node<'pr>) {
-        self.stack.pop();
     }
 }
 

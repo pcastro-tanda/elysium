@@ -17,6 +17,15 @@ fn message(length: i64, max: i64) -> String {
     format!("Line is too long. [{length}/{max}]")
 }
 
+/// RuboCop inspects `processed_source.lines`, which stops at a `__END__`
+/// data section.
+fn last_source_line(ctx: &Context<'_>) -> u32 {
+    match ctx.parsed().data_span() {
+        Some(data) => ctx.line_col(data.start).line.saturating_sub(1),
+        None => ctx.line_count(),
+    }
+}
+
 /// RuboCop's `AllowHeredoc` cop option: a plain boolean, or a list of
 /// heredoc delimiters that are exempt.
 #[derive(Debug, Clone)]
@@ -223,6 +232,15 @@ is a complete port.",
         self.heredocs.clear();
         self.breakable.clear();
 
+        let last = last_source_line(ctx);
+        let any_long = ctx
+            .lines()
+            .take_while(|&(line, _)| line <= last)
+            .any(|(_, span)| line_too_long(ctx.text(span), self.tab_width, self.max));
+        if !any_long {
+            return;
+        }
+
         let comment_lines: HashSet<u32> = ctx.comments().iter().map(|c| c.line).collect();
         let mut walker =
             Walker::new(ctx, self.max, self.tab_width, self.split_strings, comment_lines);
@@ -243,21 +261,23 @@ is a complete port.",
     }
 
     fn file_end(&mut self, ctx: &mut Context<'_>) {
-        // RuboCop inspects `processed_source.lines`, which stops at a
-        // `__END__` data section.
-        let last_line = match ctx.parsed().data_span() {
-            Some(data) => ctx.line_col(data.start).line.saturating_sub(1),
-            None => ctx.line_count(),
-        };
-        for line in 1..=last_line {
-            self.check_line(ctx, line);
+        let last = last_source_line(ctx);
+        let lines: Vec<(u32, &[u8])> = ctx
+            .lines()
+            .take_while(|&(line, _)| line <= last)
+            .map(|(line, span)| (line, ctx.text(span)))
+            .collect();
+        for (line, text) in lines {
+            self.check_line(ctx, line, text);
         }
     }
 }
 
 impl LineLength {
-    fn check_line(&mut self, ctx: &mut Context<'_>, line: u32) {
-        let text = ctx.line_text(line);
+    fn check_line(&mut self, ctx: &mut Context<'_>, line: u32, text: &[u8]) {
+        if !maybe_exceeds(text, self.tab_width, self.max) {
+            return;
+        }
         let length = line_length_chars(text, self.tab_width);
         if length <= self.max {
             return;
@@ -478,6 +498,22 @@ fn is_rbs_annotation(text: &[u8]) -> bool {
 /// indentation penalty.
 fn line_length_chars(text: &[u8], tab_width: Option<i64>) -> i64 {
     i64::from(char_count(text)) + indentation_difference(text, tab_width)
+}
+
+/// Fast rejection for [`line_length_chars`]: characters never outnumber
+/// bytes, and RuboCop's tab-width penalty (`indentation_difference`) is
+/// zero unless the line starts with a tab, so a line whose byte length
+/// already fits under `max` and doesn't open with a tab can never exceed
+/// it -- skip the UTF-8 char count entirely.
+fn maybe_exceeds(text: &[u8], tab_width: Option<i64>, max: i64) -> bool {
+    let byte_len = i64::try_from(text.len()).unwrap_or(i64::MAX);
+    byte_len > max || (tab_width.is_some() && text.first() == Some(&b'\t'))
+}
+
+/// Full `line_length_chars(text, tab_width) > max` check, short-circuited
+/// by [`maybe_exceeds`] when possible.
+fn line_too_long(text: &[u8], tab_width: Option<i64>, max: i64) -> bool {
+    maybe_exceeds(text, tab_width, max) && line_length_chars(text, tab_width) > max
 }
 
 /// RuboCop's `indentation_difference`.
