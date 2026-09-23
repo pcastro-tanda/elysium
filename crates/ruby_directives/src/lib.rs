@@ -54,6 +54,27 @@
 //!   harmless side effect, also handles multi-level department prefixes
 //!   (e.g. `rubocop-rspec`'s `RSpec/Rails` disabling `RSpec/Rails/HttpStatus`)
 //!   without needing to special-case them.
+//! - **`disable-next`/`todo-next`/`enable-next` scope to one physical line,
+//!   not a full AST statement.** Upstream (`RuboCop::CommentConfig::DisableNext`,
+//!   added in RuboCop 1.91) walks the parsed statement following a `-next`
+//!   directive comment so a multi-line statement, a `when` clause, or a
+//!   heredoc is disabled in its entirety, honors the directive only on a
+//!   comment-only line, and skips past blank lines and other comment-only
+//!   lines while tracking directives that end up attached to nothing. This
+//!   crate has no such statement-scope notion (and no "detached directive"
+//!   bookkeeping, which upstream only collects for diagnostics this phase
+//!   doesn't implement): every `-next` directive instead scopes to exactly
+//!   the one physical source line right after the comment's own line,
+//!   whether the comment sits alone on its line or trails code on it. This
+//!   matches upstream whenever the following statement happens to be a
+//!   single physical line (the common case) and otherwise under- or
+//!   over-disables relative to the true statement extent.
+//! - **No `push`/`pop`/bare `next` support.** RuboCop 1.91 also added a
+//!   `# rubocop:push`/`# rubocop:pop` stack and a signed bare
+//!   `# rubocop:next +Cop -Cop` directive built on the same push/pop
+//!   machinery. Neither is recognized here for the same reason `push`/`pop`
+//!   themselves are not (see above): a comment using any of these modes is
+//!   simply not treated as a directive at all.
 
 use std::sync::LazyLock;
 
@@ -68,6 +89,8 @@ use ruby_source::{SourceFile, Span};
 /// can tell its own generated directives apart from hand-written ones. This
 /// crate keeps the distinction in the type for that reason, but treats
 /// [`DirectiveKind::Todo`] exactly like [`DirectiveKind::Disable`] everywhere.
+/// Likewise [`DirectiveKind::TodoNext`] is treated exactly like
+/// [`DirectiveKind::DisableNext`].
 #[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
 pub enum DirectiveKind {
     /// `# rubocop:disable ...`
@@ -76,13 +99,30 @@ pub enum DirectiveKind {
     Enable,
     /// `# rubocop:todo ...` (equivalent to `Disable`).
     Todo,
+    /// `# rubocop:disable-next ...`. See the module docs for how this
+    /// crate approximates upstream's AST-statement-scoped "next" directives
+    /// with a single physical line.
+    DisableNext,
+    /// `# rubocop:todo-next ...` (equivalent to `DisableNext`).
+    TodoNext,
+    /// `# rubocop:enable-next ...`
+    EnableNext,
 }
 
 impl DirectiveKind {
-    /// True for `Disable` and `Todo`, matching upstream `DirectiveComment#disabled?`.
+    /// True for `Disable`, `Todo`, and `DisableNext`/`TodoNext`, matching
+    /// upstream `DirectiveComment#disabled?`.
     #[must_use]
     pub const fn disables(self) -> bool {
-        !matches!(self, Self::Enable)
+        !matches!(self, Self::Enable | Self::EnableNext)
+    }
+
+    /// True for the three `-next` modes, matching upstream
+    /// `DirectiveComment#disable_next?` (for `DisableNext`/`TodoNext`) and
+    /// `#enable_next?` combined.
+    #[must_use]
+    pub const fn is_next(self) -> bool {
+        matches!(self, Self::DisableNext | Self::TodoNext | Self::EnableNext)
     }
 }
 
@@ -153,16 +193,22 @@ pub struct Directives {
 
 // Ported from RuboCop::DirectiveComment (directive_comment.rb):
 //   DIRECTIVE_MARKER_PATTERN = '# rubocop : '  (every space -> \s*)
-//   DIRECTIVE_HEADER_PATTERN = marker + "(disable|enable|todo)\b"
+//   DIRECTIVE_HEADER_PATTERN = marker + "(disable-next|todo-next|enable-next|disable|enable|todo)\b"
 //   COP_NAME_PATTERN = ([A-Za-z]\w+/)*(?:[A-Za-z]\w+)
 //   COPS_PATTERN = (all|(?:COP_NAME_PATTERN , )*COP_NAME_PATTERN)
-// `push`/`pop` modes are intentionally omitted; see module docs.
+// `push`/`pop`/bare `next` modes are intentionally omitted; see module docs.
+// Modes are listed longest-first in the alternation (matching upstream's
+// `AVAILABLE_MODES.sort_by { |mode| -mode.length }` comment: "Longest first,
+// so a `-next` mode is not matched as its prefix"): the `regex` crate picks
+// the first alternative that matches at a position, not the longest, so
+// `disable-next Foo` would otherwise match mode `disable` and leave a
+// dangling `-next Foo` that fails the optional cops group.
 // `(?-u)` restricts \w/\s/\b to ASCII, matching Ruby's default \w for cop
 // identifiers (which are always ASCII) and avoiding any UTF-8-boundary
 // subtleties on raw comment bytes.
 static DIRECTIVE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?-u)\#\s*rubocop\s*:\s*(?P<mode>disable|enable|todo)\b(?:\s+(?P<cops>all|(?:[A-Za-z]\w+/)*[A-Za-z]\w+(?:\s*,\s*(?:[A-Za-z]\w+/)*[A-Za-z]\w+)*))?",
+        r"(?-u)\#\s*rubocop\s*:\s*(?P<mode>disable-next|todo-next|enable-next|disable|enable|todo)\b(?:\s+(?P<cops>all|(?:[A-Za-z]\w+/)*[A-Za-z]\w+(?:\s*,\s*(?:[A-Za-z]\w+/)*[A-Za-z]\w+)*))?",
     )
     .expect("static directive regex is valid")
 });
@@ -196,6 +242,9 @@ fn parse_comment(source: &SourceFile, span: Span, text: &[u8]) -> Option<Directi
         b"disable" => DirectiveKind::Disable,
         b"enable" => DirectiveKind::Enable,
         b"todo" => DirectiveKind::Todo,
+        b"disable-next" => DirectiveKind::DisableNext,
+        b"todo-next" => DirectiveKind::TodoNext,
+        b"enable-next" => DirectiveKind::EnableNext,
         _ => return None,
     };
     let cops = captures.name("cops").map(|m| parse_cops(m.as_bytes())).unwrap_or_default();
@@ -251,7 +300,24 @@ impl Directives {
         let mut ranges = Vec::new();
         let mut start: Option<u32> = None;
         for directive in self.directives.iter().filter(|d| covers(d)) {
-            if directive.inline {
+            if directive.kind.is_next() {
+                // apply_disable_next/apply_enable_next, simplified to the
+                // one physical line after the comment (see module docs):
+                // `inline` is irrelevant here, unlike the plain modes below.
+                let target = directive.line + 1;
+                if directive.kind.disables() {
+                    // add_next_range: an independent one-off range that
+                    // doesn't disturb any already-open `start`.
+                    ranges.push((target, target));
+                } else if let Some(s) = start {
+                    // suspend_disable: punch the target line out of the
+                    // open range (a no-op unless something is open).
+                    if target > s {
+                        ranges.push((s, target - 1));
+                    }
+                    start = Some(target + 1);
+                }
+            } else if directive.inline {
                 // analyze_single_line: an inline `enable` has no effect; an
                 // inline disable/todo affects only its own line.
                 if directive.kind.disables() {
@@ -523,5 +589,115 @@ mod tests {
         assert!(!all[0].inline);
         assert_eq!(all[1].line, 3);
         assert_eq!(all[1].kind, DirectiveKind::Enable);
+    }
+
+    // Ports of RuboCop::CommentConfig / DirectiveComment spec cases for the
+    // `-next` modes (spec/rubocop/comment_config_spec.rb and
+    // spec/rubocop/directive_comment_spec.rb, RuboCop 1.91.0). See the
+    // module docs for how this crate's one-physical-line approximation
+    // relates to upstream's full AST-statement scope.
+
+    #[test]
+    fn disable_next_targets_only_the_single_next_physical_line() {
+        // comment_config_spec.rb, "disable-next directives" > "when several
+        // statements share the target line" -> "scopes to that line only"
+        // ([2..2]); this is one of the cases where upstream's AST-statement
+        // scope and this crate's one-physical-line approximation agree,
+        // since both statements on line 2 still end on line 2.
+        let d = directives_for("# rubocop:disable-next Style/Semicolon\na = 1; b = 2\nc = 3\n");
+        assert!(!d.is_disabled("Style/Semicolon", 1));
+        assert!(d.is_disabled("Style/Semicolon", 2));
+        assert!(!d.is_disabled("Style/Semicolon", 3));
+    }
+
+    #[test]
+    fn todo_next_department_disables_every_member_cop_on_the_next_line() {
+        // comment_config_spec.rb, "disable-next directives" > "with a
+        // department" -> "disables every cop of the department for the
+        // statement".
+        let d = directives_for("# rubocop:todo-next Style\n@@foo = 1\n@@bar = 2\n");
+        assert!(d.is_disabled("Style/ClassVars", 2));
+        assert!(d.is_disabled("Style/FrozenStringLiteralComment", 2));
+        assert!(!d.is_disabled("Style/ClassVars", 3));
+    }
+
+    #[test]
+    fn inline_disable_next_targets_the_following_line_not_its_own() {
+        // comment_config_spec.rb, "disable-next directives" > "when the
+        // directive sits at the end of a code line" -> upstream does *not*
+        // honor this (it requires a comment-only line and records the
+        // directive as detached instead). This crate has no notion of a
+        // "detached" directive and, per the module docs, resolves every
+        // `-next` directive to the physical next line regardless of
+        // inline-ness, so it deliberately diverges here and disables line 2.
+        let d = directives_for("puts 1 # rubocop:disable-next Metrics/MethodLength\nputs 2\n");
+        assert!(!d.is_disabled("Metrics/MethodLength", 1));
+        assert!(d.is_disabled("Metrics/MethodLength", 2));
+    }
+
+    #[test]
+    fn enable_next_suspends_an_open_disable_for_the_following_line_only() {
+        // comment_config_spec.rb, "enable-next directives" > "inside a
+        // disabled region" -> "enables the cop for the statement only".
+        let d = directives_for(
+            "# rubocop:disable Style/For\nfor x in [1, 2] do x end\n# rubocop:enable-next Style/For -- reviewed\nfor y in [3, 4] do y end\nfor z in [5, 6] do z end\n# rubocop:enable Style/For\n",
+        );
+        assert!(d.is_disabled("Style/For", 2));
+        assert!(!d.is_disabled("Style/For", 4));
+        assert!(d.is_disabled("Style/For", 5));
+    }
+
+    #[test]
+    fn enable_next_all_suspends_every_open_disable_for_the_following_line() {
+        // comment_config_spec.rb, "enable-next directives" > "with `all`" ->
+        // "suspends every open disable for the statement".
+        let d = directives_for(
+            "# rubocop:disable Style/For, Style/Not\nfor x in [1, 2] do not x.nil? end\n# rubocop:enable-next all\nfor y in [3, 4] do not y.nil? end\n# rubocop:enable Style/For, Style/Not\n",
+        );
+        assert!(d.is_disabled("Style/For", 2));
+        assert!(!d.is_disabled("Style/For", 4));
+        assert!(!d.is_disabled("Style/Not", 4));
+    }
+
+    #[test]
+    fn disable_next_mode_is_parsed_with_its_cop_list() {
+        // directive_comment_spec.rb, "#disable_next?" > "when disable-next"
+        // -> "is a disabling directive with the listed cops".
+        let d =
+            directives_for("# rubocop:disable-next Metrics/AbcSize, Metrics/MethodLength\nfoo\n");
+        assert_eq!(d.directives().len(), 1);
+        let directive = &d.directives()[0];
+        assert_eq!(directive.kind, DirectiveKind::DisableNext);
+        assert!(directive.kind.disables());
+        assert_eq!(
+            directive.cops,
+            vec![
+                CopRef::Cop("Metrics/AbcSize".to_string()),
+                CopRef::Cop("Metrics/MethodLength".to_string())
+            ]
+        );
+    }
+
+    #[test]
+    fn todo_next_mode_disables_and_keeps_reason_out_of_cops() {
+        // directive_comment_spec.rb, "#disable_next?" > "when todo-next" ->
+        // "is a disabling directive and keeps the reason".
+        let d = directives_for("# rubocop:todo-next Metrics/AbcSize -- a reason\nfoo\n");
+        let directive = &d.directives()[0];
+        assert_eq!(directive.kind, DirectiveKind::TodoNext);
+        assert!(directive.kind.disables());
+        assert_eq!(directive.cops, vec![CopRef::Cop("Metrics/AbcSize".to_string())]);
+    }
+
+    #[test]
+    fn enable_next_mode_does_not_disable_and_keeps_reason_out_of_cops() {
+        // directive_comment_spec.rb, "#enable_next?" > "when an
+        // `enable-next` directive" -> "is an enabling directive and keeps
+        // the reason".
+        let d = directives_for("# rubocop:enable-next Metrics/AbcSize -- settled\nfoo\n");
+        let directive = &d.directives()[0];
+        assert_eq!(directive.kind, DirectiveKind::EnableNext);
+        assert!(!directive.kind.disables());
+        assert_eq!(directive.cops, vec![CopRef::Cop("Metrics/AbcSize".to_string())]);
     }
 }

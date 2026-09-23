@@ -20,7 +20,7 @@ text differs (RuboCop versions word some messages differently).
 | Layout/LineLength | discourse | 1.91.0 | 2024 | 2024 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Layout/LineLength | forem | 1.63.4 | 852 | 838 | 22 | 8 | 830 | 97.4% | 2026-09-23 |
 | Layout/LineLength | gitlab (defaults) | 1.81.7 | 12429 | 12429 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/LineLength | mastodon | 1.91.0 | 0 | 1 | 0 | 1 | 0 | 0.0% | 2026-09-23 |
+| Layout/LineLength | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Layout/TrailingEmptyLines | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
 | Layout/TrailingEmptyLines | forem | 1.63.4 | 117 | 112 | 5 | 0 | 112 | 95.7% | 2026-09-23 |
 | Layout/TrailingEmptyLines | gitlab (defaults) | 1.81.7 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
