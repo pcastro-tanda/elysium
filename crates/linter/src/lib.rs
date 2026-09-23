@@ -11,7 +11,7 @@ mod options;
 mod rule;
 mod settings;
 
-pub use context::{CommentInfo, Context};
+pub use context::{CommentInfo, Context, NodeInfo};
 pub use diagnostic::{Applicability, Diagnostic, Edit, Fix, Severity};
 pub use engine::{lint_file, lint_parsed, lint_parsed_with, FileResult, SYNTAX_RULE};
 pub use fix::{apply_fixes, fix_file, FixOutcome, FixReport, MAX_FIX_ITERATIONS};

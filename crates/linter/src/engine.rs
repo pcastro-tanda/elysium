@@ -2,7 +2,7 @@ use ruby_ast::{walk, Node, NodeExt, Parsed, Visitor};
 use ruby_directives::Directives;
 use ruby_source::SourceFile;
 
-use crate::context::Context;
+use crate::context::{Context, NodeInfo};
 use crate::diagnostic::{Diagnostic, Severity};
 use crate::rule::Dispatch;
 use crate::settings::FileSettings;
@@ -31,11 +31,14 @@ impl<'pr, D: Dispatch> Visitor<'pr> for Walker<'_, '_, '_, D> {
     #[inline]
     fn enter(&mut self, node: &Node<'pr>) {
         self.node_count += 1;
-        self.rules.enter(node.kind(), node, self.ctx);
+        let kind = node.kind();
+        self.rules.enter(kind, node, self.ctx);
+        self.ctx.push_ancestor(NodeInfo { kind, span: node.span() });
     }
 
     #[inline]
     fn leave(&mut self, node: &Node<'pr>) {
+        self.ctx.pop_ancestor();
         self.rules.leave(node.kind(), node, self.ctx);
     }
 }
@@ -310,5 +313,53 @@ mod tests {
         assert!(result.has_syntax_errors);
         assert!(!result.diagnostics.is_empty());
         assert!(result.diagnostics.iter().all(|d| d.rule == SYNTAX_RULE));
+    }
+
+    /// Dispatch that records the full ancestor-kind path (outermost first)
+    /// and immediate parent kind every time it enters a `CallNode`.
+    #[derive(Default)]
+    struct AncestorRecorder {
+        paths: Vec<Vec<NodeKind>>,
+        parents: Vec<Option<NodeKind>>,
+    }
+
+    impl Dispatch for AncestorRecorder {
+        fn file_start(&mut self, _ctx: &mut Context<'_>) {}
+        fn enter(&mut self, kind: NodeKind, _node: &Node<'_>, ctx: &mut Context<'_>) {
+            if kind == NodeKind::CallNode {
+                self.paths.push(ctx.ancestors().iter().map(|a| a.kind).collect());
+                self.parents.push(ctx.parent().map(|p| p.kind));
+            }
+        }
+        fn leave(&mut self, kind: NodeKind, _node: &Node<'_>, ctx: &mut Context<'_>) {
+            if kind == NodeKind::CallNode {
+                // The node itself must never be visible on its own stack.
+                assert!(!ctx.ancestors().iter().any(|a| a.kind == NodeKind::CallNode));
+            }
+        }
+        fn file_end(&mut self, _ctx: &mut Context<'_>) {}
+    }
+
+    #[test]
+    fn ancestors_reflect_true_nesting_at_call_node() {
+        let source =
+            SourceFile::new("a.rb", b"def foo(a)\n  if a\n    bar(a)\n  end\nend\n".to_vec());
+        let mut recorder = AncestorRecorder::default();
+        lint_file(&source, &mut recorder);
+
+        assert_eq!(recorder.paths.len(), 1);
+        assert_eq!(
+            recorder.paths[0],
+            vec![
+                NodeKind::ProgramNode,
+                NodeKind::StatementsNode,
+                NodeKind::DefNode,
+                NodeKind::StatementsNode,
+                NodeKind::IfNode,
+                NodeKind::StatementsNode,
+            ]
+        );
+        assert_eq!(recorder.parents[0], Some(NodeKind::StatementsNode));
+        assert_eq!(recorder.parents[0], recorder.paths[0].last().copied());
     }
 }

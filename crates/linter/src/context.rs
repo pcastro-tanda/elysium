@@ -1,12 +1,21 @@
 use std::borrow::Cow;
 use std::cell::OnceCell;
 
-use ruby_ast::{LocationExt as _, Parsed};
+use ruby_ast::{LocationExt as _, NodeKind, Parsed};
 use ruby_directives::Directives;
 use ruby_source::{LineCol, SourceFile, Span};
 
 use crate::diagnostic::{Diagnostic, Fix};
 use crate::rule::RuleMeta;
+
+/// Kind and span of one node on the ancestor stack.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub struct NodeInfo {
+    /// The node's kind.
+    pub kind: NodeKind,
+    /// The node's byte span.
+    pub span: Span,
+}
 
 /// One comment in the file, in source order.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -27,6 +36,7 @@ pub struct Context<'a> {
     directives: Directives,
     diagnostics: Vec<Diagnostic>,
     comments: OnceCell<Vec<CommentInfo>>,
+    ancestors: Vec<NodeInfo>,
 }
 
 impl<'a> Context<'a> {
@@ -35,7 +45,14 @@ impl<'a> Context<'a> {
         parsed: &'a Parsed<'a>,
         directives: Directives,
     ) -> Self {
-        Self { source, parsed, directives, diagnostics: Vec::new(), comments: OnceCell::new() }
+        Self {
+            source,
+            parsed,
+            directives,
+            diagnostics: Vec::new(),
+            comments: OnceCell::new(),
+            ancestors: Vec::with_capacity(64),
+        }
     }
 
     /// The file being linted.
@@ -83,6 +100,58 @@ impl<'a> Context<'a> {
         self.source.line_count()
     }
 
+    /// Every line's 1-based number and its byte span, without a trailing
+    /// line terminator. Built directly from the line index; no allocation.
+    pub fn lines(&self) -> impl Iterator<Item = (u32, Span)> + 'a {
+        let bytes = self.source.bytes();
+        let starts = self.source.lines().line_starts();
+        let count = self.source.line_count();
+        (0..count).map(move |i| {
+            let idx = i as usize;
+            let start = starts[idx];
+            let mut end = starts
+                .get(idx + 1)
+                .copied()
+                .unwrap_or_else(|| u32::try_from(bytes.len()).unwrap_or(u32::MAX));
+            if end > start && bytes[(end - 1) as usize] == b'\n' {
+                end -= 1;
+                if end > start && bytes[(end - 1) as usize] == b'\r' {
+                    end -= 1;
+                }
+            }
+            (i + 1, Span::new(start, end))
+        })
+    }
+
+    /// Ancestors of the node currently being entered or left, outermost
+    /// first. Excludes the node itself.
+    pub fn ancestors(&self) -> &[NodeInfo] {
+        &self.ancestors
+    }
+
+    /// The immediate parent of the node currently being entered or left, if
+    /// any.
+    pub fn parent(&self) -> Option<NodeInfo> {
+        self.ancestors.last().copied()
+    }
+
+    /// Nesting depth of the node currently being entered or left: the
+    /// number of ancestors above it (`0` at the root).
+    pub fn depth(&self) -> usize {
+        self.ancestors.len()
+    }
+
+    /// Pushes the node just entered onto the ancestor stack, for the
+    /// benefit of its descendants.
+    pub(crate) fn push_ancestor(&mut self, info: NodeInfo) {
+        self.ancestors.push(info);
+    }
+
+    /// Pops the node about to be left off the ancestor stack.
+    pub(crate) fn pop_ancestor(&mut self) {
+        self.ancestors.pop();
+    }
+
     /// Every comment in the file, in source order. Built once per file.
     pub fn comments(&self) -> &[CommentInfo] {
         self.comments.get_or_init(|| {
@@ -120,5 +189,38 @@ impl<'a> Context<'a> {
 
     pub(crate) fn into_parts(self) -> (Vec<Diagnostic>, Directives) {
         (self.diagnostics, self.directives)
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use ruby_ast::Parsed;
+    use ruby_directives::Directives;
+    use ruby_source::SourceFile;
+
+    use super::*;
+
+    #[test]
+    fn lines_matches_line_text_for_crlf_file() {
+        let source = SourceFile::new("a.rb", b"foo\r\nbar\r\nbaz".to_vec());
+        let parsed = Parsed::parse(&source);
+        let ctx = Context::new(&source, &parsed, Directives::default());
+        let lines: Vec<_> = ctx.lines().collect();
+        assert_eq!(lines.len(), source.line_count() as usize);
+        for (line, span) in lines {
+            assert_eq!(source.slice(span), source.line_text(line));
+        }
+    }
+
+    #[test]
+    fn lines_matches_line_text_for_no_trailing_newline_file() {
+        let source = SourceFile::new("a.rb", b"one\ntwo\nthree".to_vec());
+        let parsed = Parsed::parse(&source);
+        let ctx = Context::new(&source, &parsed, Directives::default());
+        let lines: Vec<_> = ctx.lines().collect();
+        assert_eq!(lines.len(), 3);
+        for (line, span) in lines {
+            assert_eq!(source.slice(span), source.line_text(line));
+        }
     }
 }
