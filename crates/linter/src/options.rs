@@ -215,13 +215,13 @@ impl RuleOptions {
             .map_or::<&[&str], _>(&[], |opt| opt.allowed);
         let value = match self.get(key) {
             Some(OptionValue::Str(s)) => s.as_str(),
-            Some(other) => {
-                return Err(self.error(key, format!("expected a string, got {other:?}")));
-            }
-            None => match self.default_of(key) {
+            Some(OptionValue::Null) | None => match self.default_of(key) {
                 Some(ConfigDefault::Str(s)) => s,
                 _ => return Err(self.error(key, "no value and no default".to_string())),
             },
+            Some(other) => {
+                return Err(self.error(key, format!("expected a string, got {other:?}")));
+            }
         };
         if allowed.is_empty() || allowed.contains(&value) {
             Ok(value)
