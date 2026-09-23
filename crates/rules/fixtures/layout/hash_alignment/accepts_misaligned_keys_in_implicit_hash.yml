@@ -1,0 +1,6 @@
+Layout/HashAlignment:
+  EnforcedLastArgumentHashStyle: always_ignore
+  AllowMultipleStyles: false
+  SupportedHashRocketStyles: ~
+  SupportedColonStyles: ~
+  SupportedLastArgumentHashStyles: ~

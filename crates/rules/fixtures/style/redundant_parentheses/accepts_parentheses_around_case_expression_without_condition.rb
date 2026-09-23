@@ -1,0 +1,1 @@
+x = *(case when rand > 0.5 then 1 end)

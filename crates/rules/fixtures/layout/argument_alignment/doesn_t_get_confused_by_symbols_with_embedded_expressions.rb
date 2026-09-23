@@ -1,0 +1,1 @@
+send(:"#{name}_comments_path")

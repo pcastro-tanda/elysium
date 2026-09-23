@@ -1,0 +1,1 @@
+files[:key], files[:another] = method

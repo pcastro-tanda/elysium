@@ -1,0 +1,1 @@
+coll.map { |s| bare_method }

@@ -1,0 +1,5 @@
+Style/WordArray:
+  MinSize: 0
+  EnforcedStyle: brackets
+Style/PercentLiteralDelimiters:
+  PreferredDelimiters: {"default" => "()"}

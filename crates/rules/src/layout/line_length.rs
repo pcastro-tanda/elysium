@@ -170,9 +170,12 @@ breakable collection/call sharing a line with an already-claimed outer one is
 still usually suppressed (the outer claims the line first in traversal
 order), but a few deeply nested or already-partially-broken-up cases may
 pick a different (or no) breakable point than RuboCop. `AllowURI`'s URI
-matcher is a simplified `scheme:\\S+` scan (no RFC 2396 grammar or
-`URI.parse` validity check), so malformed URIs that RuboCop would reject are
-still treated as exempt. `AllowedPatterns` entries that use Ruby-only regex
+matcher approximates RFC 2396 by excluding common non-URI delimiter
+characters (quotes, angle brackets, backslash, braces, `|`, `^`, brackets)
+rather than parsing the real grammar, so a URI containing one of the rarer
+valid-but-unusual characters that delimiter excludes may be split or
+truncated where RuboCop's `URI.parse`-validated match would not be.
+`AllowedPatterns` entries that use Ruby-only regex
 syntax (Oniguruma property names, possessive quantifiers) fail to compile
 and are silently skipped (the line is then linted normally). Offense
 detection itself (the `Max`/`AllowHeredoc`/`AllowURI`/`AllowQualifiedName`/\
@@ -202,7 +205,18 @@ is a complete port.",
         } else {
             let alternation =
                 uri_schemes.iter().map(|s| regex::escape(s)).collect::<Vec<_>>().join("|");
-            Regex::new(&format!(r"(?i)(?:{alternation}):\S+")).ok()
+            // `\S+` alone over-matches: RuboCop's `URI::DEFAULT_PARSER` regex
+            // stops at characters that are not valid URI syntax (unescaped
+            // quotes, angle brackets, backslash, braces, ...), which commonly
+            // delimit an embedded URL from surrounding Ruby/HTML/JSON source
+            // on the same line. Excluding them keeps adjacent URIs on one
+            // line as separate matches instead of one giant match spanning
+            // both -- `find_uri_range` only uses the *last* match, so which
+            // one that is (and where it starts) has to agree with RuboCop's.
+            // The opaque part is `*`, not `+`: `URI.parse("http:")` doesn't
+            // raise, so a bare `scheme:` immediately followed by a delimiter
+            // (e.g. an escaped `\/` in a JSON-ish string) is still a match.
+            Regex::new(&format!(r#"(?i)(?:{alternation}):[^\s"<>\\^`{{}}|\[\]]*"#)).ok()
         };
         let qualified_name_regex =
             Regex::new(r"\b(?:[A-Z][A-Za-z0-9_]*::)+[A-Za-z_][A-Za-z0-9_]*\b")

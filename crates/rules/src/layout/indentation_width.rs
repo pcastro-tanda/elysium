@@ -561,25 +561,16 @@ impl IndentationWidth {
         }
 
         // RuboCop's `on_block` (Prism has no parent pointer from a block back to the call
-        // that owns it, so this fires from the owning `CallNode` instead, where the
-        // receiver/dot locations needed for `dot_on_new_line?` are available).
+        // that owns it, so this fires from the owning `CallNode` instead). None of this
+        // rule's target RuboCop versions (1.81.7, 1.63.4, or 1.91.0 with its default
+        // `EnforcedStyleAlignWith: start_of_line`) base a block body's indentation on a
+        // dot-chained receiver: the `end` keyword's position is always the base.
         if let Some(block_node) = call.block() {
             if let Node::BlockNode { .. } = &block_node {
                 let block = block_node.as_block_node().expect("kind matched");
                 let end_span = block.closing_loc().span();
                 if begins_its_line(ctx, end_span) {
-                    let dot_on_new_line = call.call_operator_loc().is_some_and(|dot| {
-                        call.receiver().is_some_and(|r| {
-                            let last = r.span().end.saturating_sub(1).max(r.span().start);
-                            ctx.line_col(last).line < ctx.line_col(dot.span().start).line
-                        })
-                    });
-                    let base = if dot_on_new_line {
-                        call.call_operator_loc().expect("checked above").span()
-                    } else {
-                        end_span
-                    };
-                    self.check_indentation(ctx, base, block.body(), "normal");
+                    self.check_indentation(ctx, end_span, block.body(), "normal");
                     if self.indented_internal_methods {
                         self.check_members(ctx, end_span, block.body());
                     }

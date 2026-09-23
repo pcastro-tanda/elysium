@@ -1,0 +1,3 @@
+yield ({
+  foo: bar,
+})

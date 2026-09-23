@@ -1,0 +1,2 @@
+Style/SymbolProc:
+  AllowedPatterns: [respond_]

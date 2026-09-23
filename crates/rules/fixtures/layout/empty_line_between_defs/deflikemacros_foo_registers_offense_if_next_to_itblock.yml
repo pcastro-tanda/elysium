@@ -1,0 +1,4 @@
+AllCops:
+  TargetRubyVersion: 3.4
+Layout/EmptyLineBetweenDefs:
+  DefLikeMacros: [foo]

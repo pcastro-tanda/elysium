@@ -1,0 +1,1 @@
+test.bar = foo || 'baz'

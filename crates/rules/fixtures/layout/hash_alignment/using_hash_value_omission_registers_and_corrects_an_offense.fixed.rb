@@ -1,0 +1,4 @@
+THINGS = {
+  oh:,
+  hi:
+    }

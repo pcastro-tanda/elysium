@@ -1,0 +1,10 @@
+Layout/SpaceAroundOperators:
+  EnforcedStyleForExponentOperator: ~
+  EnforcedStyleForRationalLiterals: space
+  SupportedStylesForExponentOperator: ~
+  SupportedStylesForRationalLiterals: ~
+Layout/HashAlignment:
+  AllowMultipleStyles: false
+Layout/ExtraSpacing:
+  Enabled: false
+  AllowForAlignment: false

@@ -1,0 +1,1 @@
+until (var = 42); end

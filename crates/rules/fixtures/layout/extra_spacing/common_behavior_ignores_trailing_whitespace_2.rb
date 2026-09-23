@@ -1,0 +1,2 @@
+      class Benchmarker < Performer     
+      end

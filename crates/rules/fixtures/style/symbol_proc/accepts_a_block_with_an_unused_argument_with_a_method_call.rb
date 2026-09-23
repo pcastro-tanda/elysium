@@ -1,0 +1,1 @@
+something { |_x| y.call }

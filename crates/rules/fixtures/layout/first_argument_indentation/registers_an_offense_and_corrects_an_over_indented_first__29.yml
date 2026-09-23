@@ -1,0 +1,4 @@
+Layout/FirstArgumentIndentation:
+  EnforcedStyle: consistent_relative_to_receiver
+Layout/IndentationWidth:
+  Width: 4

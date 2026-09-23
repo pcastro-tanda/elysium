@@ -1,0 +1,1 @@
+model("#{index(name)}", child)

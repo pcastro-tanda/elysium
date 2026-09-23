@@ -1,0 +1,6 @@
+something
+  .(
+    a,
+    b,
+    c
+  )

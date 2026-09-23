@@ -1,0 +1,4 @@
+Layout/FirstArgumentIndentation:
+  IndentationWidth: 4
+Layout/IndentationWidth:
+  Width: 2

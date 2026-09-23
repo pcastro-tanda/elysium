@@ -1,0 +1,1 @@
+a.zero? ? false : a

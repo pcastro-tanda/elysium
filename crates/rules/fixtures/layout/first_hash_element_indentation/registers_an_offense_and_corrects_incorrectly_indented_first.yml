@@ -1,0 +1,3 @@
+Layout/HashAlignment:
+  EnforcedColonStyle: separator
+  AllowMultipleStyles: false

@@ -1,0 +1,4 @@
+Layout/FirstArgumentIndentation:
+  EnforcedStyle: special_for_inner_method_call
+Layout/IndentationWidth:
+  Width: 4

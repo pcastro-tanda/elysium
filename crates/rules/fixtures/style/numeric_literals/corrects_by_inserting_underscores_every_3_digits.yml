@@ -1,0 +1,2 @@
+Style/NumericLiterals:
+  AllowedPatterns: ["\\d{2}_\\d{2}_\\d{4}"]

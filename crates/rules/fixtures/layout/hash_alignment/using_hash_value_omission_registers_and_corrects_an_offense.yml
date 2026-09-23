@@ -1,0 +1,8 @@
+Layout/HashAlignment:
+  AllowMultipleStyles: false
+  SupportedHashRocketStyles: ~
+  SupportedColonStyles: ~
+  EnforcedLastArgumentHashStyle: ~
+  SupportedLastArgumentHashStyles: ~
+Layout/ArgumentAlignment:
+  EnforcedStyle: with_fixed_indentation

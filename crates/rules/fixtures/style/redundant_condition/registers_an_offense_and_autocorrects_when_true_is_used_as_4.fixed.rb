@@ -1,0 +1,1 @@
+obj&.foo?(arg) || bar

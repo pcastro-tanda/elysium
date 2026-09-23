@@ -1,0 +1,1 @@
+b || ('foo' if $VERBOSE)

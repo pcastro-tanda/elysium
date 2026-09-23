@@ -1,0 +1,8 @@
+Layout/HashAlignment:
+  EnforcedHashRocketStyle: [table, key]
+  EnforcedColonStyle: [table, key]
+  AllowMultipleStyles: false
+  SupportedHashRocketStyles: ~
+  SupportedColonStyles: ~
+  EnforcedLastArgumentHashStyle: ~
+  SupportedLastArgumentHashStyles: ~

@@ -1,0 +1,1 @@
+Proc.new { _1.method }

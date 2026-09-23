@@ -1,0 +1,2 @@
+Style/SymbolProc:
+  AllowedMethods: [respond_to]

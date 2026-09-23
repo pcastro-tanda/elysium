@@ -1,0 +1,1 @@
+unless (var = 42); end

@@ -1,0 +1,1 @@
+something { |x,| x.first }

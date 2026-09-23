@@ -114,12 +114,36 @@ not flagged.",
             NodeKind::IfNode,
             NodeKind::UnlessNode,
             NodeKind::LocalVariableWriteNode,
+            NodeKind::LocalVariableAndWriteNode,
+            NodeKind::LocalVariableOrWriteNode,
+            NodeKind::LocalVariableOperatorWriteNode,
             NodeKind::LocalVariableReadNode,
             NodeKind::InstanceVariableWriteNode,
+            NodeKind::InstanceVariableAndWriteNode,
+            NodeKind::InstanceVariableOrWriteNode,
+            NodeKind::InstanceVariableOperatorWriteNode,
             NodeKind::ClassVariableWriteNode,
+            NodeKind::ClassVariableAndWriteNode,
+            NodeKind::ClassVariableOrWriteNode,
+            NodeKind::ClassVariableOperatorWriteNode,
             NodeKind::GlobalVariableWriteNode,
+            NodeKind::GlobalVariableAndWriteNode,
+            NodeKind::GlobalVariableOrWriteNode,
+            NodeKind::GlobalVariableOperatorWriteNode,
             NodeKind::ConstantWriteNode,
+            NodeKind::ConstantAndWriteNode,
+            NodeKind::ConstantOrWriteNode,
+            NodeKind::ConstantOperatorWriteNode,
             NodeKind::ConstantPathWriteNode,
+            NodeKind::ConstantPathAndWriteNode,
+            NodeKind::ConstantPathOrWriteNode,
+            NodeKind::ConstantPathOperatorWriteNode,
+            NodeKind::CallAndWriteNode,
+            NodeKind::CallOrWriteNode,
+            NodeKind::CallOperatorWriteNode,
+            NodeKind::IndexAndWriteNode,
+            NodeKind::IndexOrWriteNode,
+            NodeKind::IndexOperatorWriteNode,
             NodeKind::MultiWriteNode,
         ],
         config: &[
@@ -138,10 +162,10 @@ not flagged.",
         ],
         blind_spots: "\
 `node.parent&.assignment?` (RuboCop skips an `if`/`unless` used as the value
-of an assignment) is approximated by tracking simple `=` assignments
-(local/instance/class/global variable, constant, and multiple assignment);
-compound assignment forms (`+=`, `||=`, `&&=`, attribute/index writers) are
-not tracked, which can produce a false positive RuboCop would not report.
+of an assignment) is approximated by tracking every simple and compound
+assignment kind (`=`, `+=`, `||=`, `&&=`) over local/instance/class/global
+variables, constants, constant paths, attribute writers, index writers, and
+multiple assignment.
 `node.method?(:define_method)` does not check the call's receiver, matching
 RuboCop, so `obj.define_method(...) do ... end` is treated the same as a
 bare call.",
@@ -195,29 +219,39 @@ bare call.",
                     n.location().as_slice().to_vec().into_boxed_slice(),
                 ));
             }
-            Node::InstanceVariableWriteNode { .. } => {
-                let n = node.as_instance_variable_write_node().expect("kind matched");
-                self.note_assignment(&n.value());
-            }
-            Node::ClassVariableWriteNode { .. } => {
-                let n = node.as_class_variable_write_node().expect("kind matched");
-                self.note_assignment(&n.value());
-            }
-            Node::GlobalVariableWriteNode { .. } => {
-                let n = node.as_global_variable_write_node().expect("kind matched");
-                self.note_assignment(&n.value());
-            }
-            Node::ConstantWriteNode { .. } => {
-                let n = node.as_constant_write_node().expect("kind matched");
-                self.note_assignment(&n.value());
-            }
-            Node::ConstantPathWriteNode { .. } => {
-                let n = node.as_constant_path_write_node().expect("kind matched");
-                self.note_assignment(&n.value());
-            }
-            Node::MultiWriteNode { .. } => {
-                let n = node.as_multi_write_node().expect("kind matched");
-                self.note_assignment(&n.value());
+            Node::LocalVariableAndWriteNode { .. }
+            | Node::LocalVariableOrWriteNode { .. }
+            | Node::LocalVariableOperatorWriteNode { .. }
+            | Node::InstanceVariableWriteNode { .. }
+            | Node::InstanceVariableAndWriteNode { .. }
+            | Node::InstanceVariableOrWriteNode { .. }
+            | Node::InstanceVariableOperatorWriteNode { .. }
+            | Node::ClassVariableWriteNode { .. }
+            | Node::ClassVariableAndWriteNode { .. }
+            | Node::ClassVariableOrWriteNode { .. }
+            | Node::ClassVariableOperatorWriteNode { .. }
+            | Node::GlobalVariableWriteNode { .. }
+            | Node::GlobalVariableAndWriteNode { .. }
+            | Node::GlobalVariableOrWriteNode { .. }
+            | Node::GlobalVariableOperatorWriteNode { .. }
+            | Node::ConstantWriteNode { .. }
+            | Node::ConstantAndWriteNode { .. }
+            | Node::ConstantOrWriteNode { .. }
+            | Node::ConstantOperatorWriteNode { .. }
+            | Node::ConstantPathWriteNode { .. }
+            | Node::ConstantPathAndWriteNode { .. }
+            | Node::ConstantPathOrWriteNode { .. }
+            | Node::ConstantPathOperatorWriteNode { .. }
+            | Node::CallAndWriteNode { .. }
+            | Node::CallOrWriteNode { .. }
+            | Node::CallOperatorWriteNode { .. }
+            | Node::IndexAndWriteNode { .. }
+            | Node::IndexOrWriteNode { .. }
+            | Node::IndexOperatorWriteNode { .. }
+            | Node::MultiWriteNode { .. } => {
+                if let Some(value) = assignment_value(node) {
+                    self.note_assignment(&value);
+                }
             }
             _ => {}
         }
@@ -377,6 +411,109 @@ impl GuardClause {
     }
 }
 
+/// Extracts the assigned value from every assignment-node kind besides
+/// `LocalVariableWriteNode` (handled separately in `enter` so it can also
+/// record `local_writes`). Covers rubocop-ast's `ASSIGNMENTS`: the plain
+/// `=` forms (`lvasgn`/`ivasgn`/`cvasgn`/`gvasgn`/`casgn`/`masgn`) plus the
+/// generic `op_asgn`/`or_asgn`/`and_asgn` compound forms, which in
+/// whitequark's AST apply uniformly to variables, constants, attribute
+/// writers (`obj.foo += 1`), and index writers (`arr[0] ||= 1`) alike.
+fn assignment_value<'pr>(node: &Node<'pr>) -> Option<Node<'pr>> {
+    match node {
+        Node::LocalVariableAndWriteNode { .. } => {
+            Some(node.as_local_variable_and_write_node().expect("kind matched").value())
+        }
+        Node::LocalVariableOrWriteNode { .. } => {
+            Some(node.as_local_variable_or_write_node().expect("kind matched").value())
+        }
+        Node::LocalVariableOperatorWriteNode { .. } => {
+            Some(node.as_local_variable_operator_write_node().expect("kind matched").value())
+        }
+        Node::InstanceVariableWriteNode { .. } => {
+            Some(node.as_instance_variable_write_node().expect("kind matched").value())
+        }
+        Node::InstanceVariableAndWriteNode { .. } => {
+            Some(node.as_instance_variable_and_write_node().expect("kind matched").value())
+        }
+        Node::InstanceVariableOrWriteNode { .. } => {
+            Some(node.as_instance_variable_or_write_node().expect("kind matched").value())
+        }
+        Node::InstanceVariableOperatorWriteNode { .. } => {
+            Some(node.as_instance_variable_operator_write_node().expect("kind matched").value())
+        }
+        Node::ClassVariableWriteNode { .. } => {
+            Some(node.as_class_variable_write_node().expect("kind matched").value())
+        }
+        Node::ClassVariableAndWriteNode { .. } => {
+            Some(node.as_class_variable_and_write_node().expect("kind matched").value())
+        }
+        Node::ClassVariableOrWriteNode { .. } => {
+            Some(node.as_class_variable_or_write_node().expect("kind matched").value())
+        }
+        Node::ClassVariableOperatorWriteNode { .. } => {
+            Some(node.as_class_variable_operator_write_node().expect("kind matched").value())
+        }
+        Node::GlobalVariableWriteNode { .. } => {
+            Some(node.as_global_variable_write_node().expect("kind matched").value())
+        }
+        Node::GlobalVariableAndWriteNode { .. } => {
+            Some(node.as_global_variable_and_write_node().expect("kind matched").value())
+        }
+        Node::GlobalVariableOrWriteNode { .. } => {
+            Some(node.as_global_variable_or_write_node().expect("kind matched").value())
+        }
+        Node::GlobalVariableOperatorWriteNode { .. } => {
+            Some(node.as_global_variable_operator_write_node().expect("kind matched").value())
+        }
+        Node::ConstantWriteNode { .. } => {
+            Some(node.as_constant_write_node().expect("kind matched").value())
+        }
+        Node::ConstantAndWriteNode { .. } => {
+            Some(node.as_constant_and_write_node().expect("kind matched").value())
+        }
+        Node::ConstantOrWriteNode { .. } => {
+            Some(node.as_constant_or_write_node().expect("kind matched").value())
+        }
+        Node::ConstantOperatorWriteNode { .. } => {
+            Some(node.as_constant_operator_write_node().expect("kind matched").value())
+        }
+        Node::ConstantPathWriteNode { .. } => {
+            Some(node.as_constant_path_write_node().expect("kind matched").value())
+        }
+        Node::ConstantPathAndWriteNode { .. } => {
+            Some(node.as_constant_path_and_write_node().expect("kind matched").value())
+        }
+        Node::ConstantPathOrWriteNode { .. } => {
+            Some(node.as_constant_path_or_write_node().expect("kind matched").value())
+        }
+        Node::ConstantPathOperatorWriteNode { .. } => {
+            Some(node.as_constant_path_operator_write_node().expect("kind matched").value())
+        }
+        Node::CallAndWriteNode { .. } => {
+            Some(node.as_call_and_write_node().expect("kind matched").value())
+        }
+        Node::CallOrWriteNode { .. } => {
+            Some(node.as_call_or_write_node().expect("kind matched").value())
+        }
+        Node::CallOperatorWriteNode { .. } => {
+            Some(node.as_call_operator_write_node().expect("kind matched").value())
+        }
+        Node::IndexAndWriteNode { .. } => {
+            Some(node.as_index_and_write_node().expect("kind matched").value())
+        }
+        Node::IndexOrWriteNode { .. } => {
+            Some(node.as_index_or_write_node().expect("kind matched").value())
+        }
+        Node::IndexOperatorWriteNode { .. } => {
+            Some(node.as_index_operator_write_node().expect("kind matched").value())
+        }
+        Node::MultiWriteNode { .. } => {
+            Some(node.as_multi_write_node().expect("kind matched").value())
+        }
+        _ => None,
+    }
+}
+
 /// Which branch (of a plain `if`/`else`, no `elsif`) held the guard clause
 /// that got folded into the single-line replacement.
 #[derive(Clone, Copy, PartialEq, Eq)]
@@ -512,14 +649,18 @@ fn predicate_multiline(shape: &Shape<'_>, ctx: &Context<'_>) -> bool {
 }
 
 /// Names among `pairs` (source-ordered `(span, name)`, as recorded by
-/// [`GuardClause::enter`]) whose span lies entirely within `range`, located
-/// with a binary search instead of a subtree walk.
+/// [`GuardClause::enter`]) whose span lies strictly within `range`, located
+/// with a binary search instead of a subtree walk. Mirrors `each_descendant`:
+/// a pair whose span exactly equals `range` is the root node itself (not a
+/// descendant) and is excluded, matching RuboCop's `node.condition
+/// .each_descendant(:lvasgn)` skipping a condition that is itself an
+/// assignment (`if x = foo`).
 fn names_within(pairs: &[(Span, Box<[u8]>)], range: Span) -> impl Iterator<Item = &[u8]> {
     let start = pairs.partition_point(|(span, _)| span.start < range.start);
     pairs[start..]
         .iter()
         .take_while(move |(span, _)| span.start < range.end)
-        .filter(move |(span, _)| span.end <= range.end)
+        .filter(move |(span, _)| span.end <= range.end && *span != range)
         .map(|(_, name)| name.as_ref())
 }
 

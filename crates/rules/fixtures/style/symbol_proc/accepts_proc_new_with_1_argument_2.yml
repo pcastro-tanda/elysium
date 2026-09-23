@@ -1,0 +1,5 @@
+AllCops:
+  ActiveSupportExtensionsEnabled: true
+Style/SymbolProc:
+  AllowedMethods: ~
+  AllowedPatterns: ~

@@ -1,0 +1,3 @@
+[
+  (foo rescue bar)
+]

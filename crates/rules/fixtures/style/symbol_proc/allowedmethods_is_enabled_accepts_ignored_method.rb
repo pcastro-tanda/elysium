@@ -1,0 +1,1 @@
+respond_to { |format| format.xml }

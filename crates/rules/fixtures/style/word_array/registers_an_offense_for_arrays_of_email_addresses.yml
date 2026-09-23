@@ -1,0 +1,5 @@
+Style/WordArray:
+  MinSize: 0
+  WordRegex: "(?-mix:\\A[\\w@.]+\\z)"
+Style/PercentLiteralDelimiters:
+  PreferredDelimiters: {"default" => "()"}

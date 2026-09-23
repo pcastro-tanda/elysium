@@ -1,0 +1,5 @@
+callable[
+  foo,
+  bar,
+  baz
+]

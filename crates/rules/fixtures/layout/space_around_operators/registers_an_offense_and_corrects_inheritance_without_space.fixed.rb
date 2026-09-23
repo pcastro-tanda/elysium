@@ -1,0 +1,2 @@
+class ShowSourceTestClass < ShowSourceTestSuperClass
+end

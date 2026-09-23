@@ -1,8 +1,19 @@
 //! `Layout` department.
 
+pub mod argument_alignment;
+pub mod empty_line_between_defs;
 pub mod empty_lines;
+pub mod empty_lines_around_class_body;
+pub mod extra_spacing;
+pub mod first_argument_indentation;
+pub mod first_hash_element_indentation;
+pub mod hash_alignment;
 pub mod indentation_consistency;
 pub mod indentation_width;
 pub mod line_length;
+pub mod space_around_operators;
+pub mod space_inside_array_literal_brackets;
+pub mod space_inside_block_braces;
+pub mod space_inside_hash_literal_braces;
 pub mod trailing_empty_lines;
 pub mod trailing_whitespace;

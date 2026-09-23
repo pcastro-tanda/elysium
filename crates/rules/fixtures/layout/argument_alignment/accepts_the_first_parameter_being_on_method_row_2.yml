@@ -1,0 +1,5 @@
+Layout/ArgumentAlignment:
+  EnforcedStyle: with_fixed_indentation
+  SupportedStyles: ~
+Layout/IndentationWidth:
+  Width: 4

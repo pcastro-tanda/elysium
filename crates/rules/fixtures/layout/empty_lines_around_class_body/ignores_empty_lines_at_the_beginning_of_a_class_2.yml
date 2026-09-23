@@ -1,0 +1,2 @@
+Layout/EmptyLinesAroundClassBody:
+  EnforcedStyle: ending_only

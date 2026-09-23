@@ -1,0 +1,1 @@
+lambda(&:do_something)

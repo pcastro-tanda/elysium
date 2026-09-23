@@ -1,0 +1,4 @@
+Layout/FirstHashElementIndentation:
+  EnforcedStyle: align_braces
+Layout/HashAlignment:
+  AllowMultipleStyles: false

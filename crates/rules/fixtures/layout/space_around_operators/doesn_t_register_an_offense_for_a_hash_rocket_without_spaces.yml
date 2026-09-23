@@ -1,0 +1,11 @@
+Layout/SpaceAroundOperators:
+  EnforcedStyleForExponentOperator: ~
+  EnforcedStyleForRationalLiterals: ~
+  SupportedStylesForExponentOperator: ~
+  SupportedStylesForRationalLiterals: ~
+Layout/HashAlignment:
+  EnforcedHashRocketStyle: table
+  AllowMultipleStyles: false
+Layout/ExtraSpacing:
+  Enabled: false
+  AllowForAlignment: false

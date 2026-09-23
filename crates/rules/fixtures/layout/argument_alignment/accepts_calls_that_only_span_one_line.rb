@@ -1,0 +1,1 @@
+find(path, s, @special[sexp[0]])

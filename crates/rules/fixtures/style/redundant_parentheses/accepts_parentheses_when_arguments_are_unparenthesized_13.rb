@@ -1,0 +1,1 @@
+while (var = 42); end

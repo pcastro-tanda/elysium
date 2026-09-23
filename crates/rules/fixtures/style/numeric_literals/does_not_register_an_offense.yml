@@ -1,0 +1,3 @@
+Style/NumericLiterals:
+  MinDigits: 4
+  AllowedNumbers: [3000]

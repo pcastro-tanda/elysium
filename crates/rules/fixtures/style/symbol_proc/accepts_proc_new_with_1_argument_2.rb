@@ -1,0 +1,1 @@
+::Proc.new { |x| x.method }

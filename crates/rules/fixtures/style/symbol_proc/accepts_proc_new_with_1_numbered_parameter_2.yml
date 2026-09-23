@@ -1,0 +1,6 @@
+AllCops:
+  TargetRubyVersion: 3.4
+  ActiveSupportExtensionsEnabled: true
+Style/SymbolProc:
+  AllowedMethods: ~
+  AllowedPatterns: ~
