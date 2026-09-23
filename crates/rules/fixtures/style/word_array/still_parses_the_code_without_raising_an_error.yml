@@ -1,4 +1,4 @@
 Style/WordArray:
   WordRegex: just_a_string
 Style/PercentLiteralDelimiters:
-  PreferredDelimiters: {"default" => "()"}
+  PreferredDelimiters: {default: "()"}

@@ -2,4 +2,4 @@ Style/WordArray:
   MinSize: 0
   WordRegex: "(?-mix:\\S+)"
 Style/PercentLiteralDelimiters:
-  PreferredDelimiters: {"default" => "()"}
+  PreferredDelimiters: {default: "()"}

@@ -418,6 +418,7 @@ begin
     case v
     when nil then '~'
     when Array then "[#{v.map { |e| yaml_value(e) }.join(', ')}]"
+    when Hash then "{#{v.map { |k, e| "#{yaml_value(k.to_s)}: #{yaml_value(e)}" }.join(', ')}}"
     when String then YAML.dump(v).sub(/\A---\s*/, '').chomp
     else v.to_s
     end

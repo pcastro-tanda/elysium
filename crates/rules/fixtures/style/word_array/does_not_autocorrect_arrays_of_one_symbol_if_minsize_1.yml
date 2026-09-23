@@ -1,2 +1,2 @@
 Style/PercentLiteralDelimiters:
-  PreferredDelimiters: {"default" => "()"}
+  PreferredDelimiters: {default: "()"}

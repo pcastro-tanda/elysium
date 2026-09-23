@@ -1,4 +1,0 @@
-Style/WordArray:
-  MinSize: 0
-Style/PercentLiteralDelimiters:
-  PreferredDelimiters: {"default" => "()"}
