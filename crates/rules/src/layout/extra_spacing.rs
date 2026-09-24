@@ -174,11 +174,6 @@ approximation this file builds instead), which has these consequences:
   alignment landmarks. This can only under-recognize an alignment RuboCop
   would allow (an over-reporting risk), not the reverse; no fixture in
   this port exercises it.
-- The mixin's second `aligned_with_any_line_range?` pass (retrying with a
-  `base_indentation` filter after an unfiltered scan already failed) is
-  not implemented: for this cop's call sites the filtered scan is always a
-  strict subset of lines the unfiltered scan already visited with the same
-  predicate, so it can never change the result.
 - Column/token comparisons index by byte offset within a line, i.e. assume
   one byte per character; a line with multi-byte UTF-8 content before the
   compared column can misalign the comparison (offense spans themselves
@@ -557,7 +552,14 @@ fn standalone_comment_lines(comments: &[CommentInfo], ctx: &Context<'_>) -> Hash
 
 /// RuboCop's `aligned_with_something?`: does `pos` (the start of the token
 /// right after an extra-spacing run) line up with something meaningful on
-/// another line?
+/// another line? Mirrors `aligned_with_adjacent_line?` exactly: each of the
+/// "lines before" / "lines after" candidate lists is walked nearest-line
+/// first, stopping at (and deciding by) the *first* line that isn't blank
+/// and isn't a standalone comment -- it never keeps searching past that one
+/// line even when the predicate itself says no. Only if neither direction's
+/// nearest candidate matches does a second pass retry both directions, this
+/// time additionally requiring the candidate's indentation column to equal
+/// `line`'s own (RuboCop's `base_indentation` fallback).
 #[allow(clippy::too_many_arguments)]
 fn aligned_with_something(
     ctx: &Context<'_>,
@@ -572,14 +574,60 @@ fn aligned_with_something(
     let end = token_extent(line_bytes, col, local_starts);
     let token_text = &line_bytes[col..end];
 
-    (1..line).rev().any(|candidate| check_line_alignment(ctx, candidate, col, token_text, a))
-        || ((line + 1)..=ctx.line_count())
-            .any(|candidate| check_line_alignment(ctx, candidate, col, token_text, a))
+    if aligned_with_line(ctx, (1..line).rev(), None, col, token_text, a)
+        || aligned_with_line(ctx, (line + 1)..=ctx.line_count(), None, col, token_text, a)
+    {
+        return true;
+    }
+
+    let base_indentation = line_indentation(line_bytes);
+    aligned_with_line(ctx, (1..line).rev(), Some(base_indentation), col, token_text, a)
+        || aligned_with_line(
+            ctx,
+            (line + 1)..=ctx.line_count(),
+            Some(base_indentation),
+            col,
+            token_text,
+            a,
+        )
+}
+
+/// RuboCop's `aligned_with_line?`: scans `line_nos` (already ordered nearest
+/// candidate first) for the first line that is neither blank nor a
+/// standalone comment -- and, once a required `indent` is given, also
+/// skips lines whose own indentation column doesn't match it -- then
+/// returns [`check_line_alignment`]'s verdict on just that single line.
+fn aligned_with_line(
+    ctx: &Context<'_>,
+    line_nos: impl Iterator<Item = u32>,
+    indent: Option<usize>,
+    col: usize,
+    token_text: &[u8],
+    a: &Analysis<'_>,
+) -> bool {
+    for candidate in line_nos {
+        if a.standalone_comment_lines.contains(&candidate) {
+            continue;
+        }
+        let line_bytes = ctx.line_text(candidate);
+        if is_blank_line(line_bytes) {
+            continue;
+        }
+        if let Some(want) = indent {
+            if line_indentation(line_bytes) != want {
+                continue;
+            }
+        }
+        return check_line_alignment(ctx, candidate, col, token_text, a);
+    }
+    false
 }
 
 /// RuboCop's `aligned_token?`: `aligned_words?` (a space-then-non-space
 /// column match, or an exact token-text match) or `aligned_equals_operator?`
 /// (the candidate's own end column matches an adjacent `=`-ending token).
+/// The caller ([`aligned_with_line`]) has already established `candidate`
+/// is non-blank and not a standalone comment.
 fn check_line_alignment(
     ctx: &Context<'_>,
     candidate: u32,
@@ -588,12 +636,6 @@ fn check_line_alignment(
     a: &Analysis<'_>,
 ) -> bool {
     let line_bytes = ctx.line_text(candidate);
-    if line_bytes.iter().all(|&b| b == b' ' || b == b'\t') {
-        return false;
-    }
-    if a.standalone_comment_lines.contains(&candidate) {
-        return false;
-    }
     if col >= 1 {
         if let (Some(&before), Some(&at)) = (line_bytes.get(col - 1), line_bytes.get(col)) {
             if before == b' ' && at != b' ' {
