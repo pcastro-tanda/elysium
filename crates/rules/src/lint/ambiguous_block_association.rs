@@ -37,11 +37,19 @@
 //! here for the bare-method forms `lambda { }`/`proc { }`/`Proc.new { }`
 //! ([`is_lambda_or_proc`]), which *are* `CallNode`s with an attached block.
 //!
-//! `node.assignment?` (excluded in RuboCop's `allowed_method_pattern?`) is
-//! not ported: RuboCop-AST's `ASSIGNMENTS` set never contains `:send`/
-//! `:csend`, the only types `on_send` ever dispatches on, so the check is
-//! dead code upstream and always false here too (this rule only subscribes
-//! to `NodeKind::CallNode`).
+//! `node.assignment?` in RuboCop's `allowed_method_pattern?` is
+//! `MethodDispatchNode#assignment?`, aliased to `setter_method?` (`loc?(:operator)`)
+//! for a `send`/`csend` node -- true exactly when the call was written with `=`
+//! syntax (`recv.attr = val`, `recv[i] = val`), as opposed to `Node#assignment?`'s
+//! unrelated `ASSIGNMENTS` set (`lvasgn`/`ivasgn`/etc., which a `send` node is
+//! never a member of). This is why RuboCop never flags `self.attr = foo.map { }`:
+//! the outer node `on_send` dispatches on is the assignment call itself
+//! (`self.attr=`), and `node.assignment?` on it is true.
+//! Prism represents such a call as an ordinary `CallNode` with `equal_loc` set to
+//! the `=` token's location (`None` for a plain method call), which
+//! [`allowed_method_pattern`] checks directly, matching the `CallNode::equal_loc`-based
+//! `setter_method?` approximation used elsewhere in this crate (e.g.
+//! `Style/SoleNestedConditional`).
 
 use linter::{
     Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
@@ -127,7 +135,7 @@ fn allowed_method_pattern(
     allowed_methods: &[String],
     allowed_patterns: &[Regex],
 ) -> bool {
-    if OPERATOR_METHODS.contains(&node.name().as_slice()) {
+    if node.equal_loc().is_some() || OPERATOR_METHODS.contains(&node.name().as_slice()) {
         return true;
     }
     let inner_name = inner.name();
