@@ -310,10 +310,20 @@ never itself produces an offense in a single lint run.",
                     return;
                 }
                 let call = node.as_call_node().expect("kind matched");
+                // RuboCop's `node.loc.begin`: for a `parser`-gem `send` node
+                // this is only set for an actual `(...)` argument list --
+                // `foo[bar]`/`foo[bar] = baz` (Prism: a `[]`/`[]=` call)
+                // carry their brackets in the same `opening_loc` slot, but
+                // upstream's `Send` location map leaves `begin`/`end` nil
+                // for those, so `each_argument_node` never treats the `[`
+                // as a governing left parenthesis.
                 let (Some(open_loc), Some(args)) = (call.opening_loc(), call.arguments()) else {
                     return;
                 };
                 let open_span = open_loc.span();
+                if ctx.text(open_span).first() != Some(&b'(') {
+                    return;
+                }
                 let open_line = ctx.line_col(open_span.start).line;
                 for arg in &args.arguments() {
                     self.eager_check_call_hash(ctx, &arg, open_span, open_line, None);
