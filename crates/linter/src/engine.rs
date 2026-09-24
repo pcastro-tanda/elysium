@@ -175,13 +175,24 @@ pub fn lint_parsed_with_injected<D: Dispatch>(
 ///
 /// A diagnostic is dropped when its rule is disabled in `settings`, or when
 /// `directives` disables it (by name or via `# rubocop:disable all`) at its
-/// line — unless it is [`SYNTAX_RULE`], which is never dropped or
+/// line -- unless it is [`SYNTAX_RULE`], which is never dropped or
 /// re-severitied.
 ///
-/// RuboCop's `add_offense` ignores a second offense from the same cop at the
-/// same range, so a cop that fires twice on one node (and Prism, which often
-/// emits a follow-up "assuming it is closing…" error at the same location)
-/// reports once. The sort is stable, so the first-emitted diagnostic wins.
+/// A rule `settings` disables is still reported -- from strictly after the
+/// enabling comment's line onward -- when `directives` shows it was "opted
+/// in" by a `# rubocop:enable <Rule>` directive naming it exactly. This
+/// mirrors RuboCop's `Cop::Team#roundup_relevant_cops`
+/// (`lib/rubocop/cop/team.rb:178-186`, RuboCop 1.82.1): `next true if
+/// processed_source.comment_config.cop_opted_in?(cop)` runs *before* the
+/// `@registry.enabled?(cop, @config)` check, so a cop disabled by
+/// `AllCops: DisabledByDefault: true`, an explicit `Enabled: false`, or any
+/// other configuration reason reactivates for the whole file once named in
+/// an `enable` directive -- `CommentConfig#cop_opted_in?`
+/// (`lib/rubocop/comment_config.rb:48-50`) never consults the
+/// configuration at all. [`crate::rule::Rule`]s themselves are not gated by
+/// `settings` here (the caller decides which rules run at all; see
+/// `RuleSet::only` in `crates/cli`, which must include an opted-in rule for
+/// its diagnostics to reach this filter in the first place).
 fn finish(
     mut diagnostics: Vec<Diagnostic>,
     source: &SourceFile,
@@ -192,10 +203,11 @@ fn finish(
         if d.rule == SYNTAX_RULE {
             return true;
         }
-        if !settings.is_enabled(d.rule) {
-            return false;
-        }
         let line = source.line_col(d.span.start).line;
+        if !settings.is_enabled(d.rule) {
+            return directives.is_opted_in(d.rule)
+                && !directives.is_disabled_for_opted_in_cop(d.rule, line);
+        }
         // `Lint/RedundantCopDisableDirective` is excluded from `all`/`Lint` department
         // expansion (`DirectiveComment#exclude_lint_department_cops`), so `# rubocop:disable
         // all` never silences it -- but naming it explicitly still does, like any other cop.
@@ -336,6 +348,55 @@ mod tests {
         let result = fake_rules_with(PLAIN_SOURCE, &settings);
         let rules: Vec<_> = result.diagnostics.iter().map(|d| d.rule).collect();
         assert_eq!(rules, vec!["Fake/Bb"]);
+    }
+
+    // Ports of RuboCop::Cop::Team#roundup_relevant_cops / CommentConfig#cop_opted_in?
+    // (team.rb:178-186, comment_config.rb:48-50, RuboCop 1.82.1): a cop `settings`
+    // disabled is reactivated for the file by a `# rubocop:enable <Cop>` directive
+    // naming it exactly, but only from strictly after that directive's line onward.
+
+    #[test]
+    fn opted_in_rule_is_reported_after_its_enable_line() {
+        // `Fake/Bb` fires at line 3; naming it on line 2 (before the offense)
+        // reactivates it there.
+        let mut settings = FileSettings::all_enabled();
+        settings.disable("Fake/Bb");
+        let source = b"x = 1\n# rubocop:enable Fake/Bb\nz = 3\n";
+        let result = fake_rules_with(source, &settings);
+        let rules: Vec<_> = result.diagnostics.iter().map(|d| d.rule).collect();
+        assert_eq!(rules, vec!["Fake/Aa", "Fake/Bb"]);
+    }
+
+    #[test]
+    fn opted_in_rule_stays_suppressed_up_to_and_including_its_enable_line() {
+        // Naming `Fake/Bb` on line 4 -- after its line-3 offense -- leaves
+        // that offense suppressed: the synthetic config-disabled range only
+        // closes strictly after the enable directive's own line.
+        let mut settings = FileSettings::all_enabled();
+        settings.disable("Fake/Bb");
+        let source = b"x = 1\ny = 2\nz = 3\n# rubocop:enable Fake/Bb\n";
+        let result = fake_rules_with(source, &settings);
+        let rules: Vec<_> = result.diagnostics.iter().map(|d| d.rule).collect();
+        assert_eq!(rules, vec!["Fake/Aa"]);
+    }
+
+    #[test]
+    fn enabling_a_different_rule_does_not_opt_this_one_in() {
+        let mut settings = FileSettings::all_enabled();
+        settings.disable("Fake/Bb");
+        let source = b"x = 1\n# rubocop:enable Fake/Aa\nz = 3\n";
+        let result = fake_rules_with(source, &settings);
+        let rules: Vec<_> = result.diagnostics.iter().map(|d| d.rule).collect();
+        assert_eq!(rules, vec!["Fake/Aa"]);
+    }
+
+    #[test]
+    fn disabled_rule_without_any_directive_stays_dropped() {
+        let mut settings = FileSettings::all_enabled();
+        settings.disable("Fake/Bb");
+        let result = fake_rules_with(PLAIN_SOURCE, &settings);
+        let rules: Vec<_> = result.diagnostics.iter().map(|d| d.rule).collect();
+        assert_eq!(rules, vec!["Fake/Aa"]);
     }
 
     #[test]

@@ -256,10 +256,12 @@ dependencies = [
  "parking_lot",
  "rayon",
  "ruby_ast",
+ "ruby_directives",
  "ruby_source",
  "rules",
  "serde",
  "serde_json",
+ "tempfile",
 ]
 
 [[package]]

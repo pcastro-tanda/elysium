@@ -64,6 +64,10 @@ pub struct Session {
     pub parse_options: ParseOptions,
     /// The configured rules, cloned per file (rules keep per-file state).
     pub rule_set: rules::RuleSet,
+    /// Names of the cops `rule_set` includes. Reused by [`effective_rule_set`]
+    /// to detect, per file, a cop this run's base selection left out that the
+    /// file nonetheless "opts in" via a `# rubocop:enable <Cop>` directive.
+    pub rule_names: Vec<&'static str>,
 }
 
 /// Loads the configuration, prints its warnings, and precomputes the
@@ -85,10 +89,10 @@ pub fn prepare(args: &CheckArgs) -> Result<Session> {
         version: ruby_version(cfg.all_cops().target_ruby_version),
         partial_script: true,
     };
-    let rule_set = select_rules(&cfg, &args.only, &args.except)?;
+    let (rule_set, rule_names) = select_rules(&cfg, &args.only, &args.except)?;
     let overrides = cop_overrides(&cfg, &args.only);
     let annotations = Arc::new(style_guide_annotations(&cfg));
-    Ok(Session { cfg, root, overrides, annotations, parse_options, rule_set })
+    Ok(Session { cfg, root, overrides, annotations, parse_options, rule_set, rule_names })
 }
 
 /// True when `selector` names `cop` exactly or names its department.
@@ -102,10 +106,11 @@ fn selects(selector: &str, cop: &str) -> bool {
 /// Builds the rule set for this run, applying `--only`/`--except` on top
 /// of the configuration. `--only` enables a cop the configuration
 /// disabled, like RuboCop's.
-fn select_rules(cfg: &LoadedConfig, only: &[String], except: &[String]) -> Result<rules::RuleSet> {
-    if only.is_empty() && except.is_empty() {
-        return rules::RuleSet::from_config(cfg).map_err(|err| anyhow::anyhow!("{err}"));
-    }
+fn select_rules(
+    cfg: &LoadedConfig,
+    only: &[String],
+    except: &[String],
+) -> Result<(rules::RuleSet, Vec<&'static str>)> {
     let names: Vec<&str> = rules::ALL_RULES
         .iter()
         .filter(|meta| {
@@ -118,7 +123,42 @@ fn select_rules(cfg: &LoadedConfig, only: &[String], except: &[String]) -> Resul
         })
         .map(|meta| meta.name)
         .collect();
-    rules::RuleSet::only(&names, cfg).map_err(|err| anyhow::anyhow!("{err}"))
+    let rule_set = rules::RuleSet::only(&names, cfg).map_err(|err| anyhow::anyhow!("{err}"))?;
+    Ok((rule_set, names))
+}
+
+/// Builds the [`rules::RuleSet`] `path`'s file runs with: `session.rule_set`
+/// as-is, unless `directives` shows the file "opts in" (RuboCop's
+/// `CommentConfig#cop_opted_in?`, `comment_config.rb:48-50`) a cop this
+/// run's base selection (`session.rule_names`) left disabled. When it does, a
+/// fresh [`rules::RuleSet`] including that cop is built for this file alone --
+/// mirroring `Cop::Team#roundup_relevant_cops` (`team.rb:178-186`,
+/// RuboCop 1.82.1), whose `next true if
+/// processed_source.comment_config.cop_opted_in?(cop)` reactivates a cop
+/// before ever consulting `@registry.enabled?(cop, @config)`, regardless of
+/// *why* the configuration disabled it. [`linter::lint_parsed_with`]'s
+/// [`file_settings`]-driven filtering still gates *which lines* the
+/// reactivated cop's offenses surface on (see `finish` in `crates/linter`).
+fn effective_rule_set(
+    session: &Session,
+    directives: &ruby_directives::Directives,
+) -> rules::RuleSet {
+    let extra: Vec<&'static str> = rules::ALL_RULES
+        .iter()
+        .filter_map(|meta| {
+            let name = meta.name;
+            (!session.rule_names.contains(&name) && directives.is_opted_in(name)).then_some(name)
+        })
+        .collect();
+    if extra.is_empty() {
+        return session.rule_set.clone();
+    }
+    let mut names = session.rule_names.clone();
+    names.extend(extra);
+    rules::RuleSet::only(&names, &session.cfg).unwrap_or_else(|err| {
+        eprintln!("warning: cannot opt a disabled cop in for this file: {err}");
+        session.rule_set.clone()
+    })
 }
 
 /// Builds the run-wide [`linter::Annotations`]: `AllCops`'s `DisplayStyleGuide`/
@@ -157,8 +197,9 @@ fn lint_one(
     };
     bytes.fetch_add(source.bytes().len() as u64, Ordering::Relaxed);
     let parsed = Parsed::parse_with(&source, session.parse_options);
+    let directives = ruby_directives::Directives::from_parsed(&parsed);
     let settings = file_settings(&session.cfg, &session.overrides, &display, &session.annotations);
-    let mut rules = session.rule_set.clone();
+    let mut rules = effective_rule_set(session, &directives);
     let result = linter::lint_parsed_with(&parsed, &mut rules, &settings);
     nodes.fetch_add(u64::from(result.node_count), Ordering::Relaxed);
     let offenses = result
@@ -336,4 +377,120 @@ pub fn char_len(bytes: &[u8]) -> u32 {
 /// Display form of a report path.
 pub fn display_path(path: &Path) -> String {
     path.display().to_string()
+}
+
+#[cfg(test)]
+mod tests {
+    use config::ConfigLoader;
+    use tempfile::TempDir;
+
+    use super::*;
+
+    /// A project directory with a `.rubocop.yml` and Ruby files, isolated
+    /// from the user's real home/gem environment. Mirrors
+    /// `crates/config/tests/loader.rs`'s `Project` helper.
+    struct Project {
+        dir: TempDir,
+    }
+
+    impl Project {
+        fn new() -> Self {
+            let dir = tempfile::tempdir().expect("temp dir");
+            std::fs::create_dir_all(dir.path().join("home")).expect("home");
+            Self { dir }
+        }
+
+        fn write(&self, relative: &str, contents: &str) {
+            let path = self.dir.path().join(relative);
+            if let Some(parent) = path.parent() {
+                std::fs::create_dir_all(parent).expect("mkdir");
+            }
+            std::fs::write(path, contents).expect("write");
+        }
+
+        fn load(&self) -> LoadedConfig {
+            ConfigLoader::new()
+                .with_cwd(self.dir.path().to_path_buf())
+                .with_project_root(self.dir.path().to_path_buf())
+                .with_home(self.dir.path().join("home"))
+                .with_xdg_config_home(self.dir.path().join("home/.config"))
+                .with_gem_roots(Vec::new())
+                .load(Some(Path::new(".rubocop.yml")))
+                .expect("config loads")
+        }
+
+        /// Builds a [`Session`] (as [`prepare`] would) and lints `relative`.
+        fn lint(&self, relative: &str) -> Vec<Offense> {
+            let cfg = self.load();
+            let root = cfg.root().to_path_buf();
+            let parse_options = ParseOptions {
+                version: ruby_version(cfg.all_cops().target_ruby_version),
+                partial_script: true,
+            };
+            let (rule_set, rule_names) = select_rules(&cfg, &[], &[]).expect("rule set builds");
+            let overrides = cop_overrides(&cfg, &[]);
+            let annotations = Arc::new(style_guide_annotations(&cfg));
+            let session =
+                Session { cfg, root, overrides, annotations, parse_options, rule_set, rule_names };
+            let io_errors = AtomicUsize::new(0);
+            let bytes = AtomicU64::new(0);
+            let nodes = AtomicU64::new(0);
+            let path = self.dir.path().join(relative);
+            lint_one(&session, &path, &io_errors, &bytes, &nodes).offenses
+        }
+    }
+
+    // Ports of the Discourse `bulk_invite_spec.rb` engine gap:
+    // `AllCops: DisabledByDefault: true` (or an explicit cop-level
+    // `Enabled: false`) disables `Layout/LineLength` project-wide, but a
+    // `# rubocop:enable Layout/LineLength` directive reactivates it for that
+    // one file, from strictly after the directive's line onward -- RuboCop's
+    // `Cop::Team#roundup_relevant_cops` (`team.rb:178-186`) and
+    // `CommentConfig#cop_opted_in?` (`comment_config.rb:48-50`),
+    // RuboCop 1.82.1.
+
+    #[test]
+    fn disabled_by_default_cop_opted_in_by_directive_reports_after_the_enable_line() {
+        let project = Project::new();
+        project.write(".rubocop.yml", "AllCops:\n  DisabledByDefault: true\n");
+        let long = "x".repeat(200);
+        project.write(
+            "a.rb",
+            &format!("y = 1 # {long}\n# rubocop:enable Layout/LineLength\nz = 2 # {long}\n"),
+        );
+        let offenses = project.lint("a.rb");
+        let hits: Vec<_> = offenses.iter().map(|o| (o.rule, o.start.line)).collect();
+        assert_eq!(hits, vec![("Layout/LineLength", 3)]);
+    }
+
+    #[test]
+    fn disabled_by_default_cop_without_a_directive_reports_nothing() {
+        let project = Project::new();
+        project.write(".rubocop.yml", "AllCops:\n  DisabledByDefault: true\n");
+        let long = "x".repeat(200);
+        project.write("a.rb", &format!("y = 1 # {long}\n"));
+        assert!(project.lint("a.rb").is_empty());
+    }
+
+    #[test]
+    fn explicitly_disabled_cop_is_opted_in_exactly_like_disabled_by_default() {
+        // `cop_opted_in?` never consults the configuration (it is a pure
+        // comment-text check), so it does not distinguish *why* a cop was
+        // disabled: an explicit `Enabled: false` opts in identically to
+        // `AllCops: DisabledByDefault: true`.
+        let project = Project::new();
+        project.write(".rubocop.yml", "Layout/LineLength:\n  Enabled: false\n");
+        let long = "x".repeat(200);
+        project.write(
+            "a.rb",
+            &format!("y = 1 # {long}\n# rubocop:enable Layout/LineLength\nz = 2 # {long}\n"),
+        );
+        let offenses = project.lint("a.rb");
+        let hits: Vec<_> = offenses
+            .iter()
+            .filter(|o| o.rule == "Layout/LineLength")
+            .map(|o| (o.rule, o.start.line))
+            .collect();
+        assert_eq!(hits, vec![("Layout/LineLength", 3)]);
+    }
 }

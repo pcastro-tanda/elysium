@@ -289,16 +289,24 @@ impl Directives {
 
     /// Builds the inclusive `(start_line, end_line)` ranges (RuboCop's
     /// `CopAnalysis#line_ranges`) covered by directives matching `covers`, by
-    /// replaying them in source order. `end_line` is `u32::MAX` for a range
-    /// left open through end of file.
+    /// replaying them in source order, starting from `seed` (`None`: the cop
+    /// begins the file enabled; `Some(0)`: the cop begins the file disabled,
+    /// modeling `CommentConfig#inject_disabled_cops_directives`'s synthetic
+    /// `-Infinity`-anchored disable for a cop the configuration disables --
+    /// see [`Self::is_disabled_for_opted_in_cop`]). Line `0` never occurs for
+    /// a real directive (lines are 1-based), so it sorts before every real
+    /// line exactly like `-Float::INFINITY` does upstream.
     ///
     /// Mirrors `CommentConfig#analyze`'s per-cop state machine
     /// (`analyze_single_line`/`analyze_disabled`/`analyze_rest`), specialized
     /// to one already-filtered directive stream instead of a
     /// registry-expanded one.
-    fn disabled_ranges(&self, covers: impl Fn(&Directive) -> bool) -> Vec<(u32, u32)> {
+    fn disabled_ranges_from(
+        &self,
+        covers: impl Fn(&Directive) -> bool,
+        mut start: Option<u32>,
+    ) -> Vec<(u32, u32)> {
         let mut ranges = Vec::new();
-        let mut start: Option<u32> = None;
         for directive in self.directives.iter().filter(|d| covers(d)) {
             if directive.kind.is_next() {
                 // apply_disable_next/apply_enable_next, simplified to the
@@ -343,6 +351,11 @@ impl Directives {
         ranges
     }
 
+    /// [`Self::disabled_ranges_from`] with no seed: the cop starts the file enabled.
+    fn disabled_ranges(&self, covers: impl Fn(&Directive) -> bool) -> Vec<(u32, u32)> {
+        self.disabled_ranges_from(covers, None)
+    }
+
     /// True when `cop_name` is disabled at `line`, matching RuboCop's
     /// `CommentConfig#cop_enabled_at_line?` (negated).
     #[must_use]
@@ -371,6 +384,51 @@ impl Directives {
     #[must_use]
     pub fn all_disabled_at(&self, line: u32) -> bool {
         self.disabled_ranges(|d| d.cops.iter().any(|c| matches!(c, CopRef::All)))
+            .into_iter()
+            .any(|(s, e)| line >= s && line <= e)
+    }
+
+    /// True when `cop_name` has been "opted in" for this file by an explicit
+    /// `# rubocop:enable <cop_name>` directive naming it exactly, anywhere in the
+    /// file (inline or own-line) -- RuboCop's `CommentConfig#cop_opted_in?`
+    /// (`comment_config.rb:48-50`), backed by `#opt_in_cops` (`comment_config.rb:84-95`):
+    /// `opt_in_cops` merges each `enable` directive's *unresolved* `raw_cop_names`, so a
+    /// `# rubocop:enable all` (`next if directive.all_cops?`, line 89) or a department-only
+    /// mention (`# rubocop:enable Layout` does not expand to `Layout/LineLength`, unlike the
+    /// registry-expanded `cop_names` used for line-range analysis) does not opt a specific cop
+    /// in -- only naming it exactly does.
+    ///
+    /// `Cop::Team#roundup_relevant_cops` (`team.rb:178-186`) checks this *before*
+    /// `cop.excluded_file?` or `@registry.enabled?(cop, @config)`
+    /// (`next true if processed_source.comment_config.cop_opted_in?(cop)` at line 180 precedes
+    /// both), so an opted-in cop reactivates for the whole file regardless of *why* it was
+    /// disabled -- `AllCops: DisabledByDefault: true`, an explicit `Enabled: false`, or a
+    /// disabled department -- and regardless of `Include`/`Exclude`.
+    #[must_use]
+    pub fn is_opted_in(&self, cop_name: &str) -> bool {
+        self.directives.iter().any(|d| {
+            d.kind == DirectiveKind::Enable
+                && d.cops
+                    .iter()
+                    .any(|c| matches!(c, CopRef::Cop(n) | CopRef::Department(n) if n == cop_name))
+        })
+    }
+
+    /// True when `cop_name` -- a cop [`Self::is_opted_in`] has reactivated after it was
+    /// disabled by configuration -- is *still* disabled at `line`.
+    ///
+    /// Mirrors `CommentConfig#inject_disabled_cops_directives` (`comment_config.rb:168-175`):
+    /// before folding in the file's real directives, `#analyze` seeds every config-disabled
+    /// cop with a synthetic own-line `# rubocop:disable <cop>` directive at
+    /// `CONFIG_DISABLED_LINE_RANGE_MIN` (`-Float::INFINITY`, `comment_config.rb:9`). Replaying
+    /// the real directives from that seed closes the disabled range at the first own-line
+    /// `enable` naming the cop (directly or via its department/`all`), so offenses starting
+    /// strictly after that `enable` line are reported and everything up to and including it
+    /// -- the entire file, absent such a directive -- is not. Line `0` (never a real 1-based
+    /// source line) stands in for `-Infinity`: it sorts before every real line the same way.
+    #[must_use]
+    pub fn is_disabled_for_opted_in_cop(&self, cop_name: &str, line: u32) -> bool {
+        self.disabled_ranges_from(|d| d.cops.iter().any(|c| c.covers(cop_name)), Some(0))
             .into_iter()
             .any(|(s, e)| line >= s && line <= e)
     }
@@ -713,5 +771,87 @@ mod tests {
         assert_eq!(directive.kind, DirectiveKind::EnableNext);
         assert!(!directive.kind.disables());
         assert_eq!(directive.cops, vec![CopRef::Cop("Metrics/AbcSize".to_string())]);
+    }
+
+    // Ports of RuboCop::Cop::Team / RuboCop::CommentConfig opt-in behavior
+    // (team.rb, comment_config.rb, RuboCop 1.82.1): a cop the configuration
+    // disabled (`AllCops: DisabledByDefault: true` or an explicit
+    // `Enabled: false`) is reactivated for the whole file by a
+    // `# rubocop:enable <cop>` directive naming it exactly.
+
+    #[test]
+    fn enable_directive_opts_a_cop_in_by_exact_name() {
+        let d = directives_for("x = 1\n# rubocop:enable Layout/LineLength\ny = 2\n");
+        assert!(d.is_opted_in("Layout/LineLength"));
+    }
+
+    #[test]
+    fn no_enable_directive_means_not_opted_in() {
+        let d = directives_for("x = 1\ny = 2\n");
+        assert!(!d.is_opted_in("Layout/LineLength"));
+    }
+
+    #[test]
+    fn enable_all_does_not_opt_a_specific_cop_in() {
+        // comment_config.rb:89, `next if directive.all_cops?`.
+        let d = directives_for("# rubocop:enable all\n");
+        assert!(!d.is_opted_in("Layout/LineLength"));
+    }
+
+    #[test]
+    fn enable_department_does_not_opt_a_child_cop_in() {
+        // `opt_in_cops` merges unresolved `raw_cop_names`, not the
+        // registry-expanded department members (comment_config.rb:91).
+        let d = directives_for("# rubocop:enable Layout\n");
+        assert!(!d.is_opted_in("Layout/LineLength"));
+    }
+
+    #[test]
+    fn opted_in_cop_is_disabled_up_to_and_including_the_enable_line() {
+        let d = directives_for(
+            "line1 = 1\nline2 = 2\n# rubocop:enable Layout/LineLength\nline4 = 4\nline5 = 5\n",
+        );
+        assert!(d.is_opted_in("Layout/LineLength"));
+        for line in 1..=3 {
+            assert!(
+                d.is_disabled_for_opted_in_cop("Layout/LineLength", line),
+                "line {line} should still be disabled"
+            );
+        }
+        for line in 4..=5 {
+            assert!(
+                !d.is_disabled_for_opted_in_cop("Layout/LineLength", line),
+                "line {line} should be reactivated"
+            );
+        }
+    }
+
+    #[test]
+    fn cop_never_named_in_a_directive_is_always_disabled_for_the_opted_in_check() {
+        // Nothing opts `Layout/LineLength` in, so even though this helper
+        // is only ever consulted after `is_opted_in` gates the caller, it
+        // independently mirrors the config-disabled synthetic range never
+        // being closed: every line stays covered.
+        let d = directives_for("x = 1\ny = 2\n");
+        assert!(d.is_disabled_for_opted_in_cop("Layout/LineLength", 1));
+        assert!(d.is_disabled_for_opted_in_cop("Layout/LineLength", 2));
+    }
+
+    #[test]
+    fn department_enable_still_reactivates_an_opted_in_cop_once_named() {
+        // `is_opted_in` requires the exact name, but once a cop is opted in
+        // by *some* directive, the range analysis itself resolves
+        // departments/`all` generically (mirroring the registry-expanded
+        // `cop_names` upstream's `#analyze` uses), so a later department
+        // disable still suppresses it and a department enable still
+        // reopens it.
+        let d = directives_for(
+            "line1 = 1\n# rubocop:enable Layout/LineLength\nline3 = 3\n# rubocop:disable Layout\nline5 = 5\n# rubocop:enable Layout\nline7 = 7\n",
+        );
+        assert!(d.is_opted_in("Layout/LineLength"));
+        assert!(d.is_disabled_for_opted_in_cop("Layout/LineLength", 1));
+        assert!(!d.is_disabled_for_opted_in_cop("Layout/LineLength", 3));
+        assert!(d.is_disabled_for_opted_in_cop("Layout/LineLength", 5));
+        assert!(!d.is_disabled_for_opted_in_cop("Layout/LineLength", 7));
     }
 }
