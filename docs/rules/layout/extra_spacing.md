@@ -8,7 +8,7 @@ Checks for extra/unnecessary whitespace.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 ```ruby
 # good if AllowForAlignment is true
@@ -55,11 +55,6 @@ approximation this file builds instead), which has these consequences:
   alignment landmarks. This can only under-recognize an alignment RuboCop
   would allow (an over-reporting risk), not the reverse; no fixture in
   this port exercises it.
-- The mixin's second `aligned_with_any_line_range?` pass (retrying with a
-  `base_indentation` filter after an unfiltered scan already failed) is
-  not implemented: for this cop's call sites the filtered scan is always a
-  strict subset of lines the unfiltered scan already visited with the same
-  predicate, so it can never change the result.
 - Column/token comparisons index by byte offset within a line, i.e. assume
   one byte per character; a line with multi-byte UTF-8 content before the
   compared column can misalign the comparison (offense spans themselves

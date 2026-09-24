@@ -8,7 +8,7 @@ Keep indentation straight.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks that entities at the same logical depth share the same indentation.
 The `indented_internal_methods` style additionally requires that a bare
@@ -86,12 +86,6 @@ two real groups into one, so it can only produce false negatives.
 modifiers (RuboCop's AST does not distinguish them from a no-args call, but
 our simpler receiver/arguments check does), which is a false-negative-only
 divergence in the same direction.
-
-`display_column` approximates Ruby's `unicode-display_width` gem with a
-hand-rolled East Asian Width table covering the common CJK, Hangul, and
-fullwidth-forms ranges; combining marks, emoji sequences, and rarer wide
-code points are not modeled and could misalign a comparison in exotic
-source files.
 
 Autocorrection's taboo-range protection (RuboCop's `AlignmentCorrector`
 `inside_string_ranges`) only covers heredoc bodies; the interior of an

@@ -8,7 +8,7 @@ Checks for big numeric literals without `_` between groups of digits in them.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Additional allowed patterns can be added by adding regexps to the
 `AllowedPatterns` configuration. All regexps are treated as anchored even if

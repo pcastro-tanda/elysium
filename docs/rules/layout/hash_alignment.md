@@ -8,7 +8,7 @@ Align the elements of a hash literal if they span more than one line.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks that the keys, separators, and values of a multi-line hash literal are
 aligned according to the configured style.

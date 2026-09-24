@@ -8,7 +8,7 @@ Finds sole nested conditional nodes which can be merged into outer conditional n
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 If the branch of a conditional consists solely of a conditional node, its
 conditions can be combined with the conditions of the outer branch. This

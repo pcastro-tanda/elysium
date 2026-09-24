@@ -8,7 +8,7 @@ Checks for trailing comma in hash literals.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 The configuration options are:
 

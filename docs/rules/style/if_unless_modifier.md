@@ -8,7 +8,7 @@ Favor modifier if/unless usage when you have a single-line body.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for `if` and `unless` statements that would fit on one line if
 written as modifier `if`/`unless`. The cop also checks for modifier

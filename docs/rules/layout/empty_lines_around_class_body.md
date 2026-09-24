@@ -8,7 +8,7 @@ Keeps track of empty lines around class bodies.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 ```ruby
 # EnforcedStyle: no_empty_lines (default)

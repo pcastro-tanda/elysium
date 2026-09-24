@@ -8,7 +8,7 @@ Checks trailing blank lines and final newline.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 A file should end with exactly one newline, with no extra blank lines before
 it (or, under `EnforcedStyle: final_blank_line`, exactly one blank line

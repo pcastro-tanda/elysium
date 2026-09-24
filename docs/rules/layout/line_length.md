@@ -8,7 +8,7 @@ Checks the length of lines in the source code.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 The maximum length is configurable. The tab size is configured in the
 `IndentationWidth` of `Layout/IndentationStyle`. A shebang line is ignored

@@ -8,7 +8,7 @@ Do not assign mutable objects to constants.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | unsafe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks whether some constant value isn't a mutable literal (e.g. array or
 hash).

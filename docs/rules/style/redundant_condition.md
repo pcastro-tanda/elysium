@@ -8,7 +8,7 @@ Checks for unnecessary conditional expressions.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 NOTE: Since the intention of the comment cannot be automatically determined,
 autocorrection is not applied when a comment is used inside the conditional.

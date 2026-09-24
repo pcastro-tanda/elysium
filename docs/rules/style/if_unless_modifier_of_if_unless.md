@@ -8,7 +8,7 @@ Avoid modifier if/unless usage on conditionals.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for `if` and `unless` statements used as modifiers of other `if` or
 `unless` statements.

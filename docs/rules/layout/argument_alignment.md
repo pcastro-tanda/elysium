@@ -8,7 +8,7 @@ Align the arguments of a method call if they span more than one line.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks that the arguments on a multi-line method call are aligned.
 
@@ -64,12 +64,6 @@ foo :bar,
 | IndentationWidth | `nil` |  | Overrides `Layout/IndentationWidth`'s configured width for `with_fixed_indentation`'s base column; falls back to it, else 2. |
 
 ## Blind spots
-
-`display_column` approximates Ruby's `unicode-display_width` gem with a
-hand-rolled East Asian Width table covering the common CJK, Hangul, and
-fullwidth-forms ranges; combining marks, emoji sequences, and rarer wide
-code points are not modeled and could misalign a comparison in exotic
-source files.
 
 Autocorrection's taboo-range protection (RuboCop's `AlignmentCorrector`
 `inside_string_ranges`) only covers heredoc bodies; the interior of an

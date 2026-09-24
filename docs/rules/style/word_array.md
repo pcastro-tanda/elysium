@@ -8,7 +8,7 @@ Use %w or %W for arrays of words.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for array literals made up of word-like strings, that are not using
 the `%w()` syntax.

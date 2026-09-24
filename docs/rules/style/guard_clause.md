@@ -8,7 +8,7 @@ Checks for conditionals that can be replaced with guard clauses.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 A condition with an `elsif` or `else` branch is allowed unless one of
 `return`, `break`, `next`, `raise`, or `fail` is used in the body of the

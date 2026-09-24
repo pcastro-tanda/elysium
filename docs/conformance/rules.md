@@ -6,59 +6,161 @@ text differs (RuboCop versions word some messages differently).
 
 | rule | app | rubocop | truth | ours | missing | extra | message mismatch | agreement | date |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
-| Layout/EmptyLines | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/EmptyLines | forem | 1.63.4 | 43 | 43 | 0 | 0 | 43 | 100.0% | 2026-09-23 |
-| Layout/EmptyLines | gitlab (defaults) | 1.81.7 | 7 | 7 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/EmptyLines | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/IndentationConsistency | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/IndentationConsistency | forem | 1.63.4 | 14 | 10 | 5 | 1 | 9 | 64.3% | 2026-09-23 |
-| Layout/IndentationConsistency | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/IndentationWidth | discourse | 1.91.0 | 71 | 71 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/IndentationWidth | forem | 1.63.4 | 12 | 12 | 0 | 0 | 12 | 100.0% | 2026-09-23 |
-| Layout/IndentationWidth | gitlab (defaults) | 1.81.7 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/IndentationWidth | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/LineLength | discourse | 1.91.0 | 2024 | 2024 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/LineLength | forem | 1.63.4 | 852 | 838 | 22 | 8 | 830 | 97.4% | 2026-09-23 |
-| Layout/LineLength | gitlab (defaults) | 1.81.7 | 12429 | 12429 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/LineLength | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/TrailingEmptyLines | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/TrailingEmptyLines | forem | 1.63.4 | 117 | 112 | 5 | 0 | 112 | 95.7% | 2026-09-23 |
-| Layout/TrailingEmptyLines | gitlab (defaults) | 1.81.7 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/TrailingEmptyLines | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/TrailingWhitespace | discourse (defaults) | 1.91.0 | 117 | 117 | 0 | 0 | 0 | 100.0% | 2026-09-22 |
-| Layout/TrailingWhitespace | discourse | 1.91.0 | 46 | 46 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/TrailingWhitespace | forem | 1.63.4 | 1053 | 1048 | 5 | 0 | 1048 | 99.5% | 2026-09-23 |
-| Layout/TrailingWhitespace | gitlab (defaults) | 1.81.7 | 6 | 6 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Layout/TrailingWhitespace | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/Documentation | discourse | 1.91.0 | 7141 | 7141 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/Documentation | forem | 1.63.4 | 1184 | 1185 | 0 | 1 | 0 | 99.9% | 2026-09-23 |
-| Style/Documentation | mastodon | 1.91.0 | 2045 | 2045 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/FrozenStringLiteralComment | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/FrozenStringLiteralComment | forem | 1.63.4 | 18 | 13 | 5 | 0 | 0 | 72.2% | 2026-09-23 |
-| Style/FrozenStringLiteralComment | mastodon | 1.91.0 | 0 | 6 | 0 | 6 | 0 | 0.0% | 2026-09-23 |
-| Style/GuardClause | discourse | 1.91.0 | 993 | 993 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/GuardClause | forem | 1.63.4 | 55 | 54 | 1 | 0 | 54 | 98.2% | 2026-09-23 |
-| Style/GuardClause | mastodon | 1.91.0 | 24 | 24 | 0 | 0 | 24 | 100.0% | 2026-09-23 |
-| Style/HashSyntax | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/HashSyntax | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/HashSyntax | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/IfUnlessModifier | discourse | 1.91.0 | 2404 | 2404 | 0 | 0 | 24 | 100.0% | 2026-09-23 |
-| Style/IfUnlessModifier | forem | 1.63.4 | 265 | 266 | 0 | 1 | 265 | 99.6% | 2026-09-23 |
-| Style/IfUnlessModifier | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/MutableConstant | discourse | 1.91.0 | 606 | 607 | 0 | 1 | 0 | 99.8% | 2026-09-23 |
-| Style/MutableConstant | forem | 1.63.4 | 30 | 25 | 5 | 0 | 0 | 83.3% | 2026-09-23 |
-| Style/MutableConstant | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/StringLiterals | discourse | 1.91.0 | 272590 | 272590 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/StringLiterals | forem | 1.63.4 | 235 | 235 | 0 | 0 | 235 | 100.0% | 2026-09-23 |
-| Style/StringLiterals | mastodon (defaults) | 1.91.0 | 2668 | 2668 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/StringLiterals | mastodon | 1.91.0 | 0 | 2103 | 0 | 2103 | 0 | 0.0% | 2026-09-23 |
-| Style/TrailingCommaInArguments | discourse | 1.91.0 | 36105 | 36106 | 0 | 1 | 0 | 100.0% | 2026-09-23 |
-| Style/TrailingCommaInArguments | forem | 1.63.4 | 330 | 330 | 0 | 0 | 330 | 100.0% | 2026-09-23 |
-| Style/TrailingCommaInArguments | gitlab (defaults) | 1.81.7 | 2 | 2 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/TrailingCommaInArguments | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/TrailingCommaInArrayLiteral | discourse | 1.91.0 | 2931 | 2932 | 0 | 1 | 0 | 100.0% | 2026-09-23 |
-| Style/TrailingCommaInArrayLiteral | forem | 1.63.4 | 38 | 33 | 5 | 0 | 33 | 86.8% | 2026-09-23 |
-| Style/TrailingCommaInArrayLiteral | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
-| Style/TrailingCommaInHashLiteral | discourse | 1.91.0 | 18691 | 18692 | 0 | 1 | 0 | 100.0% | 2026-09-23 |
-| Style/TrailingCommaInHashLiteral | forem | 1.63.4 | 30 | 26 | 4 | 0 | 1 | 86.7% | 2026-09-23 |
-| Style/TrailingCommaInHashLiteral | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |
+| Layout/ArgumentAlignment | discourse | 1.91.0 | 119 | 119 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/ArgumentAlignment | forem | 1.63.4 | 52 | 52 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/ArgumentAlignment | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/EmptyLineBetweenDefs | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/EmptyLineBetweenDefs | forem | 1.63.4 | 6 | 6 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/EmptyLineBetweenDefs | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/EmptyLines | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/EmptyLines | forem | 1.63.4 | 43 | 43 | 0 | 0 | 43 | 100.0% | 2026-09-23 |  |
+| Layout/EmptyLines | gitlab (defaults) | 1.81.7 | 7 | 7 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/EmptyLines | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/EmptyLinesAroundClassBody | discourse | 1.91.0 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/EmptyLinesAroundClassBody | forem | 1.63.4 | 4 | 4 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/EmptyLinesAroundClassBody | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/ExtraSpacing | discourse | 1.91.0 | 7 | 7 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/ExtraSpacing | forem | 1.63.4 | 16 | 16 | 0 | 0 | 0 | 100.0% | 2026-09-24 | [^fixed-extraspacing] |
+| Layout/ExtraSpacing | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/FirstArgumentIndentation | discourse | 1.91.0 | 290 | 290 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/FirstArgumentIndentation | forem | 1.63.4 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/FirstArgumentIndentation | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/FirstHashElementIndentation | discourse | 1.91.0 | 210 | 210 | 0 | 0 | 0 | 100.0% | 2026-09-24 | [^fixed-hashindent] |
+| Layout/FirstHashElementIndentation | forem | 1.63.4 | 34 | 34 | 0 | 0 | 0 | 100.0% | 2026-09-24 | [^fixed-hashindent] |
+| Layout/FirstHashElementIndentation | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/HashAlignment | discourse | 1.91.0 | 10 | 10 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/HashAlignment | forem | 1.63.4 | 135 | 135 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/HashAlignment | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/IndentationConsistency | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/IndentationConsistency | forem | 1.63.4 | 14 | 10 | 5 | 1 | 9 | 64.3% | 2026-09-23 |  |
+| Layout/IndentationConsistency | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/IndentationWidth | discourse | 1.91.0 | 71 | 71 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/IndentationWidth | forem | 1.63.4 | 12 | 12 | 0 | 0 | 12 | 100.0% | 2026-09-23 |  |
+| Layout/IndentationWidth | gitlab (defaults) | 1.81.7 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/IndentationWidth | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/LineLength | discourse | 1.91.0 | 2024 | 2024 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/LineLength | forem | 1.63.4 | 852 | 838 | 22 | 8 | 830 | 97.4% | 2026-09-23 | [^skew-linelength] |
+| Layout/LineLength | gitlab (defaults) | 1.81.7 | 12429 | 12429 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/LineLength | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/SpaceAroundOperators | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 | [^fixed-spaceop] |
+| Layout/SpaceAroundOperators | forem | 1.63.4 | 4 | 4 | 0 | 0 | 0 | 100.0% | 2026-09-24 | [^fixed-spaceop] |
+| Layout/SpaceAroundOperators | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/SpaceInsideArrayLiteralBrackets | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/SpaceInsideArrayLiteralBrackets | forem | 1.63.4 | 4 | 4 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/SpaceInsideArrayLiteralBrackets | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/SpaceInsideBlockBraces | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/SpaceInsideBlockBraces | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/SpaceInsideBlockBraces | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/SpaceInsideHashLiteralBraces | discourse | 1.91.0 | 420 | 420 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/SpaceInsideHashLiteralBraces | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/SpaceInsideHashLiteralBraces | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Layout/TrailingEmptyLines | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/TrailingEmptyLines | forem | 1.63.4 | 117 | 112 | 5 | 0 | 112 | 95.7% | 2026-09-23 |  |
+| Layout/TrailingEmptyLines | gitlab (defaults) | 1.81.7 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/TrailingEmptyLines | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/TrailingWhitespace | discourse (defaults) | 1.91.0 | 117 | 117 | 0 | 0 | 0 | 100.0% | 2026-09-22 |  |
+| Layout/TrailingWhitespace | discourse | 1.91.0 | 46 | 46 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/TrailingWhitespace | forem | 1.63.4 | 1053 | 1048 | 5 | 0 | 1048 | 99.5% | 2026-09-23 |  |
+| Layout/TrailingWhitespace | gitlab (defaults) | 1.81.7 | 6 | 6 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Layout/TrailingWhitespace | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Lint/AmbiguousBlockAssociation | discourse | 1.91.0 | 1301 | 1301 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/AmbiguousBlockAssociation | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 | [^fixed-ambigblock] |
+| Lint/AmbiguousBlockAssociation | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 | [^fixed-ambigblock] |
+| Lint/Debugger | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/Debugger | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/Debugger | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/DuplicateHashKey | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/DuplicateHashKey | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/DuplicateHashKey | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/DuplicateMethods | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/DuplicateMethods | forem | 1.63.4 | 4 | 4 | 0 | 0 | 4 | 100.0% | 2026-09-24 |  |
+| Lint/DuplicateMethods | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/ElseLayout | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/ElseLayout | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/ElseLayout | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/EmptyBlock | discourse | 1.91.0 | 105 | 105 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/EmptyBlock | forem | 1.63.4 | 4 | 4 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/EmptyBlock | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/RedundantCopDisableDirective | discourse | 1.91.0 | 0 | 69 | 0 | 69 | 0 | 0.0% | 2026-09-24 | [^rcdd] |
+| Lint/RedundantCopDisableDirective | forem | 1.63.4 | 6 | 241 | 1 | 236 | 0 | 2.1% | 2026-09-24 | [^rcdd] |
+| Lint/RedundantCopDisableDirective | mastodon | 1.91.0 | 0 | 131 | 0 | 131 | 0 | 0.0% | 2026-09-24 | [^rcdd] |
+| Lint/RedundantStringCoercion | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/RedundantStringCoercion | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/RedundantStringCoercion | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/AccessorGrouping | discourse | 1.91.0 | 166 | 166 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/AccessorGrouping | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/AccessorGrouping | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/ClassAndModuleChildren | discourse | 1.91.0 | 612 | 612 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/ClassAndModuleChildren | forem | 1.63.4 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/ClassAndModuleChildren | mastodon | 1.91.0 | 708 | 708 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/Documentation | discourse | 1.91.0 | 7141 | 7141 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/Documentation | forem | 1.63.4 | 1184 | 1185 | 0 | 1 | 0 | 99.9% | 2026-09-23 |  |
+| Style/Documentation | mastodon | 1.91.0 | 2045 | 2045 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/EmptyElse | discourse | 1.91.0 | 65 | 65 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/EmptyElse | forem | 1.63.4 | 6 | 6 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/EmptyElse | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/FrozenStringLiteralComment | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/FrozenStringLiteralComment | forem | 1.63.4 | 18 | 13 | 5 | 0 | 0 | 72.2% | 2026-09-23 |  |
+| Style/FrozenStringLiteralComment | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/GuardClause | discourse | 1.91.0 | 993 | 993 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/GuardClause | forem | 1.63.4 | 55 | 54 | 1 | 0 | 54 | 98.2% | 2026-09-23 |  |
+| Style/GuardClause | mastodon | 1.91.0 | 24 | 24 | 0 | 0 | 24 | 100.0% | 2026-09-23 |  |
+| Style/HashSyntax | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/HashSyntax | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/HashSyntax | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/IfUnlessModifier | discourse | 1.91.0 | 2404 | 2404 | 0 | 0 | 24 | 100.0% | 2026-09-23 |  |
+| Style/IfUnlessModifier | forem | 1.63.4 | 265 | 266 | 0 | 1 | 265 | 99.6% | 2026-09-23 |  |
+| Style/IfUnlessModifier | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/IfUnlessModifierOfIfUnless | discourse | 1.91.0 | 2 | 2 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/IfUnlessModifierOfIfUnless | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/IfUnlessModifierOfIfUnless | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/MutableConstant | discourse | 1.91.0 | 606 | 607 | 0 | 1 | 0 | 99.8% | 2026-09-23 |  |
+| Style/MutableConstant | forem | 1.63.4 | 30 | 25 | 5 | 0 | 0 | 83.3% | 2026-09-23 |  |
+| Style/MutableConstant | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/NumericLiteralPrefix | discourse | 1.91.0 | 47 | 47 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/NumericLiteralPrefix | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/NumericLiteralPrefix | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/NumericLiterals | discourse | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/NumericLiterals | forem | 1.63.4 | 23 | 23 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/NumericLiterals | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/RedundantCondition | discourse | 1.91.0 | 28 | 28 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/RedundantCondition | forem | 1.63.4 | 0 | 2 | 0 | 2 | 0 | 0.0% | 2026-09-24 | [^skew-condition] |
+| Style/RedundantCondition | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/RedundantParentheses | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 | [^fixed-parens] |
+| Style/RedundantParentheses | forem | 1.63.4 | 13 | 23 | 0 | 10 | 0 | 56.5% | 2026-09-24 | [^skew-parens] |
+| Style/RedundantParentheses | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/RedundantRegexpCharacterClass | discourse | 1.91.0 | 21 | 21 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/RedundantRegexpCharacterClass | forem | 1.63.4 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/RedundantRegexpCharacterClass | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/RedundantRegexpEscape | discourse | 1.91.0 | 386 | 386 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/RedundantRegexpEscape | forem | 1.63.4 | 33 | 33 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/RedundantRegexpEscape | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/RedundantReturn | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/RedundantReturn | forem | 1.63.4 | 14 | 14 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/RedundantReturn | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/SoleNestedConditional | discourse | 1.91.0 | 203 | 203 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/SoleNestedConditional | forem | 1.63.4 | 10 | 10 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/SoleNestedConditional | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/StringConcatenation | discourse | 1.91.0 | 534 | 534 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/StringConcatenation | forem | 1.63.4 | 8 | 8 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/StringConcatenation | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/StringLiterals | discourse | 1.91.0 | 272590 | 272590 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/StringLiterals | forem | 1.63.4 | 235 | 235 | 0 | 0 | 235 | 100.0% | 2026-09-23 |  |
+| Style/StringLiterals | mastodon (defaults) | 1.91.0 | 2668 | 2668 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/StringLiterals | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/SymbolProc | discourse | 1.91.0 | 157 | 157 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/SymbolProc | forem | 1.63.4 | 2 | 2 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/SymbolProc | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/TrailingCommaInArguments | discourse | 1.91.0 | 36105 | 36106 | 0 | 1 | 0 | 100.0% | 2026-09-23 |  |
+| Style/TrailingCommaInArguments | forem | 1.63.4 | 330 | 330 | 0 | 0 | 330 | 100.0% | 2026-09-23 |  |
+| Style/TrailingCommaInArguments | gitlab (defaults) | 1.81.7 | 2 | 2 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/TrailingCommaInArguments | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/TrailingCommaInArrayLiteral | discourse | 1.91.0 | 2931 | 2932 | 0 | 1 | 0 | 100.0% | 2026-09-23 |  |
+| Style/TrailingCommaInArrayLiteral | forem | 1.63.4 | 38 | 33 | 5 | 0 | 33 | 86.8% | 2026-09-23 |  |
+| Style/TrailingCommaInArrayLiteral | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/TrailingCommaInHashLiteral | discourse | 1.91.0 | 18691 | 18692 | 0 | 1 | 0 | 100.0% | 2026-09-23 |  |
+| Style/TrailingCommaInHashLiteral | forem | 1.63.4 | 30 | 26 | 4 | 0 | 1 | 86.7% | 2026-09-23 |  |
+| Style/TrailingCommaInHashLiteral | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
+| Style/WordArray | discourse | 1.91.0 | 9 | 9 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/WordArray | forem | 1.63.4 | 27 | 27 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/WordArray | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |

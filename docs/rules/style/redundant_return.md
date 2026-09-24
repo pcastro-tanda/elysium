@@ -8,7 +8,7 @@ Don't use return where it's not required.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 A `return` at the end of a method, or as the last executed expression of an
 `if`/`case`/`begin`/`rescue` branch within one, is unnecessary: the value

@@ -8,7 +8,7 @@ Checks that block braces have or don't have surrounding space.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 For blocks taking parameters, checks that the left brace has or doesn't have
 trailing space depending on configuration.

@@ -8,7 +8,7 @@ Checks that braces used for hash literals have or don't have surrounding space d
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 ```ruby
 # EnforcedStyle: space (default)

@@ -8,7 +8,7 @@ Checks for odd code arrangement in an else block.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for odd `else` block layout -- like having an expression on the same
 line as the `else` keyword, which is usually a mistake.

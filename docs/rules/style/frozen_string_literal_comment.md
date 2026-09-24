@@ -8,7 +8,7 @@ Add the frozen_string_literal comment to the top of files to help transition to 
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | unsafe |
-| Stability | nursery |
+| Stability | stable |
 
 Helps you transition from mutable string literals to frozen string
 literals. It will add the `# frozen_string_literal: true` magic comment to

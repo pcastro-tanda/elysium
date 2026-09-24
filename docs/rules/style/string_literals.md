@@ -8,7 +8,7 @@ Checks if uses of quotes match the configured preference.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 ```ruby
 # EnforcedStyle: single_quotes (default)

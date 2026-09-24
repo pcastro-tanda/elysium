@@ -8,7 +8,7 @@ Use empty lines between class/module/method defs.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks whether class/module/method definitions are separated by one or more empty lines.
 

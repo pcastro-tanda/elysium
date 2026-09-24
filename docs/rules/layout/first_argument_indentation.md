@@ -8,7 +8,7 @@ Checks the indentation of the first argument in a method call.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Arguments after the first one are checked by `Layout/ArgumentAlignment`, not by this cop. For
 indenting the first parameter of method _definitions_, check out `Layout/FirstParameterIndentation`.
@@ -57,10 +57,8 @@ read `Layout/ArgumentAlignment`'s `EnforcedStyle` and `Layout/FirstMethodArgumen
 `Enabled` through `peer(...)`, which only reflects an explicit key in that cop's own config block
 in the loaded YAML, not a cop-wide default or `--only`/`--except` override; a file that relies on
 either default to disable this cop is not detected (false negative only: this cop will still run
-when RuboCop itself would have skipped it). `display_column`/`east_asian_width` approximate Ruby's
-`unicode-display_width` gem with a hand-rolled East Asian Width table (see
-`Layout/IndentationConsistency` for the same caveat in full); combining marks and rarer wide code
-points are not modeled. `AlignmentCorrector`'s non-heredoc delimited-string taboo ranges (plain
+when RuboCop itself would have skipped it). `AlignmentCorrector`'s non-heredoc delimited-string
+taboo ranges (plain
 multi-line string/symbol literals) are not tracked, only heredoc bodies -- unlikely to matter for
 a first-argument shift, since the argument being corrected is not itself one of those literals in
 any fixture case.

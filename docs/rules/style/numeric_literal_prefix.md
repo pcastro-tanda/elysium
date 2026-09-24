@@ -8,7 +8,7 @@ Use smallcase prefixes for numeric literals.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 ```ruby
 # EnforcedOctalStyle: zero_with_o (default)

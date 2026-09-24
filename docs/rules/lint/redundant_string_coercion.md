@@ -8,7 +8,7 @@ Checks for `Object#to_s` usage in string interpolation.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for string conversion in string interpolation, `print`, `puts`, and
 `warn` arguments, which is redundant.

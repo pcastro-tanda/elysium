@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-22. Phase 3 in progress: 40 of 50 rules landed.
+Last updated: 2026-09-24. Phase 3 complete: all 50 rules landed.
 
 ## What works
 
@@ -10,20 +10,44 @@ Last updated: 2026-09-22. Phase 3 in progress: 40 of 50 rules landed.
   with RuboCop-identical message text, line, and column (verified against
   `rubocop --format json` with `ParserEngine: parser_prism`, including
   multi-byte columns and same-range deduplication).
-- Rules: 40 Style/Layout/Lint cops (see `docs/rules/`), each registered
+- Rules: 50 Style/Layout/Lint cops (see `docs/rules/`), each registered
   through `rule_set!` with a compile-time node-kind subscription table and
   configured from RuboCop option names (`RuleOptions`, incl. peer-cop and
   `AllCops` reads). `elysium fix [--unsafe] [--diff]` applies byte-range
   fixes and reparses to convergence; `check --only/--except` mirror RuboCop
   (`--only` force-enables a config-disabled cop).
-- Fixtures: 3,900+ cases extracted from RuboCop 1.82.1's own specs by
-  `tools/port_spec.rb` (instrumented `expect_offense`), checked for offenses,
-  corrections, and fix idempotence by `crates/rules/tests/fixtures.rs`.
+- Fixtures: extracted from RuboCop's own specs by `tools/port_spec.rb`
+  (instrumented `expect_offense`/`expect_correction`), checked for offenses,
+  corrections, and fix idempotence by `crates/rules/tests/fixtures.rs`. A
+  case's sibling `<case>.offenses` file replays a spec that built its cop
+  with an explicit injected `offenses` array simulating diagnostics from
+  other cops that never ran (`Lint/RedundantCopDisableDirective`'s
+  cross-cop cases); `<case>.yml` supports whole-department overrides
+  (`Department: {Enabled: false}`), not just per-cop options. Un-portable
+  spec classes are deleted after generation and listed, with cause, in
+  `crates/rules/fixtures/README.md` (see ADR 0006).
 - Conformance: `cargo xtask conformance --app DIR --rule Cop` diffs offenses
   against real RuboCop on discourse/forem/mastodon/gitlab; results in
-  `docs/conformance/rules.md`. Batch one (16 rules) is at 100% on
-  discourse and mastodon; forem's remaining diffs are RuboCop 1.63 /
-  Ruby 3.0 version skew (documented per rule in the log samples).
+  `docs/conformance/rules.md`. All 50 rules are at 100% agreement on
+  `discourse` and `mastodon` (RuboCop 1.91.0 truth) except
+  `Lint/RedundantCopDisableDirective` (can't be measured the normal way —
+  see below). `forem`'s remaining
+  sub-100% rows are pinned to RuboCop 1.63.4 (its own `Gemfile.lock`
+  version, run through a side Gemfile under rbenv 3.4.2 since forem's own
+  `.ruby-version` targets Ruby 3.0); several are genuine RuboCop-version
+  skew — `AllowQualifiedName` (`Layout/LineLength`) and
+  `if_branch_is_true_type_and_else_is_not?` (`Style/RedundantCondition`)
+  postdate 1.63.4, and 1.63.4's `Style/RedundantParentheses` still allows
+  `:and` in `ALLOWED_NODE_TYPES` and lacks the newer
+  `argument_of_parenthesized_method_call?`/`square_brackets?` checks — all
+  documented per-row in `docs/conformance/rules.md`'s footnotes.
+  `Lint/RedundantCopDisableDirective` cannot be measured through the xtask's
+  normal `--only <cop>` recipe at all (RuboCop's CLI hard-refuses `--only`
+  for this cop, exit 2, since its own logic depends on every other cop's
+  reported offenses); a one-off full-lint-then-filter comparison instead
+  shows agreement is dominated by disables of cops elysium doesn't
+  implement yet, so the measurement is only meaningful once significantly
+  more cops are ported. It stays at `nursery` regardless.
 - Configuration additions from conformance work: extension gems'
   `config/default.yml` is loaded as a defaults layer (rubocop-rails'
   `bin/*` Exclude etc.), hidden directories are skipped like RuboCop's
@@ -31,6 +55,14 @@ Last updated: 2026-09-22. Phase 3 in progress: 40 of 50 rules landed.
   `# rubocop:disable-next|todo-next|enable-next` are recognised.
 - Output: `-f human` (`path:line:col: F: Cop/Name: message` + summary) and
   `-f json` (RuboCop's JSON formatter schema, field for field).
+  `AllCops/DisplayStyleGuide` and `AllCops/ExtraDetails` (and their
+  `-S/--display-style-guide`/`-E/--extra-details` CLI flags) append each
+  cop's resolved `StyleGuide`/`References`/`Details` annotation to its
+  message, mirroring RuboCop's `MessageAnnotator`.
+- `Alignment#display_column` (RuboCop's East Asian Width-aware rendered
+  column) is one shared `SourceFile::display_column` helper in
+  `ruby_source`, used by every alignment/indentation rule instead of a
+  per-rule copy.
 - Discovery: parallel walk honouring `.gitignore` (off with `--no-gitignore`),
   RuboCop's default `AllCops/Include` and `Exclude`, Ruby shebang detection for
   extensionless files, explicit files always linted, globs relative to cwd.
@@ -39,8 +71,7 @@ Last updated: 2026-09-22. Phase 3 in progress: 40 of 50 rules landed.
 - Tooling: `cargo xtask bench --record|--check` (end-to-end over the corpus,
   fails on >5% regression), criterion micro-benchmarks (`cargo bench -p linter`),
   `cargo deny` config (all licenses permissive: MIT, Apache-2.0, BSD-3-Clause,
-  ISC, Unicode-3.0), CI workflows for fmt/clippy pedantic/test/deny. 125 tests
-  pass across the workspace.
+  ISC, Unicode-3.0), CI workflows for fmt/clippy pedantic/test/deny.
 - `.rubocop.yml` loading: `inherit_from`/`inherit_gem` (gem paths resolved by
   filesystem search against `Gemfile.lock`, no Ruby/Bundler/RubyGems
   involved — see ADR 0005), `inherit_mode`, department-level switches,
@@ -53,7 +84,12 @@ Last updated: 2026-09-22. Phase 3 in progress: 40 of 50 rules landed.
   `--show-cops`-compatible key order and format or as plain resolved YAML;
   `elysium check` gained the matching `--config PATH`/`--no-config` flags.
 - `ruby_directives` parses `rubocop:disable|enable|todo` comments with exact
-  line and end-of-line semantics and applies them in the engine.
+  line and end-of-line semantics and applies them in the engine, including
+  `CommentConfig#cop_opted_in?`: a `# rubocop:enable Cop` directive naming a
+  `DisabledByDefault`-disabled cop exactly, anywhere in the file, re-opts
+  that cop in for that file (RuboCop's own `cop_opted_in?`/`comment_config`
+  semantics), so a disable/enable pair on an otherwise-off cop is evaluated
+  instead of silently ignored.
 - Config conformance: `elysium config --format show-cops` matches
   `rubocop --show-cops` on three real Rails apps (discourse, forem,
   mastodon) 100% on `Enabled` state for every cop whose embedded default
@@ -63,16 +99,15 @@ Last updated: 2026-09-22. Phase 3 in progress: 40 of 50 rules landed.
 
 ## What does not work yet
 
-- Ten of the fifty Phase 3 rules have fixtures but no implementation yet
-  (listed in the `rule_set!` comment in `crates/rules/src/lib.rs`):
-  Style/ClassAndModuleChildren, Style/EmptyElse, Style/AccessorGrouping,
-  Style/RedundantRegexpEscape, Style/StringConcatenation,
-  Lint/RedundantCopDisableDirective, Lint/Debugger, Lint/DuplicateHashKey,
-  Lint/DuplicateMethods, Lint/EmptyBlock.
-- `DisplayStyleGuide: true` does not append the style-guide URL to messages.
+- `Lint/RedundantCopDisableDirective` cannot be conformance-measured through
+  the xtask's normal per-rule harness (RuboCop's CLI rejects `--only` for
+  this cop outright); its numbers so far come from a one-off manual
+  full-lint comparison and are dominated by cops elysium hasn't implemented
+  yet, so it stays at `nursery` until conformance is meaningful.
 - No per-project RuboCop version model: rules follow 1.82.1 (and 1.91 where
   upstream reverted a default), so apps pinned to older RuboCop see skew
-  (e.g. `Layout/LineLength` `AllowQualifiedName` did not exist in 1.63).
+  (documented per-cop in `docs/conformance/rules.md`, e.g.
+  `Layout/LineLength`'s `AllowQualifiedName` not existing in RuboCop 1.63).
 - ERB embedded in `.rubocop.yml` is rejected with a clear error instead of
   evaluated (no Ruby runtime). This blocks loading GitLab's real
   `.rubocop.yml`; `--no-config` works around it there. See ADR 0005.
@@ -95,11 +130,14 @@ Last updated: 2026-09-22. Phase 3 in progress: 40 of 50 rules landed.
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 0 | 0 | 40 |
+| 49 | 0 | 1 |
 
-Promotion to `stable` requires >99% corpus conformance; batch one meets it
-on discourse and mastodon and will be promoted after a fresh run with all
-40 rules.
+Promotion to `stable` requires >99% corpus conformance on `discourse` and
+`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 49 of 50 rules meet
+it. The one remaining at `nursery`:
+
+- `Lint/RedundantCopDisableDirective` — held back per policy regardless of
+  measured agreement (see above).
 
 `Lint/Syntax` is built into the engine and is not counted.
 
@@ -163,10 +201,22 @@ CI needs its own recorded baseline before `--check` is a hard gate
 
 ## Next three milestones
 
-1. Phase 3: implement the ten pending rules, run conformance for rules
-   17–50 on the corpus, promote rules with >99% agreement to `stable`.
-2. Phase 3 cleanup: shared `display_column` (East Asian width) helper
-   replacing three per-rule copies; `DisplayStyleGuide` message suffix;
-   docs regenerated from `RuleMeta`.
-3. Phase 4: semantic layer (`ruby_semantic`: scopes and local variables) and
-   the ten cops excluded from Phase 3 for needing it.
+1. Phase 4: semantic layer (`ruby_semantic`: scopes and local variables) and
+   the ten cops excluded from Phase 3 for needing it (`Style/RedundantSelf`,
+   `Lint/UselessAssignment`, `Lint/ShadowedException`,
+   `Lint/UselessAccessModifier`, `Lint/MissingSuper`,
+   `Lint/ConstantResolution`, `Lint/ShadowingOuterLocalVariable`,
+   `Lint/NumberConversion`, `Lint/SelfAssignment`,
+   `Style/OptionalBooleanParameter` — see `docs/planning/phase3-rules.md`'s
+   "Excluded as semantic" list).
+2. Phase 5 `[INFERENCE — no dedicated planning doc yet, extrapolated from
+   the "What does not work yet" list above]`: config/CLI hardening ahead of
+   extension-gem cop work — a `ConfigValidator` (type/unknown-cop errors), a
+   minimal ERB subset evaluator for `.rubocop.yml` (unblocking GitLab's real
+   config), remote `inherit_from` fetching, `!ruby/regexp`
+   `Include`/`Exclude` tags, `TargetRubyVersion` inference from a gemspec's
+   `required_ruby_version`, and non-UTF-8 `# encoding:` column handling.
+3. Phase 6: extension-gem cop implementations (`Rails/*`, `RSpec/*`,
+   `Performance/*`, ...) — their `config/default.yml` layering and
+   conformance skip-list (`EXTENSION_DEPARTMENTS`) already exist; only the
+   cops themselves are unported.

@@ -8,7 +8,7 @@ Checks for trailing comma in argument lists.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Regardless of style, trailing commas are not allowed in single-line method
 calls.

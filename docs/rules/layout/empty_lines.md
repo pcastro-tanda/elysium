@@ -8,7 +8,7 @@ Checks for two or more consecutive blank lines.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 ```ruby
 # bad - it has two empty lines.

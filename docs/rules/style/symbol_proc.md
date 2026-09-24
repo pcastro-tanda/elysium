@@ -8,7 +8,7 @@ Use symbols as procs instead of blocks when possible.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | unsafe |
-| Stability | nursery |
+| Stability | stable |
 
 If you prefer a style that allows a block for a method with arguments,
 set `true` for `AllowMethodsWithArguments`. `define_method` is allowed by

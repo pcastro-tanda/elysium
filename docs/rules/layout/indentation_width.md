@@ -8,7 +8,7 @@ Checks for indentation that doesn't use the specified number of spaces.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 The indentation width can be configured using the `Width` setting. The default width is 2.
 

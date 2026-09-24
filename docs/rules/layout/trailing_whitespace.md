@@ -8,7 +8,7 @@ Looks for trailing whitespace in the source code.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Trailing whitespace at the end of a line is invisible noise that shows up in
 diffs. The fix deletes it.

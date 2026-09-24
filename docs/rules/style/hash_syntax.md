@@ -8,7 +8,7 @@ Prefer Ruby 1.9 hash syntax `{ a: 1, b: 2 }` over 1.8 syntax `{ :a => 1, :b => 2
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks hash literal syntax.
 

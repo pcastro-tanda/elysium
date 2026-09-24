@@ -8,7 +8,7 @@ Checks the indentation of the first key in a hash literal.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks the indentation of the first key in a hash literal where the opening
 brace and the first key are on separate lines. The other keys' indentations

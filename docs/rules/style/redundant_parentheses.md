@@ -8,7 +8,7 @@ Checks for parentheses that seem not to serve any purpose.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for redundant parentheses that don't change the meaning of the
 expression -- around a bare variable, constant, or literal, around an

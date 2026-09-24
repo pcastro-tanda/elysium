@@ -8,7 +8,7 @@ Checks for ambiguous block association with method when param passed without par
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 This cop can customize allowed methods with `AllowedMethods`. By default,
 there are no methods allowed.

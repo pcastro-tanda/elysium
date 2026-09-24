@@ -8,7 +8,7 @@ Checks for missing top-level documentation of classes and modules.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Classes with no body are exempt from the check and so are namespace
 modules - modules that have nothing in their bodies except classes, other

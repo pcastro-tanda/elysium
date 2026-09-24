@@ -8,7 +8,7 @@ Checks that operators have space around them, except for ** which should or shou
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 It allows vertical alignment consisting of one or more whitespace around operators.
 

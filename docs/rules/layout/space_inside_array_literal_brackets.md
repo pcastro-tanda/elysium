@@ -8,7 +8,7 @@ Checks the spacing inside array literal brackets.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks that brackets used for array literals have or don't have
 surrounding space depending on configuration.
