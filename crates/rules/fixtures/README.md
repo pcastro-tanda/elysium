@@ -23,3 +23,13 @@ after regeneration:
   `Style/MissingElse`'s `EnforcedStyle` is nil and autocorrection is never
   forbidden; under real CLI config loading (which elysium reproduces),
   `Enabled: true` resolves `EnforcedStyle: both` and RuboCop forbids the fix.
+- `lint/duplicate_methods/adds_a_message_with_absolute_path` and
+  `..._relative_path`: the offense message includes a path built by
+  RuboCop's `smart_path`, which is relative to `Dir.pwd`; the two specs
+  assert different formats for the same underlying path depending on the
+  process's working directory.
+- `lint/duplicate_methods/only_registers_an_offense_for_the_second_instance_of_a_dup_2`,
+  `..._4`, `..._6`, `..._8`, and `..._du_10`: the spec reuses one cop
+  instance across two separately-parsed source files, whereas RuboCop's CLI
+  (and elysium) instantiates a fresh cop per file, so cross-file duplicate
+  tracking never occurs in practice.
