@@ -721,7 +721,7 @@ my_number = 38 / 4
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[
             NodeKind::AlternationPatternNode,
             NodeKind::AndNode,

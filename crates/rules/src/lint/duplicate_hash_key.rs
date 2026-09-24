@@ -40,7 +40,7 @@ hash = { food: 'apple', other_food: 'orange' }
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::HashNode, NodeKind::KeywordHashNode],
         config: &[],
         blind_spots: "\

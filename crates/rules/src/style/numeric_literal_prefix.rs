@@ -193,7 +193,7 @@ num = 01234
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::IntegerNode],
         config: &[ConfigOption {
             name: "EnforcedOctalStyle",

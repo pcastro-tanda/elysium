@@ -96,7 +96,7 @@ impl Rule for RedundantRegexpEscape {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::RegularExpressionNode, NodeKind::InterpolatedRegularExpressionNode],
         config: &[],
         blind_spots: "\

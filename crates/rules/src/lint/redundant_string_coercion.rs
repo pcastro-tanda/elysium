@@ -68,7 +68,7 @@ warn something
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::EmbeddedStatementsNode, NodeKind::CallNode],
         config: &[],
         blind_spots: "",

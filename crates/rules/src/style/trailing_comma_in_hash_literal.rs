@@ -202,7 +202,7 @@ a = { foo: 1, bar: 2,
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::HashNode],
         config: &[ConfigOption {
             name: "EnforcedStyleForMultiline",

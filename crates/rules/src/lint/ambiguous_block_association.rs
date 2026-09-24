@@ -247,7 +247,7 @@ expect { do_something }.to not_change { object.attribute }
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[
             ConfigOption {
