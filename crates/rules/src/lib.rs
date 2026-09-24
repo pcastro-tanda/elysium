@@ -37,21 +37,22 @@ macro_rules! rule_set {
     (@slots $head:path, $($tail:path),+) => { (Option<$head>, rule_set!(@slots $($tail),+)) };
 }
 
+// Pending (fixtures present, implementation outstanding):
+//   style::class_and_module_children::ClassAndModuleChildren
+//   style::empty_else::EmptyElse
+//   style::accessor_grouping::AccessorGrouping
+//   style::redundant_regexp_escape::RedundantRegexpEscape
+//   style::string_concatenation::StringConcatenation
+//   lint::redundant_cop_disable_directive::RedundantCopDisableDirective
+//   lint::debugger::Debugger
+//   lint::duplicate_hash_key::DuplicateHashKey
+//   lint::duplicate_methods::DuplicateMethods
+//   lint::empty_block::EmptyBlock
 rule_set! {
-    style::class_and_module_children::ClassAndModuleChildren,
-    style::empty_else::EmptyElse,
-    style::accessor_grouping::AccessorGrouping,
-    style::redundant_regexp_escape::RedundantRegexpEscape,
     style::redundant_regexp_character_class::RedundantRegexpCharacterClass,
     style::numeric_literal_prefix::NumericLiteralPrefix,
     style::if_unless_modifier_of_if_unless::IfUnlessModifierOfIfUnless,
-    style::string_concatenation::StringConcatenation,
-    lint::redundant_cop_disable_directive::RedundantCopDisableDirective,
-    lint::debugger::Debugger,
-    lint::duplicate_hash_key::DuplicateHashKey,
-    lint::duplicate_methods::DuplicateMethods,
     lint::ambiguous_block_association::AmbiguousBlockAssociation,
-    lint::empty_block::EmptyBlock,
     lint::else_layout::ElseLayout,
     lint::redundant_string_coercion::RedundantStringCoercion,
     layout::empty_line_between_defs::EmptyLineBetweenDefs,
