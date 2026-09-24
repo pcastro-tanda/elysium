@@ -5,7 +5,7 @@
 use ruby_ast::{Node, NodeKind};
 
 use crate::context::Context;
-use crate::diagnostic::Severity;
+use crate::diagnostic::{Diagnostic, Severity};
 use crate::options::{OptionError, RuleOptions};
 
 /// RuboCop departments (plus the ecosystem ones ported later).
@@ -175,6 +175,17 @@ pub trait Rule: Clone + Send + Sync + 'static {
     fn file_end(&mut self, ctx: &mut Context<'_>) {
         let _ = ctx;
     }
+
+    /// Called once per file, after every rule's [`Rule::file_end`] has run,
+    /// with every diagnostic reported so far (`reported`): the raw,
+    /// unsorted-by-suppression accumulation before directive filtering and
+    /// deduplication, sorted by span start. `RedundantCopDisableDirective`
+    /// uses this to see the whole team's results and flag disable
+    /// directives nothing actually triggered. Not called for files with
+    /// syntax errors. Rules may [`Context::report`] from here.
+    fn file_finish(&mut self, ctx: &mut Context<'_>, reported: &[Diagnostic]) {
+        let _ = (ctx, reported);
+    }
 }
 
 /// Builds the compile-time subscription table a generated dispatcher
@@ -201,6 +212,8 @@ pub trait Dispatch {
     fn leave(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>);
     /// See [`Rule::file_end`].
     fn file_end(&mut self, ctx: &mut Context<'_>);
+    /// See [`Rule::file_finish`].
+    fn file_finish(&mut self, ctx: &mut Context<'_>, reported: &[Diagnostic]);
 }
 
 /// A dispatcher with no rules; useful for parsing-only runs and benchmarks.
@@ -212,4 +225,5 @@ impl Dispatch for NoRules {
     fn enter(&mut self, _: NodeKind, _: &Node<'_>, _: &mut Context<'_>) {}
     fn leave(&mut self, _: NodeKind, _: &Node<'_>, _: &mut Context<'_>) {}
     fn file_end(&mut self, _: &mut Context<'_>) {}
+    fn file_finish(&mut self, _: &mut Context<'_>, _: &[Diagnostic]) {}
 }

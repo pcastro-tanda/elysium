@@ -104,9 +104,14 @@ pub fn lint_parsed_with<D: Dispatch>(
     };
     rules.file_end(&mut ctx);
 
-    let (diagnostics, directives) = ctx.into_parts();
+    let mut reported = ctx.take_diagnostics();
+    reported.sort_by_key(|d| (d.span.start, d.span.end));
+    rules.file_finish(&mut ctx, &reported);
+    reported.append(&mut ctx.take_diagnostics());
+
+    let (_, directives) = ctx.into_parts();
     FileResult {
-        diagnostics: finish(diagnostics, source, &directives, settings),
+        diagnostics: finish(reported, source, &directives, settings),
         node_count,
         has_syntax_errors,
     }
@@ -192,8 +197,8 @@ mod tests {
         assert!(result.diagnostics[0].message.starts_with("unexpected 'end'; expected"));
     }
 
-    /// Dispatch that pushes two fixed diagnostics — `Fake/A` at line 1 and
-    /// `Fake/B` at line 3 — from `file_end`, regardless of tree contents.
+    /// Dispatch that pushes two fixed diagnostics — `Fake/Aa` at line 1 and
+    /// `Fake/Bb` at line 3 — from `file_end`, regardless of tree contents.
     /// Exercises [`lint_parsed_with`]'s settings/directives filtering
     /// without needing real rules.
     struct FakeRules;
@@ -206,18 +211,19 @@ mod tests {
             let line1 = line_start(ctx.source().bytes(), 1);
             let line3 = line_start(ctx.source().bytes(), 3);
             ctx.push(Diagnostic::new(
-                "Fake/A",
+                "Fake/Aa",
                 Span::new(line1, line1 + 1),
                 Severity::Warning,
                 "fake a",
             ));
             ctx.push(Diagnostic::new(
-                "Fake/B",
+                "Fake/Bb",
                 Span::new(line3, line3 + 1),
                 Severity::Warning,
                 "fake b",
             ));
         }
+        fn file_finish(&mut self, _ctx: &mut Context<'_>, _reported: &[Diagnostic]) {}
     }
 
     /// Byte offset where 1-based `line` starts in `bytes`.
@@ -255,42 +261,42 @@ mod tests {
     fn all_rules_enabled_by_default() {
         let result = fake_rules(PLAIN_SOURCE);
         let rules: Vec<_> = result.diagnostics.iter().map(|d| d.rule).collect();
-        assert_eq!(rules, vec!["Fake/A", "Fake/B"]);
+        assert_eq!(rules, vec!["Fake/Aa", "Fake/Bb"]);
     }
 
     #[test]
     fn disabled_rule_is_dropped() {
         let mut settings = FileSettings::all_enabled();
-        settings.disable("Fake/A");
+        settings.disable("Fake/Aa");
         let result = fake_rules_with(PLAIN_SOURCE, &settings);
         let rules: Vec<_> = result.diagnostics.iter().map(|d| d.rule).collect();
-        assert_eq!(rules, vec!["Fake/B"]);
+        assert_eq!(rules, vec!["Fake/Bb"]);
     }
 
     #[test]
     fn own_line_directive_disables_for_rest_of_file() {
-        let source = b"x = 1\n# rubocop:disable Fake/B\nz = 3\n";
+        let source = b"x = 1\n# rubocop:disable Fake/Bb\nz = 3\n";
         let result = fake_rules(source);
         let rules: Vec<_> = result.diagnostics.iter().map(|d| d.rule).collect();
-        assert_eq!(rules, vec!["Fake/A"]);
+        assert_eq!(rules, vec!["Fake/Aa"]);
     }
 
     #[test]
     fn inline_directive_disables_only_its_own_line() {
-        let source = b"x = 1 # rubocop:disable Fake/A\ny = 2\nz = 3\n";
+        let source = b"x = 1 # rubocop:disable Fake/Aa\ny = 2\nz = 3\n";
         let result = fake_rules(source);
         let rules: Vec<_> = result.diagnostics.iter().map(|d| d.rule).collect();
-        assert_eq!(rules, vec!["Fake/B"]);
+        assert_eq!(rules, vec!["Fake/Bb"]);
     }
 
     #[test]
     fn severity_override_applies_to_survivors() {
         let mut settings = FileSettings::all_enabled();
-        settings.set_severity("Fake/B", Severity::Error);
+        settings.set_severity("Fake/Bb", Severity::Error);
         let result = fake_rules_with(PLAIN_SOURCE, &settings);
-        let b = result.diagnostics.iter().find(|d| d.rule == "Fake/B").unwrap();
+        let b = result.diagnostics.iter().find(|d| d.rule == "Fake/Bb").unwrap();
         assert_eq!(b.severity, Severity::Error);
-        let a = result.diagnostics.iter().find(|d| d.rule == "Fake/A").unwrap();
+        let a = result.diagnostics.iter().find(|d| d.rule == "Fake/Aa").unwrap();
         assert_eq!(a.severity, Severity::Warning);
     }
 
@@ -338,6 +344,7 @@ mod tests {
             }
         }
         fn file_end(&mut self, _ctx: &mut Context<'_>) {}
+        fn file_finish(&mut self, _ctx: &mut Context<'_>, _reported: &[Diagnostic]) {}
     }
 
     #[test]
@@ -361,5 +368,48 @@ mod tests {
         );
         assert_eq!(recorder.parents[0], Some(NodeKind::StatementsNode));
         assert_eq!(recorder.parents[0], recorder.paths[0].last().copied());
+    }
+
+    /// Dispatch that pushes `Fake/Aa` at line 1 on entering the program node
+    /// and, in `file_finish`, reports `Fake/Bb` at the same line after
+    /// checking it saw `Fake/Aa` in `reported` — the diagnostics accumulated
+    /// by every rule so far, before directive suppression and dedup.
+    struct FinishRules;
+
+    impl Dispatch for FinishRules {
+        fn file_start(&mut self, _ctx: &mut Context<'_>) {}
+        fn enter(&mut self, kind: NodeKind, _node: &Node<'_>, ctx: &mut Context<'_>) {
+            if kind == NodeKind::ProgramNode {
+                ctx.push(Diagnostic::new("Fake/Aa", Span::new(0, 1), Severity::Warning, "fake a"));
+            }
+        }
+        fn leave(&mut self, _kind: NodeKind, _node: &Node<'_>, _ctx: &mut Context<'_>) {}
+        fn file_end(&mut self, _ctx: &mut Context<'_>) {}
+        fn file_finish(&mut self, ctx: &mut Context<'_>, reported: &[Diagnostic]) {
+            assert_eq!(reported.iter().map(|d| d.rule).collect::<Vec<_>>(), vec!["Fake/Aa"]);
+            ctx.push(Diagnostic::new("Fake/Bb", Span::new(0, 1), Severity::Warning, "fake b"));
+        }
+    }
+
+    #[test]
+    fn file_finish_sees_prior_diagnostics_and_can_report_more() {
+        let source = SourceFile::new("a.rb", b"x = 1\n".to_vec());
+        let parsed = Parsed::parse(&source);
+        let result = lint_parsed_with(&parsed, &mut FinishRules, &FileSettings::all_enabled());
+        let rules: Vec<_> = result.diagnostics.iter().map(|d| d.rule).collect();
+        assert_eq!(rules, vec!["Fake/Aa", "Fake/Bb"]);
+    }
+
+    #[test]
+    fn file_finish_sees_a_diagnostic_a_directive_will_suppress() {
+        // `Fake/Aa` fires at line 1, same line as the directive disabling
+        // it, so it never reaches the final result — but `FinishRules`
+        // still asserts it was visible in `reported` before that
+        // suppression happened.
+        let source = SourceFile::new("a.rb", b"# rubocop:disable Fake/Aa\nx = 1\n".to_vec());
+        let parsed = Parsed::parse(&source);
+        let result = lint_parsed_with(&parsed, &mut FinishRules, &FileSettings::all_enabled());
+        let rules: Vec<_> = result.diagnostics.iter().map(|d| d.rule).collect();
+        assert_eq!(rules, vec!["Fake/Bb"]);
     }
 }

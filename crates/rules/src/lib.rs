@@ -9,8 +9,8 @@ use std::sync::Arc;
 
 use config::{CopConfig, LoadedConfig, YamlValue};
 use linter::{
-    subscription_table, Context, Dispatch, OptionError, OptionValue, PeerOptions, Rule, RuleMeta,
-    RuleOptions,
+    subscription_table, Context, Diagnostic, Dispatch, OptionError, OptionValue, PeerOptions, Rule,
+    RuleMeta, RuleOptions,
 };
 use ruby_ast::{Node, NodeKind};
 
@@ -173,6 +173,7 @@ trait SlotList: Clone + Send + Sync + 'static + Sized {
     fn enter(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>);
     fn leave(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>);
     fn file_end(&mut self, ctx: &mut Context<'_>);
+    fn file_finish(&mut self, ctx: &mut Context<'_>, reported: &[Diagnostic]);
 }
 
 impl SlotList for () {
@@ -184,6 +185,7 @@ impl SlotList for () {
     fn enter(&mut self, _kind: NodeKind, _node: &Node<'_>, _ctx: &mut Context<'_>) {}
     fn leave(&mut self, _kind: NodeKind, _node: &Node<'_>, _ctx: &mut Context<'_>) {}
     fn file_end(&mut self, _ctx: &mut Context<'_>) {}
+    fn file_finish(&mut self, _ctx: &mut Context<'_>, _reported: &[Diagnostic]) {}
 }
 
 impl<R: Rule, T: SlotList> SlotList for (Option<R>, T) {
@@ -234,6 +236,14 @@ impl<R: Rule, T: SlotList> SlotList for (Option<R>, T) {
             rule.file_end(ctx);
         }
         self.1.file_end(ctx);
+    }
+
+    #[inline]
+    fn file_finish(&mut self, ctx: &mut Context<'_>, reported: &[Diagnostic]) {
+        if let Some(rule) = &mut self.0 {
+            rule.file_finish(ctx, reported);
+        }
+        self.1.file_finish(ctx, reported);
     }
 }
 
@@ -307,5 +317,10 @@ impl Dispatch for RuleSet {
     #[inline]
     fn file_end(&mut self, ctx: &mut Context<'_>) {
         self.slots.file_end(ctx);
+    }
+
+    #[inline]
+    fn file_finish(&mut self, ctx: &mut Context<'_>, reported: &[Diagnostic]) {
+        self.slots.file_finish(ctx, reported);
     }
 }

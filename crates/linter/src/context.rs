@@ -187,6 +187,14 @@ impl<'a> Context<'a> {
         self.diagnostics.push(diagnostic);
     }
 
+    /// Takes every diagnostic reported so far, leaving the sink empty.
+    /// Used between [`crate::Rule::file_end`] and [`crate::Rule::file_finish`]
+    /// so the hook sees a stable, complete snapshot while still being able
+    /// to report more through `self`.
+    pub(crate) fn take_diagnostics(&mut self) -> Vec<Diagnostic> {
+        std::mem::take(&mut self.diagnostics)
+    }
+
     pub(crate) fn into_parts(self) -> (Vec<Diagnostic>, Directives) {
         (self.diagnostics, self.directives)
     }
