@@ -352,6 +352,20 @@ impl Directives {
             .any(|(s, e)| line >= s && line <= e)
     }
 
+    /// Like [`Self::is_disabled`], but ignores `# rubocop:disable all` coverage: only an
+    /// explicit mention of `cop_name` (or its department) counts. `Lint/RedundantCopDisableDirective`
+    /// is excluded from `all`/`Lint` department expansion by RuboCop's own registry
+    /// (`DirectiveComment#exclude_lint_department_cops`), so `all` never actually silences it,
+    /// even though this crate's registry-less [`CopRef::All`] otherwise `covers` every name.
+    #[must_use]
+    pub fn is_disabled_by_name(&self, cop_name: &str, line: u32) -> bool {
+        self.disabled_ranges(|d| {
+            d.cops.iter().any(|c| !matches!(c, CopRef::All) && c.covers(cop_name))
+        })
+        .into_iter()
+        .any(|(s, e)| line >= s && line <= e)
+    }
+
     /// True when a `# rubocop:disable all` (or `todo all`) directive covers
     /// `line`.
     #[must_use]

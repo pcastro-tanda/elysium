@@ -9,7 +9,7 @@ use ruby_ast::{ParseOptions, Parsed};
 use ruby_source::{SourceFile, Span};
 
 use crate::diagnostic::{Applicability, Diagnostic, Edit};
-use crate::engine::lint_parsed_with;
+use crate::engine::lint_parsed_with_injected;
 use crate::rule::Dispatch;
 use crate::settings::FileSettings;
 
@@ -128,6 +128,23 @@ pub fn fix_file<D: Dispatch + Clone>(
     settings: &FileSettings,
     allow_unsafe: bool,
 ) -> FixOutcome {
+    fix_file_with_injected(source, options, rules, settings, allow_unsafe, &[])
+}
+
+/// Like [`fix_file`], but every round's lint pass additionally injects `injected` via
+/// [`crate::lint_parsed_with_injected`]. See that function's docs for why fixture replay of
+/// `Lint/RedundantCopDisableDirective`'s upstream spec (the only caller) needs this: each round
+/// re-resolves `injected`'s `(rule, line)` pairs against that round's own re-parsed source, so a
+/// fix that only rewrites text on the injected offense's own line (never deleting whole lines
+/// before it) keeps pointing at the right line across iterations.
+pub fn fix_file_with_injected<D: Dispatch + Clone>(
+    source: &SourceFile,
+    options: ParseOptions,
+    rules: &mut D,
+    settings: &FileSettings,
+    allow_unsafe: bool,
+    injected: &[(&'static str, u32)],
+) -> FixOutcome {
     let path = source.path().to_path_buf();
     let mut current = source.bytes().to_vec();
     let mut report = FixReport::default();
@@ -144,7 +161,7 @@ pub fn fix_file<D: Dispatch + Clone>(
         }
 
         let mut round_rules = rules.clone();
-        let result = lint_parsed_with(&parsed, &mut round_rules, settings);
+        let result = lint_parsed_with_injected(&parsed, &mut round_rules, settings, injected);
         report.iterations = round + 1;
         diagnostics = result.diagnostics;
 
@@ -167,7 +184,7 @@ pub fn fix_file<D: Dispatch + Clone>(
         return FixOutcome { bytes: source.bytes().to_vec(), diagnostics, report };
     }
     let mut round_rules = rules.clone();
-    let result = lint_parsed_with(&parsed, &mut round_rules, settings);
+    let result = lint_parsed_with_injected(&parsed, &mut round_rules, settings, injected);
     FixOutcome { bytes: current, diagnostics: result.diagnostics, report }
 }
 

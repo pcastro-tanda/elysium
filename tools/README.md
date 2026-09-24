@@ -46,11 +46,24 @@ and writes into `<out>/<dept>/<snake>/`.
     `RuboCop::ConfigLoader.default_configuration.for_cop(cop_class)` (a spec's
     `let(:cop_config)` can restate a default value verbatim — that must not
     produce a fixture `.yml`);
-  - `other_cops` entries, verbatim;
+  - `other_cops` entries, verbatim, including a whole-department override
+    (`Metrics:\n  Enabled: false`) when the example built its own
+    `let(:config) { RuboCop::Config.new('Metrics' => { 'Enabled' => false }) }`
+    instead of going through the shared `:config` context's `other_cops`
+    merge — any bare, non-`AllCops` top-level key is a department name, since
+    RuboCop's real default config never has one;
   - `AllCops: {TargetRubyVersion: X}` when the example's `ruby_version` is
     explicitly set below the Prism-mode default (see below);
   - a `# file: <path>` leading comment when the example passed a file name to
     `expect_offense`/`expect_no_offenses`.
+- `<case>.offenses` — one `Cop/Name:line` pair per line, written only when the
+  example constructed its cop with an explicit third `offenses` argument
+  (only `Lint::RedundantCopDisableDirective`'s spec does this: `let(:cop) {
+  described_class.new(config, options, offenses) }`, simulating diagnostics
+  from other cops that never actually ran in this investigation). The fixture
+  harness feeds these as synthetic diagnostics to `Rule::file_finish`'s
+  `reported` slice (via `linter::lint_parsed_with_injected`) without letting
+  them leak into the case's own expected output.
 
 ### Case naming
 

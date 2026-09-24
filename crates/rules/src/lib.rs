@@ -37,9 +37,8 @@ macro_rules! rule_set {
     (@slots $head:path, $($tail:path),+) => { (Option<$head>, rule_set!(@slots $($tail),+)) };
 }
 
-// Pending (fixtures present, implementation outstanding):
-//   lint::redundant_cop_disable_directive::RedundantCopDisableDirective
 rule_set! {
+    lint::redundant_cop_disable_directive::RedundantCopDisableDirective,
     style::class_and_module_children::ClassAndModuleChildren,
     style::empty_else::EmptyElse,
     style::string_concatenation::StringConcatenation,

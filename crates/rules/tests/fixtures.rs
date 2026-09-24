@@ -11,6 +11,15 @@
 //! `UPDATE_FIXTURES=1 cargo test -p rules --test fixtures` rewrites the
 //! annotations in every `.rb` and every `.fixed.rb` from actual output, for
 //! review -- never for blind acceptance.
+//!
+//! A case's sibling `<case>.offenses` file (one `Cop/Name:line` pair per
+//! line) replays a RuboCop spec that built `Lint/RedundantCopDisableDirective`
+//! with an explicit injected `offenses` array (diagnostics from other cops
+//! that never actually ran in this investigation, see
+//! `tools/port_spec.rb`'s `injected_offenses`): each pair becomes a synthetic
+//! [`Diagnostic`] spanning that line, fed to `Rule::file_finish` through
+//! `linter::lint_parsed_with_injected` without appearing in the case's own
+//! expected output.
 
 use config::{ConfigLoader, LoadedConfig};
 use linter::{Diagnostic, FileSettings, RuleMeta};
@@ -313,6 +322,25 @@ fn source_name(case: &Path) -> PathBuf {
     PathBuf::from(name.unwrap_or_else(|| "(string)".to_string()))
 }
 
+/// Parses a case's sibling `<case>.offenses` file (one `Cop/Name:line` pair per line, see the
+/// module docs) into `(rule, line)` pairs for [`linter::lint_parsed_with_injected`]. Cop names
+/// go through [`linter::intern_rule_name`]'s bounded interner (the same one `config` uses for
+/// every real cop name) rather than a one-off leak.
+fn injected_offenses(case: &Path) -> Vec<(&'static str, u32)> {
+    let Ok(text) = std::fs::read_to_string(case.with_extension("offenses")) else {
+        return Vec::new();
+    };
+    text.lines()
+        .filter(|line| !line.is_empty())
+        .map(|line| {
+            let (cop, line_no) =
+                line.rsplit_once(':').unwrap_or_else(|| panic!("malformed offenses line: {line}"));
+            let line_no: u32 = line_no.parse().unwrap_or_else(|_| panic!("bad line in: {line}"));
+            (linter::intern_rule_name(cop), line_no)
+        })
+        .collect()
+}
+
 fn run_case(meta: &'static RuleMeta, case: &Path) -> Result<(), String> {
     let bytes = std::fs::read(case).map_err(|err| format!("cannot read case: {err}"))?;
     let (source_bytes, expected) = parse_annotated(&bytes);
@@ -323,6 +351,7 @@ fn run_case(meta: &'static RuleMeta, case: &Path) -> Result<(), String> {
         version: ruby_version(cfg.all_cops().target_ruby_version),
         partial_script: true,
     };
+    let offenses = injected_offenses(case);
 
     let source = SourceFile::new(source_name(case), source_bytes.clone());
     let parsed = Parsed::parse_with(&source, options);
@@ -331,7 +360,12 @@ fn run_case(meta: &'static RuleMeta, case: &Path) -> Result<(), String> {
         return Err(format!("  de-annotated source does not parse: {}", messages.join("; ")));
     }
     let mut lint_rules = rule_set.clone();
-    let result = linter::lint_parsed_with(&parsed, &mut lint_rules, &FileSettings::all_enabled());
+    let result = linter::lint_parsed_with_injected(
+        &parsed,
+        &mut lint_rules,
+        &FileSettings::all_enabled(),
+        &offenses,
+    );
     let actual = to_annotations(&source, &result.diagnostics);
 
     let expected_text = render(&source_bytes, &expected);
@@ -347,7 +381,7 @@ fn run_case(meta: &'static RuleMeta, case: &Path) -> Result<(), String> {
         ));
     }
 
-    check_correction(meta, case, &source, options, &rule_set, &result.diagnostics)
+    check_correction(meta, case, &source, options, &rule_set, &result.diagnostics, &offenses)
 }
 
 fn check_correction(
@@ -357,6 +391,7 @@ fn check_correction(
     options: ParseOptions,
     rule_set: &RuleSet,
     diagnostics: &[Diagnostic],
+    offenses: &[(&'static str, u32)],
 ) -> Result<(), String> {
     if matches!(meta.fix, linter::FixAvailability::None) {
         return Ok(());
@@ -372,8 +407,14 @@ fn check_correction(
         (bytes, 1, Vec::new(), false)
     } else {
         let mut fix_rules = rule_set.clone();
-        let outcome =
-            linter::fix_file(source, options, &mut fix_rules, &FileSettings::all_enabled(), true);
+        let outcome = linter::fix_file_with_injected(
+            source,
+            options,
+            &mut fix_rules,
+            &FileSettings::all_enabled(),
+            true,
+            offenses,
+        );
         let remaining: Vec<String> = outcome
             .diagnostics
             .iter()

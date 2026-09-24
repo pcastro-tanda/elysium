@@ -7,8 +7,13 @@
 # contract, section 3): one <case>.rb per expect_offense/expect_no_offenses
 # example, <case>.fixed.rb for expect_correction, an empty <case>.nofix for
 # expect_no_corrections, an empty <case>.singlepass when the spec used
-# expect_correction(..., loop: false), and <case>.yml for any cop_config /
-# other_cops / ruby_version override (else RuboCop defaults apply).
+# expect_correction(..., loop: false), <case>.yml for any cop_config /
+# other_cops (including whole-department `Department: {Enabled: false}`
+# overrides) / ruby_version override (else RuboCop defaults apply), and
+# <case>.offenses when the example built its cop with an explicit `offenses`
+# array (one `Cop/Name:line` pair per line) simulating diagnostics from other
+# cops that never actually ran -- see `RedundantCopDisableDirective`'s own
+# `let(:cop) { described_class.new(config, options, offenses) }`.
 #
 # It works by actually running the real RuboCop spec against the real cop,
 # with expect_offense/expect_correction/expect_no_offenses/expect_no_corrections
@@ -188,11 +193,11 @@ begin
         )
       end
 
-      # Peer cops and AllCops keys the spec's *effective* config (cop.config, the merged
-      # RuboCop::Config actually handed to the cop under test) sets away from RuboCop's real
-      # defaults. Most specs only ever touch peer cops via `let(:other_cops)`, which the shared
-      # :config context merges into `config` alongside the cop under test — already captured
-      # verbatim as `other_cops` at entry-creation time. A few specs (e.g.
+      # Peer cops, AllCops, and whole-department keys the spec's *effective* config (cop.config,
+      # the merged RuboCop::Config actually handed to the cop under test) sets away from
+      # RuboCop's real defaults. Most specs only ever touch peer cops via `let(:other_cops)`,
+      # which the shared :config context merges into `config` alongside the cop under test --
+      # already captured verbatim as `other_cops` at entry-creation time. A few specs (e.g.
       # Layout::IndentationWidth, Layout::LineLength) instead define their own `let(:config) {
       # RuboCop::Config.new(...) }` naming peer cops directly, bypassing `other_cops` entirely;
       # walking every `cop.config` key that looks like a cop name (contains '/') and diffing its
@@ -204,12 +209,21 @@ begin
       # all (the peer was never configured for *any* option, cop_config or otherwise), so it's
       # unset noise, not an intentional override. `AllCops` is restricted to a small allowlist of
       # keys that actually affect cop behavior (formatter/cache/doc-URL keys are noise);
-      # `TargetRubyVersion` is excluded here — already handled separately via `ruby_version`.
+      # `TargetRubyVersion` is excluded here -- already handled separately via `ruby_version`.
+      # A bare CamelCase top-level key with no '/' (e.g. `Metrics`) is a whole-department
+      # override -- RuboCop's real default config never has one (only `AllCops` is bare), so any
+      # other bare CamelCase key present is necessarily a spec-local `RuboCop::Config.new('Metrics'
+      # => { 'Enabled' => false })`-style override, kept verbatim (department hashes are small and
+      # never contain doc-only keys worth filtering).
       def effective_peer_overrides
         default_config = RuboCop::ConfigLoader.default_configuration
         effective = cop.config
         peers = {}
         effective.to_h.each_key do |key|
+          if key != 'AllCops' && !key.include?('/') && key =~ /\\A[A-Z]/
+            peers[key] = effective[key]
+            next
+          end
           next unless key.include?('/')
           next if key == cop_class.cop_name
 
@@ -235,6 +249,21 @@ begin
         peers
       end
 
+      # The example's injected `offenses` array, when its example group defines one (only
+      # `RedundantCopDisableDirective`'s spec does, via its own `let(:cop) { described_class.new(
+      # config, options, offenses) }` overriding the shared :config context's normal two-arg
+      # `cop`), as plain `{ 'cop' => ..., 'line' => ... }` hashes -- never a real diagnostic any
+      # rule produced, so the fixture harness must feed it to `file_finish` synthetically rather
+      # than expect it to appear from an actual lint pass.
+      def injected_offenses
+        return [] unless respond_to?(:offenses)
+
+        value = offenses
+        return [] unless value.is_a?(Array) && value.all? { |o| o.is_a?(::RuboCop::Cop::Offense) }
+
+        value.map { |o| { 'cop' => o.cop_name, 'line' => o.line } }
+      end
+
       def expect_offense(source, file = nil, severity: nil, chomp: false, **replacements)
         raw = cop_config_overrides
         entry = {
@@ -248,6 +277,7 @@ begin
         result = super
         entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
         entry['other_cops'] = effective_peer_overrides.merge(entry['other_cops'])
+        entry['offenses'] = injected_offenses
         # Reuse the offenses `super` already found instead of re-parsing annotations via
         # `parse_annotations`, which also calls `set_formatter_options` and would wipe out
         # state (e.g. exclude_limit's config_to_allow_offenses tracking) that `super`'s own
@@ -303,6 +333,7 @@ begin
             'file' => nil,
             'cop_config' => raw.merge(effective_cop_config_extra(raw)),
             'other_cops' => effective_peer_overrides.merge(other_cops),
+            'offenses' => injected_offenses,
             'ruby_version' => ruby_version,
             'annotated' => annotated
           }
@@ -337,6 +368,7 @@ begin
         result = super
         entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
         entry['other_cops'] = effective_peer_overrides.merge(entry['other_cops'])
+        entry['offenses'] = injected_offenses
         CAPTURES << entry
         @__last_entry = entry
         result
@@ -463,6 +495,10 @@ begin
     end
     if c['no_corrections']
       File.write(File.join(out_dir, "#{name}.nofix"), '')
+    end
+    if c['offenses'] && !c['offenses'].empty?
+      lines = c['offenses'].map { |o| "#{o['cop']}:#{o['line']}" }
+      File.write(File.join(out_dir, "#{name}.offenses"), "#{lines.join("\n")}\n")
     end
 
     cop_config = c['cop_config'] || {}

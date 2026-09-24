@@ -13,8 +13,13 @@ mod settings;
 
 pub use context::{CommentInfo, Context, NodeInfo};
 pub use diagnostic::{Applicability, Diagnostic, Edit, Fix, Severity};
-pub use engine::{lint_file, lint_parsed, lint_parsed_with, FileResult, SYNTAX_RULE};
-pub use fix::{apply_fixes, fix_file, FixOutcome, FixReport, MAX_FIX_ITERATIONS};
+pub use engine::{
+    lint_file, lint_parsed, lint_parsed_with, lint_parsed_with_injected, FileResult,
+    REDUNDANT_DISABLE_DIRECTIVE_RULE, SYNTAX_RULE,
+};
+pub use fix::{
+    apply_fixes, fix_file, fix_file_with_injected, FixOutcome, FixReport, MAX_FIX_ITERATIONS,
+};
 pub use options::{OptionError, OptionValue, PeerOptions, RuleOptions};
 pub use rule::{
     subscription_table, ConfigDefault, ConfigOption, Department, Dispatch, FixAvailability,

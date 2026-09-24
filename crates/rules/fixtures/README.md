@@ -33,3 +33,12 @@ after regeneration:
   instance across two separately-parsed source files, whereas RuboCop's CLI
   (and elysium) instantiates a fresh cop per file, so cross-file duplicate
   tracking never occurs in practice.
+- `lint/redundant_cop_disable_directive/removes_cop_duplicated_by_department_and_leaves_free_text_as`
+  and `lint/redundant_cop_disable_directive/removes_department_duplicated_by_department_and_leaves_free`:
+  both remove a redundant single-cop directive embedded in a larger inline
+  comment with trailing free text after the cop list (`# rubocop:disable
+  Metrics/ClassLength - note`), expecting the removal to leave `# - note`
+  behind. The rule's whole-comment removal only ever deletes the entire
+  comment or nothing (documented in its `blind_spots`); preserving arbitrary
+  trailing free text on a single-cop removal is a real, tracked gap, not an
+  RSpec artifact.

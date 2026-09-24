@@ -814,6 +814,7 @@ dependencies = [
  "linter",
  "regex",
  "ruby_ast",
+ "ruby_directives",
  "ruby_source",
 ]
 

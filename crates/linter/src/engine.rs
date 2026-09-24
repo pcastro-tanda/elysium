@@ -12,6 +12,13 @@ use crate::settings::FileSettings;
 /// Cop name RuboCop uses for parse errors.
 pub const SYNTAX_RULE: &str = "Lint/Syntax";
 
+/// `Lint/RedundantCopDisableDirective`'s cop name, RuboCop's
+/// `DirectiveComment::LINT_REDUNDANT_DIRECTIVE_COP`: this cop is wired directly into RuboCop's
+/// registry/team-runner as un-suppressible by *any* directive, including `# rubocop:disable
+/// all` on its own comment -- otherwise the very comment this cop is warning about would always
+/// silence the warning. See [`finish`]'s directive-suppression retain.
+pub const REDUNDANT_DISABLE_DIRECTIVE_RULE: &str = "Lint/RedundantCopDisableDirective";
+
 /// Result of linting one file.
 #[derive(Debug, Default)]
 pub struct FileResult {
@@ -71,6 +78,26 @@ pub fn lint_parsed_with<D: Dispatch>(
     rules: &mut D,
     settings: &FileSettings,
 ) -> FileResult {
+    lint_parsed_with_injected(parsed, rules, settings, &[])
+}
+
+/// Like [`lint_parsed_with`], but each `(rule, line)` pair in `injected` additionally becomes a
+/// synthetic [`Diagnostic`] (spanning that whole 1-based source line, [`Severity::Convention`])
+/// visible to [`crate::rule::Rule::file_finish`] through its `reported` argument, without
+/// appearing anywhere in the returned [`FileResult::diagnostics`]. `Lint/RedundantCopDisableDirective`
+/// is the only rule that needs this: its upstream RuboCop spec constructs the cop with a
+/// literal `offenses` array simulating diagnostics from other cops that never actually ran in
+/// the same investigation. The fixture harness (`crates/rules/tests/fixtures.rs`) replays those
+/// examples by injecting synthetic diagnostics here; [`crate::fix_file`]'s per-round re-parse
+/// means a plain `(rule, line)` pair -- re-resolved to a byte span against *this* call's own
+/// `parsed` every time -- stays correct across fix iterations, whereas a pre-built [`Diagnostic`]
+/// with a stale byte span from an earlier round's source would not.
+pub fn lint_parsed_with_injected<D: Dispatch>(
+    parsed: &Parsed<'_>,
+    rules: &mut D,
+    settings: &FileSettings,
+    injected: &[(&'static str, u32)],
+) -> FileResult {
     let source = parsed.source();
 
     let mut has_syntax_errors = false;
@@ -108,7 +135,31 @@ pub fn lint_parsed_with<D: Dispatch>(
 
     let mut reported = ctx.take_diagnostics();
     reported.sort_by_key(|d| (d.span.start, d.span.end));
-    rules.file_finish(&mut ctx, &reported);
+    if injected.is_empty() {
+        rules.file_finish(&mut ctx, &reported);
+    } else {
+        let total_lines = u32::try_from(source.lines().line_starts().len()).unwrap_or(1).max(1);
+        let mut visible = reported.clone();
+        visible.extend(injected.iter().map(|&(rule, line)| {
+            // Upstream's injected `RuboCop::Cop::Offense`s carry arbitrary, sometimes
+            // out-of-file line numbers (e.g. a `FakeLocation.new(line: 7)` in a two-line
+            // fixture): they only ever matter for `Range#cover?`-style membership against an
+            // open-ended (`Float::INFINITY`) disabled range, never for locating real source
+            // text, so clamping to the file's last real line preserves every comparison that
+            // matters without indexing past the line table.
+            let line = line.min(total_lines);
+            let start = source.lines().line_start(line);
+            let end = start + u32::try_from(source.line_text(line).len()).unwrap_or(0);
+            Diagnostic::new(
+                rule,
+                ruby_source::Span::new(start, end),
+                Severity::Convention,
+                "injected",
+            )
+        }));
+        visible.sort_by_key(|d| (d.span.start, d.span.end));
+        rules.file_finish(&mut ctx, &visible);
+    }
     reported.append(&mut ctx.take_diagnostics());
 
     let (_, directives) = ctx.into_parts();
@@ -145,6 +196,12 @@ fn finish(
             return false;
         }
         let line = source.line_col(d.span.start).line;
+        // `Lint/RedundantCopDisableDirective` is excluded from `all`/`Lint` department
+        // expansion (`DirectiveComment#exclude_lint_department_cops`), so `# rubocop:disable
+        // all` never silences it -- but naming it explicitly still does, like any other cop.
+        if d.rule == REDUNDANT_DISABLE_DIRECTIVE_RULE {
+            return !directives.is_disabled_by_name(d.rule, line);
+        }
         !directives.is_disabled(d.rule, line) && !directives.all_disabled_at(line)
     });
     diagnostics.sort_by_key(|d| (d.span.start, d.span.end, d.rule));

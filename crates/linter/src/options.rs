@@ -241,6 +241,21 @@ impl RuleOptions {
         self.peers.get(cop)?.iter().find(|(name, _)| name == key).map(|(_, value)| value)
     }
 
+    /// Every peer cop name the loaded configuration knows about (every real
+    /// cop `RuleOptions::new` was given peer options for), excluding the
+    /// synthetic `"AllCops"` entry. Built from [`config::LoadedConfig`]'s
+    /// full cop table (every cop in RuboCop's `config/default.yml`, not
+    /// just ones a project's `.rubocop.yml` mentions), so this is the whole
+    /// real cop registry, sorted. Empty when built via
+    /// [`RuleOptions::defaults`] (no configuration loaded). Rules that need
+    /// the whole cop universe -- `Lint/RedundantCopDisableDirective`'s
+    /// `all`/department expansion and "did you mean" suggestions being the
+    /// motivating case -- have no other way to enumerate it: `peer` only
+    /// looks up one name at a time.
+    pub fn peer_names(&self) -> impl Iterator<Item = &str> {
+        self.peers.keys().map(String::as_str).filter(|name| *name != "AllCops")
+    }
+
     /// Builds an [`OptionError`] attributed to this rule.
     pub fn error(&self, key: &str, message: impl Into<String>) -> OptionError {
         OptionError { rule: self.meta.name, option: key.to_string(), message: message.into() }
