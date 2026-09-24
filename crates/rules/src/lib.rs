@@ -92,7 +92,6 @@ rule_set! {
     style::trailing_comma_in_array_literal::TrailingCommaInArrayLiteral,
     style::accessor_grouping::AccessorGrouping,
     layout::trailing_whitespace::TrailingWhitespace,
-    lint::redundant_cop_disable_directive::RedundantCopDisableDirective,
 }
 
 /// Per-rule constants derived from [`Rule::META`] at compile time.
