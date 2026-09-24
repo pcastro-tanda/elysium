@@ -449,13 +449,23 @@ fn is_rational_literal_division(call: &CallNode<'_>) -> bool {
 /// RuboCop's `regular_operator?`/`operator_with_regular_syntax?`: a genuine
 /// binary-operator call (`a + b`), not a unary use (`-a`), a dotted call
 /// (`a.+(b)`), or a `::`-scoped call.
+///
+/// RuboCop-AST's `csend`/`send` node types are distinct, and this cop's
+/// `on_send` handler is registered only for `:send` (see `dot?`, which
+/// tests `loc.dot.is?('.')` and is false for a safe-navigation `&.` token,
+/// yet `csend` nodes never reach `on_send` in the first place since
+/// RuboCop's callback dispatch keys off the node type, not `dot?`). Prism
+/// folds both spellings into one `CallNode` shape distinguished only by
+/// `call_operator_loc`, so `&.` has to be excluded here explicitly to
+/// reproduce the same "never inspected" outcome for safe-navigation sends
+/// to operator-named methods (`x&.> 0`, `a&.<< b`).
 fn is_regular_operator(call: &CallNode<'_>) -> bool {
     let name = call.name().as_slice();
     if !is_operator_method_name(name) || is_irregular_method(name) {
         return false;
     }
     if let Some(op_loc) = call.call_operator_loc() {
-        if matches!(op_loc.as_slice(), b"." | b"::") {
+        if matches!(op_loc.as_slice(), b"." | b"::" | b"&.") {
             return false;
         }
     }
