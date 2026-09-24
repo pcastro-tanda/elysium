@@ -975,7 +975,7 @@ impl RedundantParentheses {
             self.check_unary(span, content, chain, ctx);
             return;
         }
-        if !method_call_with_redundant_parentheses(content.kind(), &facts, chain, &self.facts) {
+        if !method_call_with_redundant_parentheses(&content, &facts, chain, &self.facts) {
             return;
         }
         if call_chain_starts_with_int(&content, chain, &self.facts)
@@ -1013,7 +1013,7 @@ impl RedundantParentheses {
             break;
         }
         let Some(cf) = build_facts(&current, ctx) else { return };
-        if !method_call_with_redundant_parentheses(current.kind(), &cf, chain, &self.facts) {
+        if !method_call_with_redundant_parentheses(&current, &cf, chain, &self.facts) {
             return;
         }
         self.offense(ctx, span, "a unary operation");
@@ -1255,13 +1255,13 @@ fn is_lambda_or_proc_expression(content: &Node<'_>, ctx: &Context<'_>) -> bool {
 }
 
 fn method_call_with_redundant_parentheses(
-    kind: NodeKind,
+    content: &Node<'_>,
     facts: &Facts,
     chain: &[(Span, NodeKind)],
     ancestor_facts: &HashMap<Key, Facts>,
 ) -> bool {
     if !matches!(
-        kind,
+        content.kind(),
         NodeKind::CallNode
             | NodeKind::SuperNode
             | NodeKind::ForwardingSuperNode
@@ -1276,9 +1276,7 @@ fn method_call_with_redundant_parentheses(
     if singular_parenthesized_parent(chain, ancestor_facts) {
         return true;
     }
-    facts.args_count == 0
-        || facts.has_own_parens
-        || square_brackets(kind, facts, chain, ancestor_facts)
+    facts.args_count == 0 || facts.has_own_parens || square_brackets(content)
 }
 
 fn singular_parenthesized_parent(
@@ -1300,23 +1298,38 @@ fn singular_parenthesized_parent(
     }
 }
 
-/// RuboCop's `square_brackets?` matcher: `recv.method[...]`/`str[...]`/
-/// `array[...]`/`hash[...]`/`const[...]`/`var[...]` -- our own parens is
-/// the receiver of an immediately-following `[]`/`[]=` call.
-fn square_brackets(
-    kind: NodeKind,
-    _facts: &Facts,
-    chain: &[(Span, NodeKind)],
-    ancestor_facts: &HashMap<Key, Facts>,
-) -> bool {
-    if kind != NodeKind::CallNode {
+/// RuboCop's `square_brackets?` matcher: `content` is itself
+/// `recv.method[...]`/`str[...]`/`array[...]`/`hash[...]`/`const[...]`/
+/// `var[...]` -- an *existing* subscript expression whose receiver chain
+/// bottoms out in something safe to unwrap (a literal, a constant, a
+/// variable, or a zero-arg call). Unlike the old (backwards) version, this
+/// looks at our own content node, not at whatever our parens' *parent*
+/// happens to be -- `square_brackets?` is applied to the node being
+/// checked for redundant parens, never to an ancestor.
+fn square_brackets(content: &Node<'_>) -> bool {
+    let Some(call) = content.as_call_node() else { return false };
+    if call.name().as_slice() != b"[]" {
         return false;
     }
-    let Some(&(pspan, pkind)) = chain.first() else { return false };
-    if pkind != NodeKind::CallNode {
-        return false;
+    call.receiver().is_some_and(|r| square_brackets_operand(&r))
+}
+
+/// The node pattern's `` `{(send _recv _msg) str array hash const
+/// #variable?} `` alternation: descends through a bare receiver chain
+/// (mirroring the pattern's backtick search) looking for a literal,
+/// constant, variable, or zero-argument call to bottom out on.
+fn square_brackets_operand(node: &Node<'_>) -> bool {
+    match node.kind() {
+        NodeKind::StringNode | NodeKind::ArrayNode | NodeKind::HashNode => true,
+        k if const_kind(k) || variable_kind(k) => true,
+        NodeKind::CallNode => {
+            let Some(call) = node.as_call_node() else { return false };
+            let args_count = call.arguments().as_ref().map_or(0, |a| a.arguments().len());
+            if args_count == 0 {
+                return true;
+            }
+            call.receiver().is_some_and(|r| square_brackets_operand(&r))
+        }
+        _ => false,
     }
-    ancestor_facts
-        .get(&(pspan, pkind))
-        .is_some_and(|f| matches!(f.name.as_deref(), Some(b"[]" | b"[]=")))
 }
