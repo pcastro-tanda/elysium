@@ -41,14 +41,15 @@ macro_rules! rule_set {
 //   style::class_and_module_children::ClassAndModuleChildren
 //   style::empty_else::EmptyElse
 //   style::accessor_grouping::AccessorGrouping
-//   style::redundant_regexp_escape::RedundantRegexpEscape
 //   style::string_concatenation::StringConcatenation
 //   lint::redundant_cop_disable_directive::RedundantCopDisableDirective
 //   lint::debugger::Debugger
 //   lint::duplicate_hash_key::DuplicateHashKey
 //   lint::duplicate_methods::DuplicateMethods
 rule_set! {
+    lint::debugger::Debugger,
     style::redundant_regexp_character_class::RedundantRegexpCharacterClass,
+    style::redundant_regexp_escape::RedundantRegexpEscape,
     style::numeric_literal_prefix::NumericLiteralPrefix,
     style::if_unless_modifier_of_if_unless::IfUnlessModifierOfIfUnless,
     lint::ambiguous_block_association::AmbiguousBlockAssociation,
