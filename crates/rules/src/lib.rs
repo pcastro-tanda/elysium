@@ -44,10 +44,11 @@ macro_rules! rule_set {
 //   style::string_concatenation::StringConcatenation
 //   lint::redundant_cop_disable_directive::RedundantCopDisableDirective
 //   lint::debugger::Debugger
-//   lint::duplicate_hash_key::DuplicateHashKey
 //   lint::duplicate_methods::DuplicateMethods
 rule_set! {
+    style::empty_else::EmptyElse,
     lint::debugger::Debugger,
+    lint::duplicate_hash_key::DuplicateHashKey,
     style::redundant_regexp_character_class::RedundantRegexpCharacterClass,
     style::redundant_regexp_escape::RedundantRegexpEscape,
     style::numeric_literal_prefix::NumericLiteralPrefix,
