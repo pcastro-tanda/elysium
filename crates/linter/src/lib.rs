@@ -20,4 +20,4 @@ pub use rule::{
     subscription_table, ConfigDefault, ConfigOption, Department, Dispatch, FixAvailability,
     NoRules, Rule, RuleMeta, Stability,
 };
-pub use settings::{intern_rule_name, FileSettings};
+pub use settings::{intern_rule_name, Annotation, Annotations, FileSettings};

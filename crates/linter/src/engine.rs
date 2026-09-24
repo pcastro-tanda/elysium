@@ -1,3 +1,5 @@
+use std::borrow::Cow;
+
 use ruby_ast::{walk, Node, NodeExt, Parsed, Visitor};
 use ruby_directives::Directives;
 use ruby_source::SourceFile;
@@ -152,6 +154,9 @@ fn finish(
             if let Some(severity) = settings.severity_override(diagnostic.rule) {
                 diagnostic.severity = severity;
             }
+            if let Some(annotated) = settings.annotate(diagnostic.rule, &diagnostic.message) {
+                diagnostic.message = Cow::Owned(annotated);
+            }
         }
     }
     diagnostics
@@ -159,11 +164,14 @@ fn finish(
 
 #[cfg(test)]
 mod tests {
+    use std::sync::Arc;
+
     use ruby_ast::NodeKind;
     use ruby_source::Span;
 
     use super::*;
     use crate::rule::NoRules;
+    use crate::settings::{Annotation, Annotations};
 
     #[test]
     fn clean_file_walks_every_node() {
@@ -298,6 +306,67 @@ mod tests {
         assert_eq!(b.severity, Severity::Error);
         let a = result.diagnostics.iter().find(|d| d.rule == "Fake/Aa").unwrap();
         assert_eq!(a.severity, Severity::Warning);
+    }
+
+    /// Dispatch that reports one fixed `Style/StringLiterals` diagnostic
+    /// with RuboCop's real default message, regardless of tree contents.
+    struct StringLiteralsRule;
+
+    impl Dispatch for StringLiteralsRule {
+        fn file_start(&mut self, _ctx: &mut Context<'_>) {}
+        fn enter(&mut self, _kind: NodeKind, _node: &Node<'_>, _ctx: &mut Context<'_>) {}
+        fn leave(&mut self, _kind: NodeKind, _node: &Node<'_>, _ctx: &mut Context<'_>) {}
+        fn file_end(&mut self, ctx: &mut Context<'_>) {
+            ctx.push(Diagnostic::new(
+                "Style/StringLiterals",
+                Span::new(0, 1),
+                Severity::Convention,
+                "Prefer single-quoted strings when you don't need string interpolation or \
+                 special symbols.",
+            ));
+        }
+        fn file_finish(&mut self, _ctx: &mut Context<'_>, _reported: &[Diagnostic]) {}
+    }
+
+    #[test]
+    fn display_style_guide_appends_the_cops_style_guide_url() {
+        let mut annotations = Annotations::new(true, false);
+        annotations.insert(
+            "Style/StringLiterals",
+            Annotation {
+                style_guide_url: Some(
+                    "https://rubystyle.guide#consistent-string-literals".to_string(),
+                ),
+                ..Annotation::default()
+            },
+        );
+        let mut settings = FileSettings::all_enabled();
+        settings.set_annotations(Arc::new(annotations));
+
+        let source = SourceFile::new("a.rb", b"x = \"a\"\n".to_vec());
+        let parsed = Parsed::parse(&source);
+        let result = lint_parsed_with(&parsed, &mut StringLiteralsRule, &settings);
+
+        let offense = &result.diagnostics[0];
+        assert!(
+            offense.message.ends_with(" (https://rubystyle.guide#consistent-string-literals)"),
+            "unexpected message: {}",
+            offense.message
+        );
+    }
+
+    #[test]
+    fn default_settings_leave_messages_unannotated() {
+        let source = SourceFile::new("a.rb", b"x = \"a\"\n".to_vec());
+        let parsed = Parsed::parse(&source);
+        let result =
+            lint_parsed_with(&parsed, &mut StringLiteralsRule, &FileSettings::all_enabled());
+
+        assert_eq!(
+            result.diagnostics[0].message,
+            "Prefer single-quoted strings when you don't need string interpolation or special \
+             symbols."
+        );
     }
 
     #[test]

@@ -2,6 +2,7 @@ use std::io::Write as _;
 use std::path::{Path, PathBuf};
 use std::process::ExitCode;
 use std::sync::atomic::{AtomicU64, AtomicUsize, Ordering};
+use std::sync::Arc;
 use std::time::Instant;
 
 use anyhow::{Context as _, Result};
@@ -59,6 +60,7 @@ pub struct Session {
     pub cfg: LoadedConfig,
     pub root: PathBuf,
     pub overrides: Vec<CopOverride>,
+    pub annotations: Arc<linter::Annotations>,
     pub parse_options: ParseOptions,
     /// The configured rules, cloned per file (rules keep per-file state).
     pub rule_set: rules::RuleSet,
@@ -85,7 +87,8 @@ pub fn prepare(args: &CheckArgs) -> Result<Session> {
     };
     let rule_set = select_rules(&cfg, &args.only, &args.except)?;
     let overrides = cop_overrides(&cfg, &args.only);
-    Ok(Session { cfg, root, overrides, parse_options, rule_set })
+    let annotations = Arc::new(style_guide_annotations(&cfg));
+    Ok(Session { cfg, root, overrides, annotations, parse_options, rule_set })
 }
 
 /// True when `selector` names `cop` exactly or names its department.
@@ -118,6 +121,23 @@ fn select_rules(cfg: &LoadedConfig, only: &[String], except: &[String]) -> Resul
     rules::RuleSet::only(&names, cfg).map_err(|err| anyhow::anyhow!("{err}"))
 }
 
+/// Builds the run-wide [`linter::Annotations`]: `AllCops`'s `DisplayStyleGuide`/
+/// `ExtraDetails` switches, plus every registered cop's `StyleGuide`/
+/// `References`/`Details` resolved from its configuration. Computed once
+/// per run (this never varies per file) and shared with every worker
+/// thread through [`Session::annotations`].
+fn style_guide_annotations(cfg: &LoadedConfig) -> linter::Annotations {
+    let all_cops = cfg.all_cops();
+    let mut annotations =
+        linter::Annotations::new(all_cops.display_style_guide, all_cops.extra_details);
+    for meta in rules::ALL_RULES {
+        if let Some(annotation) = cfg.style_guide_annotation(meta.name) {
+            annotations.insert(meta.name, annotation);
+        }
+    }
+    annotations
+}
+
 /// Reads, parses, and lints one file per the resolved [`Session`].
 fn lint_one(
     session: &Session,
@@ -137,7 +157,7 @@ fn lint_one(
     };
     bytes.fetch_add(source.bytes().len() as u64, Ordering::Relaxed);
     let parsed = Parsed::parse_with(&source, session.parse_options);
-    let settings = file_settings(&session.cfg, &session.overrides, &display);
+    let settings = file_settings(&session.cfg, &session.overrides, &display, &session.annotations);
     let mut rules = session.rule_set.clone();
     let result = linter::lint_parsed_with(&parsed, &mut rules, &settings);
     nodes.fetch_add(u64::from(result.node_count), Ordering::Relaxed);
@@ -267,13 +287,16 @@ fn cop_overrides(cfg: &LoadedConfig, only: &[String]) -> Vec<CopOverride> {
 /// re-checked against [`LoadedConfig::is_cop_enabled_for`] (per-cop
 /// `Include`/`Exclude` for `relative`; `AllCops`'s `Include`/`Exclude` was
 /// already applied once, at discovery, when `relative` was selected as a
-/// target).
+/// target). `annotations` is the run-wide style-guide/reference/details
+/// table built once by [`style_guide_annotations`] and shared unchanged.
 pub fn file_settings(
     cfg: &LoadedConfig,
     overrides: &[CopOverride],
     relative: &Path,
+    annotations: &Arc<linter::Annotations>,
 ) -> linter::FileSettings {
     let mut settings = linter::FileSettings::all_enabled();
+    settings.set_annotations(Arc::clone(annotations));
     for over in overrides {
         let enabled = if over.forced {
             cfg.is_cop_targeting(over.name, relative)

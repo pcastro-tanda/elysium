@@ -111,7 +111,7 @@ fn fix_one(
     };
     bytes.fetch_add(source.bytes().len() as u64, Ordering::Relaxed);
 
-    let settings = file_settings(&session.cfg, &session.overrides, &display);
+    let settings = file_settings(&session.cfg, &session.overrides, &display, &session.annotations);
     let mut rules = session.rule_set.clone();
     let outcome =
         linter::fix_file(&source, session.parse_options, &mut rules, &settings, args.unsafe_fixes);

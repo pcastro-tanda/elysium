@@ -779,6 +779,29 @@ fn missing_extension_gem_still_warns() {
     assert!(config.cop("Rails/Blank").is_none(), "no gem was found, so it contributes no cops");
 }
 
+#[test]
+fn display_style_guide_and_extra_details_default_off_but_resolve_when_set() {
+    let project = Project::new();
+    let defaults = project.loader().load(None).expect("defaults load");
+    assert!(!defaults.all_cops().display_style_guide);
+    assert!(!defaults.all_cops().extra_details);
+    // The cop's own `StyleGuide` still resolves against the default base URL
+    // regardless of whether `DisplayStyleGuide` is on; the switch only
+    // decides whether a caller uses it.
+    let annotation = defaults
+        .style_guide_annotation("Style/StringLiterals")
+        .expect("Style/StringLiterals is a known cop");
+    assert_eq!(
+        annotation.style_guide_url.as_deref(),
+        Some("https://rubystyle.guide#consistent-string-literals")
+    );
+
+    project.write(".rubocop.yml", "AllCops:\n  DisplayStyleGuide: true\n  ExtraDetails: true\n");
+    let config = project.load(".rubocop.yml");
+    assert!(config.all_cops().display_style_guide);
+    assert!(config.all_cops().extra_details);
+}
+
 /// Throwaway check against a real-world configuration; run with
 /// `cargo test -p config -- --ignored gitlab`.
 #[test]

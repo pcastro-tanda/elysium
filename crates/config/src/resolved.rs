@@ -5,7 +5,7 @@ use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
 use std::path::{Path, PathBuf};
 
-use linter::Severity;
+use linter::{Annotation, Severity};
 
 use crate::defaults::DEFAULT_CONFIG;
 use crate::file_matcher::FileMatcher;
@@ -85,6 +85,10 @@ pub struct AllCops {
     pub string_literals_frozen_by_default: bool,
     /// `DisplayCopNames`.
     pub display_cop_names: bool,
+    /// `DisplayStyleGuide`.
+    pub display_style_guide: bool,
+    /// `ExtraDetails`.
+    pub extra_details: bool,
     raw: Mapping,
 }
 
@@ -108,6 +112,8 @@ impl AllCops {
                 .get("StringLiteralsFrozenByDefault")
                 .is_some_and(YamlValue::is_truthy),
             display_cop_names: raw.get("DisplayCopNames").is_some_and(YamlValue::is_truthy),
+            display_style_guide: raw.get("DisplayStyleGuide").is_some_and(YamlValue::is_truthy),
+            extra_details: raw.get("ExtraDetails").is_some_and(YamlValue::is_truthy),
             raw,
         }
     }
@@ -313,6 +319,30 @@ impl LoadedConfig {
     /// The department-level settings (`Style: {Enabled: false}`), if any.
     pub fn department(&self, name: &str) -> Option<&Mapping> {
         self.raw.get_mapping(name)
+    }
+
+    /// The RuboCop `MessageAnnotator`-equivalent annotation for `cop_name`:
+    /// `StyleGuide` (resolved against the cop's department's or `AllCops`'s
+    /// `StyleGuideBaseURL`, mirroring `MessageAnnotator#style_guide_url`),
+    /// `References`/`Reference`, and `Details`, all from the cop's resolved
+    /// configuration. `None` for an unknown cop.
+    #[must_use]
+    pub fn style_guide_annotation(&self, cop_name: &str) -> Option<Annotation> {
+        let raw = self.cop(cop_name)?.raw();
+        let department = cop_name.rsplit_once('/').map_or("", |(dept, _)| dept);
+        let base_url = self
+            .department(department)
+            .and_then(|dept| dept.get_str("StyleGuideBaseURL"))
+            .or(self.all_cops.style_guide_base_url.as_deref());
+        let style_guide_url = raw
+            .get_str("StyleGuide")
+            .filter(|url| !url.is_empty())
+            .map(|url| join_style_guide_url(base_url, url));
+        let mut reference_urls = raw.get_string_list("References");
+        reference_urls.extend(raw.get_string_list("Reference"));
+        reference_urls.retain(|url| !url.is_empty());
+        let details = raw.get_str("Details").filter(|d| !d.is_empty()).map(str::to_string);
+        Some(Annotation { style_guide_url, reference_urls, details })
     }
 
     /// The whole resolved hash, including non-cop sections such as `Language`.
@@ -541,6 +571,27 @@ fn matches_cop(pattern: &str, name: &str) -> bool {
         !rest.contains('/')
     } else {
         rest.is_empty()
+    }
+}
+
+/// Approximates Ruby's `URI.join(base_url, url)` for the shapes RuboCop's
+/// `StyleGuide` values take: an absolute URL is returned as-is; a
+/// fragment-only reference (`#anchor`, the only shape `config/default.yml`
+/// uses) replaces the base's own fragment, if any; anything else is joined
+/// as a path relative to the base.
+fn join_style_guide_url(base_url: Option<&str>, url: &str) -> String {
+    let Some(base) = base_url.filter(|base| !base.is_empty()) else { return url.to_string() };
+    if url.contains("://") {
+        return url.to_string();
+    }
+    if let Some(fragment) = url.strip_prefix('#') {
+        let without_fragment = base.split('#').next().unwrap_or(base);
+        return format!("{without_fragment}#{fragment}");
+    }
+    if base.ends_with('/') {
+        format!("{base}{url}")
+    } else {
+        format!("{base}/{url}")
     }
 }
 
