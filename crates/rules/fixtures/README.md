@@ -17,3 +17,9 @@ after regeneration:
   `..._2`: the spec disables the `Pry` group with an imperative
   `before { cur_cop_config['DebuggerMethods']['Pry'] = nil }` hook that
   `tools/port_spec.rb` cannot translate into a `.yml` override.
+- `style/empty_else/autocorrect_missingelse_is_disabled_does_autocorrection` and
+  `..._2` through `..._20` (20 cases): the spec builds a bare
+  `RuboCop::Config.new` without merging `config/default.yml`, so
+  `Style/MissingElse`'s `EnforcedStyle` is nil and autocorrection is never
+  forbidden; under real CLI config loading (which elysium reproduces),
+  `Enabled: true` resolves `EnforcedStyle: both` and RuboCop forbids the fix.

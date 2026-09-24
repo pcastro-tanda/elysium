@@ -1,4 +1,0 @@
-Style/EmptyElse:
-  EnforcedStyle: nil
-Style/MissingElse:
-  Enabled: true

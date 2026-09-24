@@ -38,7 +38,6 @@ macro_rules! rule_set {
 }
 
 // Pending (fixtures present, implementation outstanding):
-//   style::empty_else::EmptyElse
 //   lint::redundant_cop_disable_directive::RedundantCopDisableDirective
 //   lint::duplicate_methods::DuplicateMethods
 rule_set! {

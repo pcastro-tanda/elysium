@@ -1,4 +1,0 @@
-Style/EmptyElse:
-  EnforcedStyle: empty
-Style/MissingElse:
-  Enabled: true
