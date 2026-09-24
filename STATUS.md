@@ -1,6 +1,6 @@
 # Status
 
-Last updated: 2026-09-18. Phase 2 complete.
+Last updated: 2026-09-22. Phase 3 in progress: 40 of 50 rules landed.
 
 ## What works
 
@@ -10,6 +10,25 @@ Last updated: 2026-09-18. Phase 2 complete.
   with RuboCop-identical message text, line, and column (verified against
   `rubocop --format json` with `ParserEngine: parser_prism`, including
   multi-byte columns and same-range deduplication).
+- Rules: 40 Style/Layout/Lint cops (see `docs/rules/`), each registered
+  through `rule_set!` with a compile-time node-kind subscription table and
+  configured from RuboCop option names (`RuleOptions`, incl. peer-cop and
+  `AllCops` reads). `elysium fix [--unsafe] [--diff]` applies byte-range
+  fixes and reparses to convergence; `check --only/--except` mirror RuboCop
+  (`--only` force-enables a config-disabled cop).
+- Fixtures: 3,900+ cases extracted from RuboCop 1.82.1's own specs by
+  `tools/port_spec.rb` (instrumented `expect_offense`), checked for offenses,
+  corrections, and fix idempotence by `crates/rules/tests/fixtures.rs`.
+- Conformance: `cargo xtask conformance --app DIR --rule Cop` diffs offenses
+  against real RuboCop on discourse/forem/mastodon/gitlab; results in
+  `docs/conformance/rules.md`. Batch one (16 rules) is at 100% on
+  discourse and mastodon; forem's remaining diffs are RuboCop 1.63 /
+  Ruby 3.0 version skew (documented per rule in the log samples).
+- Configuration additions from conformance work: extension gems'
+  `config/default.yml` is loaded as a defaults layer (rubocop-rails'
+  `bin/*` Exclude etc.), hidden directories are skipped like RuboCop's
+  TargetFinder, `AllCops` filters apply once at discovery, and
+  `# rubocop:disable-next|todo-next|enable-next` are recognised.
 - Output: `-f human` (`path:line:col: F: Cop/Name: message` + summary) and
   `-f json` (RuboCop's JSON formatter schema, field for field).
 - Discovery: parallel walk honouring `.gitignore` (off with `--no-gitignore`),
@@ -44,8 +63,16 @@ Last updated: 2026-09-18. Phase 2 complete.
 
 ## What does not work yet
 
-- Zero lint rules beyond `Lint/Syntax`; `RuleSet` is an empty dispatcher and
-  the registry codegen is not written yet (Phase 3).
+- Ten of the fifty Phase 3 rules have fixtures but no implementation yet
+  (listed in the `rule_set!` comment in `crates/rules/src/lib.rs`):
+  Style/ClassAndModuleChildren, Style/EmptyElse, Style/AccessorGrouping,
+  Style/RedundantRegexpEscape, Style/StringConcatenation,
+  Lint/RedundantCopDisableDirective, Lint/Debugger, Lint/DuplicateHashKey,
+  Lint/DuplicateMethods, Lint/EmptyBlock.
+- `DisplayStyleGuide: true` does not append the style-guide URL to messages.
+- No per-project RuboCop version model: rules follow 1.82.1 (and 1.91 where
+  upstream reverted a default), so apps pinned to older RuboCop see skew
+  (e.g. `Layout/LineLength` `AllowQualifiedName` did not exist in 1.63).
 - ERB embedded in `.rubocop.yml` is rejected with a clear error instead of
   evaluated (no Ruby runtime). This blocks loading GitLab's real
   `.rubocop.yml`; `--no-config` works around it there. See ADR 0005.
@@ -54,10 +81,8 @@ Last updated: 2026-09-18. Phase 2 complete.
   name does not produce an error the way RuboCop's own validator does.
 - `!ruby/regexp` YAML tags inside `Exclude`/`Include` entries are not
   matched; only plain glob-string entries work.
-- Extension-gem defaults (`rubocop-rails`, `rubocop-rspec`,
-  `rubocop-performance`, etc.) are not embedded, so a `.rubocop.yml`'s
-  `require:`/`plugins:` of one of those gems prints a warning instead of
-  loading its cop defaults (Phase 6).
+- Extension-gem cops (`Rails/*`, `RSpec/*`, ...) load their defaults from the
+  installed gem but have no implementations yet (Phase 6).
 - `TargetRubyVersion` is not inferred from a gemspec's `required_ruby_version`
   when the config doesn't set it explicitly.
 - Syntax error message text matches RuboCop only under
@@ -70,7 +95,11 @@ Last updated: 2026-09-18. Phase 2 complete.
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 0 | 0 | 0 |
+| 0 | 0 | 40 |
+
+Promotion to `stable` requires >99% corpus conformance; batch one meets it
+on discourse and mastodon and will be promoted after a fresh run with all
+40 rules.
 
 `Lint/Syntax` is built into the engine and is not counted.
 
@@ -134,14 +163,10 @@ CI needs its own recorded baseline before `--check` is a hard gate
 
 ## Next three milestones
 
-1. Phase 3: rule registry codegen (`Dispatch` from each rule's `META`), a
-   fixture snapshot harness, and a conformance runner that diffs offenses
-   against real RuboCop on the corpus.
-2. Phase 3: the first 15 syntactic rules by real-world frequency
-   (`Style/FrozenStringLiteralComment`, `Style/StringLiterals`,
-   `Layout/LineLength`, `Layout/TrailingWhitespace`,
-   `Layout/TrailingEmptyLines`, `Layout/EmptyLines`,
-   `Style/Documentation`, and others selected by measured frequency),
-   each with safe autocorrect and the fix engine that applies it.
-3. Phase 3: the remaining 35 of the fifty target rules and the `fix`
-   subcommand.
+1. Phase 3: implement the ten pending rules, run conformance for rules
+   17–50 on the corpus, promote rules with >99% agreement to `stable`.
+2. Phase 3 cleanup: shared `display_column` (East Asian width) helper
+   replacing three per-rule copies; `DisplayStyleGuide` message suffix;
+   docs regenerated from `RuleMeta`.
+3. Phase 4: semantic layer (`ruby_semantic`: scopes and local variables) and
+   the ten cops excluded from Phase 3 for needing it.
