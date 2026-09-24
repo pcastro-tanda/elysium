@@ -40,7 +40,6 @@ macro_rules! rule_set {
 // Pending (fixtures present, implementation outstanding):
 //   style::class_and_module_children::ClassAndModuleChildren
 //   style::empty_else::EmptyElse
-//   style::accessor_grouping::AccessorGrouping
 //   style::string_concatenation::StringConcatenation
 //   lint::redundant_cop_disable_directive::RedundantCopDisableDirective
 //   lint::debugger::Debugger
@@ -49,6 +48,7 @@ rule_set! {
     style::empty_else::EmptyElse,
     lint::debugger::Debugger,
     lint::duplicate_hash_key::DuplicateHashKey,
+    lint::duplicate_methods::DuplicateMethods,
     style::redundant_regexp_character_class::RedundantRegexpCharacterClass,
     style::redundant_regexp_escape::RedundantRegexpEscape,
     style::numeric_literal_prefix::NumericLiteralPrefix,
@@ -90,6 +90,7 @@ rule_set! {
     style::trailing_comma_in_arguments::TrailingCommaInArguments,
     style::trailing_comma_in_hash_literal::TrailingCommaInHashLiteral,
     style::trailing_comma_in_array_literal::TrailingCommaInArrayLiteral,
+    style::accessor_grouping::AccessorGrouping,
     layout::trailing_whitespace::TrailingWhitespace,
 }
 
