@@ -47,7 +47,6 @@ macro_rules! rule_set {
 //   lint::debugger::Debugger
 //   lint::duplicate_hash_key::DuplicateHashKey
 //   lint::duplicate_methods::DuplicateMethods
-//   lint::empty_block::EmptyBlock
 rule_set! {
     style::redundant_regexp_character_class::RedundantRegexpCharacterClass,
     style::numeric_literal_prefix::NumericLiteralPrefix,
@@ -55,6 +54,7 @@ rule_set! {
     lint::ambiguous_block_association::AmbiguousBlockAssociation,
     lint::else_layout::ElseLayout,
     lint::redundant_string_coercion::RedundantStringCoercion,
+    lint::empty_block::EmptyBlock,
     layout::empty_line_between_defs::EmptyLineBetweenDefs,
     layout::empty_lines_around_class_body::EmptyLinesAroundClassBody,
     layout::space_around_operators::SpaceAroundOperators,
