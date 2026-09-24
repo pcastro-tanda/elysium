@@ -40,12 +40,12 @@ macro_rules! rule_set {
 // Pending (fixtures present, implementation outstanding):
 //   style::class_and_module_children::ClassAndModuleChildren
 //   style::empty_else::EmptyElse
-//   style::string_concatenation::StringConcatenation
 //   lint::redundant_cop_disable_directive::RedundantCopDisableDirective
-//   lint::debugger::Debugger
 //   lint::duplicate_methods::DuplicateMethods
 rule_set! {
+    style::class_and_module_children::ClassAndModuleChildren,
     style::empty_else::EmptyElse,
+    style::string_concatenation::StringConcatenation,
     lint::debugger::Debugger,
     lint::duplicate_hash_key::DuplicateHashKey,
     lint::duplicate_methods::DuplicateMethods,
@@ -92,6 +92,7 @@ rule_set! {
     style::trailing_comma_in_array_literal::TrailingCommaInArrayLiteral,
     style::accessor_grouping::AccessorGrouping,
     layout::trailing_whitespace::TrailingWhitespace,
+    lint::redundant_cop_disable_directive::RedundantCopDisableDirective,
 }
 
 /// Per-rule constants derived from [`Rule::META`] at compile time.
