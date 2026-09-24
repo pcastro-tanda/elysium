@@ -88,6 +88,13 @@ impl<'a> Context<'a> {
         self.source.line_text(line)
     }
 
+    /// RuboCop's `Alignment#display_column`: the rendered display width of
+    /// the text preceding `offset` on its own line. See
+    /// [`SourceFile::display_column`].
+    pub fn display_column(&self, offset: u32) -> u32 {
+        self.source.display_column(offset)
+    }
+
     /// Byte range of a 1-based line, without its line terminator.
     pub fn line_span(&self, line: u32) -> Span {
         let start = self.source.lines().line_start(line);

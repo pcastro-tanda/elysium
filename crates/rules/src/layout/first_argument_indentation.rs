@@ -121,7 +121,7 @@ impl FirstArgumentIndentation {
             i64::from(self.previous_code_line_indent(ctx, ctx.line_col(arg_span.start).line))
         };
         let indent = base_col + self.width;
-        let actual = i64::from(display_column_at(ctx, arg_span.start));
+        let actual = i64::from(ctx.display_column(arg_span.start));
         let delta = indent - actual;
         if delta == 0 {
             return;
@@ -191,7 +191,7 @@ impl FirstArgumentIndentation {
             let target = ctx.line_col(start).line + newlines + 1;
             i64::from(self.previous_code_line_indent(ctx, target))
         } else {
-            i64::from(display_column_at(ctx, start))
+            i64::from(ctx.display_column(start))
         }
     }
 
@@ -302,44 +302,6 @@ fn begins_its_line(ctx: &Context<'_>, span: Span) -> bool {
     match text.chars().position(|ch| !is_ruby_ws_char(ch)) {
         Some(index) => u32::try_from(index).unwrap_or(u32::MAX) == line_col.column,
         None => false,
-    }
-}
-
-/// RuboCop's `Alignment#display_column`: the rendered width, in Unicode East Asian Width terms,
-/// of the text preceding `offset` on its own line.
-fn display_column_at(ctx: &Context<'_>, offset: u32) -> u32 {
-    let line_col = ctx.line_col(offset);
-    let line = ctx.line_text(line_col.line);
-    let take = usize::try_from(line_col.column).unwrap_or(usize::MAX);
-    match std::str::from_utf8(line) {
-        Ok(text) => text.chars().take(take).map(east_asian_width).sum(),
-        Err(_) => line_col.column,
-    }
-}
-
-/// Approximates Ruby's `unicode-display_width` gem: 2 columns for East Asian Wide and Fullwidth
-/// code points, 1 otherwise. Covers the common CJK, Hangul, and fullwidth-forms ranges (see
-/// `META.blind_spots`).
-fn east_asian_width(ch: char) -> u32 {
-    let cp = u32::from(ch);
-    let is_wide = matches!(cp,
-        0x1100..=0x115F
-            | 0x2E80..=0x303E
-            | 0x3041..=0x33FF
-            | 0x3400..=0x4DBF
-            | 0x4E00..=0x9FFF
-            | 0xA000..=0xA4CF
-            | 0xAC00..=0xD7A3
-            | 0xF900..=0xFAFF
-            | 0xFE30..=0xFE4F
-            | 0xFF00..=0xFF60
-            | 0xFFE0..=0xFFE6
-            | 0x2_0000..=0x3_FFFD
-    );
-    if is_wide {
-        2
-    } else {
-        1
     }
 }
 
@@ -556,10 +518,8 @@ read `Layout/ArgumentAlignment`'s `EnforcedStyle` and `Layout/FirstMethodArgumen
 `Enabled` through `peer(...)`, which only reflects an explicit key in that cop's own config block
 in the loaded YAML, not a cop-wide default or `--only`/`--except` override; a file that relies on
 either default to disable this cop is not detected (false negative only: this cop will still run
-when RuboCop itself would have skipped it). `display_column`/`east_asian_width` approximate Ruby's
-`unicode-display_width` gem with a hand-rolled East Asian Width table (see
-`Layout/IndentationConsistency` for the same caveat in full); combining marks and rarer wide code
-points are not modeled. `AlignmentCorrector`'s non-heredoc delimited-string taboo ranges (plain
+when RuboCop itself would have skipped it). `AlignmentCorrector`'s non-heredoc delimited-string
+taboo ranges (plain
 multi-line string/symbol literals) are not tracked, only heredoc bodies -- unlikely to matter for
 a first-argument shift, since the argument being corrected is not itself one of those literals in
 any fixture case.",

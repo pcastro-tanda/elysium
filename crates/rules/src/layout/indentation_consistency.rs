@@ -125,12 +125,6 @@ modifiers (RuboCop's AST does not distinguish them from a no-args call, but
 our simpler receiver/arguments check does), which is a false-negative-only
 divergence in the same direction.
 
-`display_column` approximates Ruby's `unicode-display_width` gem with a
-hand-rolled East Asian Width table covering the common CJK, Hangul, and
-fullwidth-forms ranges; combining marks, emoji sequences, and rarer wide
-code points are not modeled and could misalign a comparison in exotic
-source files.
-
 Autocorrection's taboo-range protection (RuboCop's `AlignmentCorrector`
 `inside_string_ranges`) only covers heredoc bodies; the interior of an
 ordinary multi-line quoted string or `%`-literal that itself begins a
@@ -193,12 +187,12 @@ impl IndentationConsistency {
         if !is_bare_access_modifier(first) {
             return None;
         }
-        let access_modifier_indent = display_column(ctx, first.span());
+        let access_modifier_indent = ctx.display_column(first.span().start);
         let parent = ctx.parent()?;
         if parent.kind == NodeKind::ProgramNode {
             return Some(access_modifier_indent);
         }
-        let parent_column = display_column(ctx, parent.span);
+        let parent_column = ctx.display_column(parent.span.start);
         (access_modifier_indent > parent_column).then_some(access_modifier_indent)
     }
 
@@ -210,13 +204,14 @@ impl IndentationConsistency {
         base_column: Option<u32>,
     ) {
         let Some(first) = items.first() else { return };
-        let base_column = base_column.unwrap_or_else(|| display_column(ctx, first.span()));
+        let base_column = base_column.unwrap_or_else(|| ctx.display_column(first.span().start));
         let mut prev_line: i64 = -1;
         for item in items {
             let span = item.span();
             let line = i64::from(ctx.line_col(span.start).line);
             if line > prev_line && begins_its_line(ctx, span) {
-                let column_delta = i64::from(base_column) - i64::from(display_column(ctx, span));
+                let column_delta =
+                    i64::from(base_column) - i64::from(ctx.display_column(span.start));
                 if column_delta != 0 {
                     self.register_offense(ctx, item, column_delta);
                 }
@@ -254,44 +249,6 @@ fn is_bare_access_modifier(node: &Node<'_>) -> bool {
         return false;
     }
     matches!(call.name().as_slice(), b"public" | b"protected" | b"private" | b"module_function")
-}
-
-/// RuboCop's `Alignment#display_column`: the rendered width, in Unicode
-/// East Asian Width terms, of the text preceding `span` on its own line.
-fn display_column(ctx: &Context<'_>, span: Span) -> u32 {
-    let line_col = ctx.line_col(span.start);
-    let line = ctx.line_text(line_col.line);
-    let take = usize::try_from(line_col.column).unwrap_or(usize::MAX);
-    match std::str::from_utf8(line) {
-        Ok(text) => text.chars().take(take).map(east_asian_width).sum(),
-        Err(_) => line_col.column,
-    }
-}
-
-/// Approximates Ruby's `unicode-display_width` gem: 2 columns for East
-/// Asian Wide and Fullwidth code points, 1 otherwise. Covers the common
-/// CJK, Hangul, and fullwidth-forms ranges (see `META.blind_spots`).
-fn east_asian_width(ch: char) -> u32 {
-    let cp = u32::from(ch);
-    let is_wide = matches!(cp,
-        0x1100..=0x115F
-            | 0x2E80..=0x303E
-            | 0x3041..=0x33FF
-            | 0x3400..=0x4DBF
-            | 0x4E00..=0x9FFF
-            | 0xA000..=0xA4CF
-            | 0xAC00..=0xD7A3
-            | 0xF900..=0xFAFF
-            | 0xFE30..=0xFE4F
-            | 0xFF00..=0xFF60
-            | 0xFFE0..=0xFFE6
-            | 0x2_0000..=0x3_FFFD
-    );
-    if is_wide {
-        2
-    } else {
-        1
-    }
 }
 
 /// RuboCop's `Util#begins_its_line?`, character-based (matching Ruby's

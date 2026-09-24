@@ -15,6 +15,8 @@
 use std::fmt;
 use std::path::{Path, PathBuf};
 
+use unicode_width::UnicodeWidthChar;
+
 mod line_index;
 mod span;
 
@@ -80,6 +82,28 @@ impl SourceFile {
     /// Text of a 1-based line, without its trailing line terminator.
     pub fn line_text(&self, line: u32) -> &[u8] {
         self.lines.line_text(&self.bytes, line)
+    }
+
+    /// RuboCop's `Alignment#display_column`: the rendered width, in Unicode
+    /// East Asian Width terms, of the text preceding `offset` on its own
+    /// line. Matches Ruby's `unicode-display_width` gem invoked with
+    /// `emoji: false`: East Asian Wide/Fullwidth code points count 2,
+    /// combining marks and other zero-width code points count 0, and tabs
+    /// are not expanded (RuboCop's `Alignment` module never expands them
+    /// either -- only `Layout/LineLength`'s separate tab-width penalty
+    /// does, which is unrelated to this column).
+    pub fn display_column(&self, offset: u32) -> u32 {
+        let line_col = self.line_col(offset);
+        let line = self.line_text(line_col.line);
+        let take = usize::try_from(line_col.column).unwrap_or(usize::MAX);
+        match std::str::from_utf8(line) {
+            Ok(text) => text
+                .chars()
+                .take(take)
+                .map(|ch| u32::try_from(ch.width().unwrap_or(0)).unwrap_or(0))
+                .sum(),
+            Err(_) => line_col.column,
+        }
     }
 
     /// Number of lines. An empty file has one (empty) line; a file ending in
