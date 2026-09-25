@@ -137,4 +137,4 @@ else
 fi
 
 echo "== comparing offenses ==" >&2
-python3 "$script_dir/compare.py" "$rubocop_json" "$elysium_json"
+python3 "$script_dir/compare.py" "$rubocop_json" "$elysium_json" | tee "$work/compare.txt"

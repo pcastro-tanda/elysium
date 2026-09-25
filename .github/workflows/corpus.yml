@@ -80,3 +80,14 @@ jobs:
       - run: chmod +x target/release/elysium
 
       - run: ci/corpus/run.sh ${{ matrix.app }}
+
+      - name: upload corpus artifacts
+        if: always()
+        uses: actions/upload-artifact@v4
+        with:
+          name: corpus-${{ matrix.app }}
+          retention-days: 30
+          path: |
+            ${{ runner.temp }}/corpus-${{ matrix.app }}/rubocop.json
+            ${{ runner.temp }}/corpus-${{ matrix.app }}/elysium.json
+            ${{ runner.temp }}/corpus-${{ matrix.app }}/compare.txt
