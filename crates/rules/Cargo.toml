@@ -11,6 +11,7 @@ linter.workspace = true
 config.workspace = true
 ruby_ast.workspace = true
 ruby_source.workspace = true
+ruby_semantic.workspace = true
 ruby_directives.workspace = true
 regex.workspace = true
 

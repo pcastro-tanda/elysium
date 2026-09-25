@@ -1,0 +1,2 @@
+matrix[1, 2] = matrix[1, 2]
+^^^^^^^^^^^^^^^^^^^^^^^^^^^ Self-assignment detected.

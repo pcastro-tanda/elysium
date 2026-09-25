@@ -1,0 +1,1 @@
+a, b = self.a if self.a

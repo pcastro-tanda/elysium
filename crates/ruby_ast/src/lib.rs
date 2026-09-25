@@ -202,6 +202,28 @@ pub fn walk<'pr, V: Visitor<'pr>>(root: &Node<'pr>, visitor: &mut V) {
     Adapter { inner: visitor }.visit(root);
 }
 
+/// Calls `f` for each direct child of `node`, in Prism field order --
+/// rubocop-ast's `Node#each_child_node` without the visitor boilerplate.
+pub fn for_each_child<'pr>(node: &Node<'pr>, f: impl FnMut(&Node<'pr>)) {
+    struct Shim<F>(F);
+    impl<'pr, F: FnMut(&Node<'pr>)> ruby_prism::Visit<'pr> for Shim<F> {
+        fn visit(&mut self, node: &Node<'pr>) {
+            (self.0)(node);
+        }
+    }
+    visit_children(&mut Shim(f), node);
+}
+
+/// Calls `f` for every descendant of `node`, pre-order -- rubocop-ast's
+/// `Node#each_descendant`. Scope boundaries are not respected, matching the
+/// upstream helper.
+pub fn each_descendant<'pr, F: FnMut(&Node<'pr>)>(node: &Node<'pr>, f: &mut F) {
+    for_each_child(node, |child| {
+        f(child);
+        each_descendant(child, f);
+    });
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

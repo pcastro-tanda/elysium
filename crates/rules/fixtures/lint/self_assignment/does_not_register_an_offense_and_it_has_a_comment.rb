@@ -1,0 +1,12 @@
+foo = foo #: Integer
+@foo = @foo #: Integer
+@@foo = @@foo #: Integer
+$foo = $foo #: Integer
+Foo = Foo #: Integer
+foo, bar = foo, bar #: Integer
+foo ||= foo #: Integer
+foo &&= foo #: Integer
+foo.bar = foo.bar #: Integer
+foo&.bar = foo&.bar #: Integer
+foo["bar"] = foo["bar"] #: Integer
+foo&.[]=("bar", foo["bar"]) #: Integer

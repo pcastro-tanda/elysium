@@ -104,6 +104,49 @@ pub fn call_span_excluding_block(call: &CallNode<'_>) -> Span {
     Span::new(call.as_node().span().start, call_end_excluding_block(call))
 }
 
+/// RuboCop's generic `Node#receiver` node-matcher (`{(send $_ ...) (any_block
+/// (call $_ ...) ...)}`), which -- since a Prism `CallNode`'s own `receiver`
+/// field already covers a call carrying an attached block -- collapses to
+/// walking `CallNode::receiver` outward. Used by `Lint/NumberConversion`'s
+/// `top_receiver`: repeatedly replaces the current node with its own
+/// receiver until that stops being a `CallNode` with one (a literal, a bare
+/// argumentless call, a constant, ...), matching upstream's `until
+/// receiver.receiver.nil?` loop.
+#[must_use]
+pub fn top_receiver(node: Node<'_>) -> Node<'_> {
+    let mut receiver = node;
+    while let Some(call) = receiver.as_call_node() {
+        match call.receiver() {
+            Some(next) => receiver = next,
+            None => break,
+        }
+    }
+    receiver
+}
+
+/// `rubocop-ast`'s `Node#const_name`: the whole qualified name of a constant
+/// (path) node, e.g. `Foo::Bar::Baz`; a leading `::` (a `ConstantPathNode`
+/// with no `parent`) contributes nothing extra, matching upstream's
+/// `cbase_type?` special case.
+#[must_use]
+pub fn const_name(node: &Node<'_>) -> Option<String> {
+    match node.kind() {
+        NodeKind::ConstantReadNode => {
+            let c = node.as_constant_read_node()?;
+            Some(String::from_utf8_lossy(c.name().as_slice()).into_owned())
+        }
+        NodeKind::ConstantPathNode => {
+            let path = node.as_constant_path_node()?;
+            let short = String::from_utf8_lossy(path.name()?.as_slice()).into_owned();
+            match path.parent() {
+                Some(parent) => Some(format!("{}::{short}", const_name(&parent)?)),
+                None => Some(short),
+            }
+        }
+        _ => None,
+    }
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;

@@ -1,0 +1,1 @@
+a = self.a until self.a

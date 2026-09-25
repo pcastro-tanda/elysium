@@ -1,0 +1,5 @@
+AllCops:
+  ActiveSupportExtensionsEnabled: true
+Lint/UselessAccessModifier:
+  ContextCreatingMethods: ~
+  MethodCreatingMethods: ~

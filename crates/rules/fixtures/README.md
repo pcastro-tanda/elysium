@@ -42,3 +42,27 @@ after regeneration:
   comment or nothing (documented in its `blind_spots`); preserving arbitrary
   trailing free text on a single-cop removal is a real, tracked gap, not an
   RSpec artifact.
+- `lint/number_conversion/registers_an_offense_when_using_multiple_number_conversion_m`:
+  `case foo.to_f ... end.to_i` -- confirmed against real RuboCop 1.82.1 to
+  produce exactly two offenses, one of them a `case/when/else/end`
+  expression interpolated into the message via `%<current>s`/
+  `%<corrected_method>s`, so the message itself spans several physical
+  lines. The fixture annotation format's `parse_annotation` only reads a
+  message up to the end of its own physical line, so it cannot represent
+  this: the reconstructed "de-annotated source" ends up with the message's
+  continuation lines (`when 0.0`, `bar`, ...) spliced into the real source,
+  which then fails to parse. Not a cop bug (verified directly against
+  `rubocop --only Lint/NumberConversion`); a fixture-format limitation for
+  the one case in this corpus where a message embeds a multi-line snippet.
+- `lint/useless_assignment/registers_an_offense_21`, `..._22` and `..._23`
+  keep their offense expectations but lost their `.fixed.rb`: the specs'
+  expected corrections (`bar = do_something`, `foo = do_something`,
+  `-bar = do_something`) are `expect_correction` artifacts. That helper
+  reuses one cop object across autocorrection passes, so the byte ranges
+  `IgnoredNode` collected for the chained assignment in pass 1 still
+  suppress the offense in pass 2 and the loop stops early. Real RuboCop does
+  not: `rubocop -A --only Lint/UselessAssignment` on all three snippets
+  (verified against 1.91.0) converges to `do_something`, `do_something` and
+  `-do_something`, which is what elysium produces. The remaining checks --
+  offenses, and that the fix loop converges without leaving a correctable
+  offense behind -- still run.

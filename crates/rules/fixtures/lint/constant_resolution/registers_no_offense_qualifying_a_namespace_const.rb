@@ -1,0 +1,1 @@
+::MyConst::MY_CONST

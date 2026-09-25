@@ -4,8 +4,11 @@ version.workspace = true
 edition.workspace = true
 rust-version.workspace = true
 publish.workspace = true
+description = "Lexical scopes, local variables, assignments and branches (RuboCop's VariableForce)"
 
 [dependencies]
+ruby_source.workspace = true
+ruby_ast.workspace = true
 
 [lints]
 workspace = true

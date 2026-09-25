@@ -1,0 +1,1 @@
+a = self.a unless self.a
