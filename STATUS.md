@@ -233,21 +233,38 @@ CI needs its own recorded baseline before `--check` is a hard gate
 - Project name (`elysium` is the working directory name) and license. No
   public commit until decided.
 
-## Next three milestones
+## Next milestones
+
+**Headline gap: 56 of RuboCop 1.82.1's 394 default-enabled core cops are
+implemented (338 missing).** Phases 3 and 4 selected cops by relevance and
+by infrastructure need; no phase ever targeted the full default set, so the
+earlier roadmap jumped to extension-gem cops with 85% of core defaults
+unported. Inventory, bucketed by department and by the infrastructure each
+cop needs: `docs/planning/default-parity.md`.
 
 1. Phase 4 conformance: run `cargo xtask conformance --app
    <discourse|mastodon> --rule Cop` for each of the ten new cops, resolve
    diffs, promote. The known modelling deviation to watch for is documented
    in `docs/planning/phase4-semantic.md` (`Branch.of` past a twisted block
    call).
-2. Phase 5 `[INFERENCE — no dedicated planning doc yet, extrapolated from
-   the "What does not work yet" list above]`: config/CLI hardening ahead of
-   extension-gem cop work — a `ConfigValidator` (type/unknown-cop errors), a
-   minimal ERB subset evaluator for `.rubocop.yml` (unblocking GitLab's real
-   config), remote `inherit_from` fetching, `!ruby/regexp`
-   `Include`/`Exclude` tags, `TargetRubyVersion` inference from a gemspec's
-   `required_ruby_version`, and non-UTF-8 `# encoding:` column handling.
-3. Phase 6: extension-gem cop implementations (`Rails/*`, `RSpec/*`,
+2. Phase 5: **default-cop parity**, in batches from
+   `docs/planning/default-parity.md`. Order by infrastructure: the 45
+   `pure-ast` cops first (no new engine work; Security/*, Lint duplicates,
+   Naming/*), then the 25 `target-ruby` cops (needs `TargetRubyVersion`
+   plumbed into `Context`), the 30 `metrics` cops (a shared
+   code-length/complexity utility crate), the 26 `tokens/comments` cops (a
+   comment list on `Source` beyond directives), and the Layout remainder.
+   Bundler/Gemspec/Migration (10) need a Gemfile/gemspec file-type route.
+   Every batch goes through fixtures via `tools/port_spec.rb` and corpus
+   conformance before promotion; ~7,300 upstream spec examples in total.
+3. Phase 6 `[INFERENCE — no dedicated planning doc yet, extrapolated from
+   the "What does not work yet" list above]`: config/CLI hardening — a
+   `ConfigValidator` (type/unknown-cop errors), a minimal ERB subset
+   evaluator for `.rubocop.yml` (unblocking GitLab's real config), remote
+   `inherit_from` fetching, `!ruby/regexp` `Include`/`Exclude` tags,
+   `TargetRubyVersion` inference from a gemspec's `required_ruby_version`,
+   and non-UTF-8 `# encoding:` column handling.
+4. Phase 7: extension-gem cop implementations (`Rails/*`, `RSpec/*`,
    `Performance/*`, ...) — their `config/default.yml` layering and
    conformance skip-list (`EXTENSION_DEPARTMENTS`) already exist; only the
    cops themselves are unported.
