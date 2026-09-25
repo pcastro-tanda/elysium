@@ -31,6 +31,9 @@ pub mod node {
 
 pub use node::{Comment, CommentType, Location, MagicComment, Node, NodeList};
 
+/// Cross-rule node predicates needing no source text. See [`ext`].
+pub mod ext;
+
 /// Ruby syntax version to parse as. Prism only models 3.3 and newer; a
 /// `TargetRubyVersion` older than that parses as 3.3.
 pub use ruby_prism::SyntaxVersion as RubyVersion;

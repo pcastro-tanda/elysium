@@ -3,7 +3,7 @@ use std::cell::OnceCell;
 
 use ruby_ast::{LocationExt as _, NodeKind, Parsed};
 use ruby_directives::Directives;
-use ruby_source::{LineCol, SourceFile, Span};
+use ruby_source::{LineCol, Side, SourceFile, Span};
 
 use crate::diagnostic::{Diagnostic, Fix};
 use crate::rule::RuleMeta;
@@ -105,6 +105,45 @@ impl<'a> Context<'a> {
     /// Number of lines in the file.
     pub fn line_count(&self) -> u32 {
         self.source.line_count()
+    }
+
+    /// `rubocop-ast`'s `Node#single_line?`. See [`SourceFile::is_single_line`].
+    pub fn is_single_line(&self, span: Span) -> bool {
+        self.source.is_single_line(span)
+    }
+
+    /// RuboCop's `Range#last_line`. See [`SourceFile::last_line`].
+    pub fn last_line(&self, span: Span) -> u32 {
+        self.source.last_line(span)
+    }
+
+    /// True when `a` and `b` start on the same source line. See
+    /// [`SourceFile::same_line`].
+    pub fn same_line(&self, a: Span, b: Span) -> bool {
+        self.source.same_line(a, b)
+    }
+
+    /// RuboCop's `Util#begins_its_line?`. See [`SourceFile::begins_its_line`].
+    pub fn begins_its_line(&self, span: Span) -> bool {
+        self.source.begins_its_line(span)
+    }
+
+    /// `rubocop-ast`'s `RangeHelp#range_by_whole_lines`. See
+    /// [`SourceFile::whole_lines`].
+    pub fn whole_lines(&self, span: Span) -> Span {
+        self.source.whole_lines(span)
+    }
+
+    /// `rubocop-ast`'s `RangeHelp#range_with_surrounding_space`. See
+    /// [`SourceFile::with_surrounding_space`].
+    pub fn with_surrounding_space(
+        &self,
+        span: Span,
+        side: Side,
+        newlines: bool,
+        whitespace: bool,
+    ) -> Span {
+        self.source.with_surrounding_space(span, side, newlines, whitespace)
     }
 
     /// Every line's 1-based number and its byte span, without a trailing

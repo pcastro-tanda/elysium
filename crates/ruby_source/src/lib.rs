@@ -19,9 +19,11 @@ use unicode_width::UnicodeWidthChar;
 
 mod line_index;
 mod span;
+mod text;
 
 pub use line_index::{LineCol, LineIndex};
 pub use span::Span;
+pub use text::{char_len, is_comment_line, is_ruby_whitespace, is_ruby_whitespace_char, Side};
 
 /// One Ruby source file held in memory.
 #[derive(Debug)]

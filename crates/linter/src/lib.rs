@@ -3,6 +3,7 @@
 //! through [`Rule`]; the engine reaches rules through the generated
 //! [`Dispatch`] implementation, so this crate never depends on `rules`.
 
+mod alignment;
 mod context;
 mod diagnostic;
 mod engine;
@@ -10,6 +11,8 @@ mod fix;
 mod options;
 mod rule;
 mod settings;
+
+pub use alignment::{heredoc_bodies, shift_lines};
 
 pub use context::{CommentInfo, Context, NodeInfo};
 pub use diagnostic::{Applicability, Diagnostic, Edit, Fix, Severity};
