@@ -1,0 +1,78 @@
+name: corpus
+
+# Real-world conformance: builds elysium once, then for each corpus app
+# clones it at a pinned commit and checks that elysium's offenses match real
+# RuboCop's over the same 49-cop rule set (ci/corpus/rules.txt). Workflow
+# logic lives in ci/corpus/*.sh so it can be run the same way locally; this
+# file just wires up runners, caching, and artifact handoff.
+
+on:
+  push:
+    branches: [main]
+  workflow_dispatch:
+
+env:
+  CARGO_TERM_COLOR: always
+
+jobs:
+  build:
+    name: build
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: dtolnay/rust-toolchain@stable
+      - uses: Swatinem/rust-cache@v2
+      - run: cargo build --release -p cli
+      - uses: actions/upload-artifact@v4
+        with:
+          name: elysium-linux
+          path: target/release/elysium
+          if-no-files-found: error
+
+  corpus:
+    name: corpus (${{ matrix.app }})
+    needs: build
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    strategy:
+      fail-fast: false
+      matrix:
+        app: [discourse, mastodon, forem]
+    # ruby/setup-ruby's bundler-cache reads $BUNDLE_GEMFILE for every step in
+    # this job, so it must be set at the job level (not just for one step)
+    # to point bundler at this app's side Gemfile instead of the repo root.
+    env:
+      BUNDLE_GEMFILE: ${{ github.workspace }}/ci/corpus/${{ matrix.app }}/Gemfile
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: read pinned commit
+        id: app-meta
+        run: |
+          commit=$(grep '^COMMIT=' "ci/corpus/${{ matrix.app }}/app.env" | cut -d= -f2)
+          echo "commit=$commit" >> "$GITHUB_OUTPUT"
+
+      - name: cache app checkout
+        uses: actions/cache@v4
+        with:
+          path: ${{ runner.temp }}/corpus-${{ matrix.app }}
+          key: corpus-${{ matrix.app }}-${{ steps.app-meta.outputs.commit }}
+
+      # Ruby >= 3.2 for rubocop-discourse/rubocop-discourse-base (discourse
+      # and mastodon's plugins); forem's older 1.63.4 lock resolves fine
+      # under 3.4 too (verified locally under rbenv 3.4.2), so one version
+      # covers all three apps.
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+          bundler-cache: true
+
+      - name: download elysium
+        uses: actions/download-artifact@v4
+        with:
+          name: elysium-linux
+          path: target/release
+
+      - run: chmod +x target/release/elysium
+
+      - run: ci/corpus/run.sh ${{ matrix.app }}

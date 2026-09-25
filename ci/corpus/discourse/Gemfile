@@ -1,0 +1,11 @@
+source "https://rubygems.org"
+
+gem "rubocop", "1.91.0"
+gem "rubocop-ast", "1.50.0"
+gem "rubocop-capybara", "3.0.0"
+gem "rubocop-discourse", "3.20.0"
+gem "rubocop-discourse-base", "1.0.0"
+gem "rubocop-factory_bot", "2.28.0"
+gem "rubocop-rails", "2.37.0"
+gem "rubocop-rspec", "3.10.2"
+gem "rubocop-rspec_rails", "2.32.0"

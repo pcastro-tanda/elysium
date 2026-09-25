@@ -1,0 +1,58 @@
+# The 49 cops elysium and RuboCop are compared over in
+# ci/corpus/run.sh and docs/benchmarks/phase3-vs-rubocop.md. One cop per
+# line; blank lines and lines starting with `#` are ignored when run.sh
+# joins this into a `--only` CSV list.
+#
+# This is 49 of elysium's 50 stable+nursery cops. Lint/RedundantCopDisableDirective
+# is excluded: RuboCop's CLI hard-rejects `--only Lint/RedundantCopDisableDirective`
+# (exit 2) because that cop depends on every other cop's reported offenses and
+# can't run in isolation under `--only`.
+Layout/ArgumentAlignment
+Layout/EmptyLineBetweenDefs
+Layout/EmptyLines
+Layout/EmptyLinesAroundClassBody
+Layout/ExtraSpacing
+Layout/FirstArgumentIndentation
+Layout/FirstHashElementIndentation
+Layout/HashAlignment
+Layout/IndentationConsistency
+Layout/IndentationWidth
+Layout/LineLength
+Layout/SpaceAroundOperators
+Layout/SpaceInsideArrayLiteralBrackets
+Layout/SpaceInsideBlockBraces
+Layout/SpaceInsideHashLiteralBraces
+Layout/TrailingEmptyLines
+Layout/TrailingWhitespace
+Lint/AmbiguousBlockAssociation
+Lint/Debugger
+Lint/DuplicateHashKey
+Lint/DuplicateMethods
+Lint/ElseLayout
+Lint/EmptyBlock
+Lint/RedundantStringCoercion
+Style/AccessorGrouping
+Style/ClassAndModuleChildren
+Style/Documentation
+Style/EmptyElse
+Style/FrozenStringLiteralComment
+Style/GuardClause
+Style/HashSyntax
+Style/IfUnlessModifier
+Style/IfUnlessModifierOfIfUnless
+Style/MutableConstant
+Style/NumericLiteralPrefix
+Style/NumericLiterals
+Style/RedundantCondition
+Style/RedundantParentheses
+Style/RedundantRegexpCharacterClass
+Style/RedundantRegexpEscape
+Style/RedundantReturn
+Style/SoleNestedConditional
+Style/StringConcatenation
+Style/StringLiterals
+Style/SymbolProc
+Style/TrailingCommaInArguments
+Style/TrailingCommaInArrayLiteral
+Style/TrailingCommaInHashLiteral
+Style/WordArray
