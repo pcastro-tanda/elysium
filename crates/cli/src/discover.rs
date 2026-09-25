@@ -101,7 +101,16 @@ fn walk(
         .ignore(false)
         .parents(opts.gitignore)
         .require_git(false)
-        .follow_links(false);
+        .follow_links(false)
+        // Never descend into a repository's own object store. Git tracks
+        // nothing under `.git`, RuboCop's TargetFinder never inspects a
+        // hidden directory unless an `Include` pattern names the dot
+        // segment, and the default `Exclude` drops `.git/**/*` anyway; on a
+        // full-history clone the objects directory alone can dwarf the
+        // working tree in entry count.
+        .filter_entry(|entry| {
+            !(entry.file_name() == ".git" && entry.file_type().is_some_and(|t| t.is_dir()))
+        });
 
     // The walk is I/O bound (one readdir per directory plus .gitignore
     // parsing); `ignore`'s parallel walker overlaps those syscalls. One
