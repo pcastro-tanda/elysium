@@ -11,7 +11,7 @@ use linter::{
 use regex::Regex;
 use ruby_ast::node::{CallNode, Location, StatementsNode};
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
-use ruby_source::Span;
+use ruby_source::{char_len, Span};
 
 /// RuboCop's `MSG_USE_MODIFIER`.
 const MSG_USE_MODIFIER: &str = "Favor modifier `{keyword}` usage when having a single-line body. \
@@ -93,7 +93,7 @@ impl IfUnlessModifier {
     /// RuboCop's `line_length`: character count plus the extra columns
     /// contributed by leading tabs.
     fn line_length(&self, line: &[u8]) -> i64 {
-        char_len(line) + self.indentation_difference(line)
+        i64::from(char_len(line)) + self.indentation_difference(line)
     }
 
     /// RuboCop's `indentation_difference`: leading-tab count times
@@ -654,8 +654,8 @@ impl IfUnlessModifier {
         let Ok(text) = std::str::from_utf8(line) else { return true };
         let Some(m) = re.find_iter(text).last() else { return true };
         let diff = self.indentation_difference(line);
-        let begin = char_len(&line[..m.start()]) + diff;
-        let end = char_len(&line[..m.end()]) + diff;
+        let begin = i64::from(char_len(&line[..m.start()])) + diff;
+        let end = i64::from(char_len(&line[..m.end()])) + diff;
         !(begin < max && end == self.line_length(line))
     }
 
@@ -678,7 +678,7 @@ impl IfUnlessModifier {
         if let Some(comment) = ctx.comments().iter().find(|c| c.line == first_line).copied() {
             let line = ctx.line_text(first_line);
             let source_length = self.line_length(line);
-            let comment_length = char_len(ctx.text(comment.span));
+            let comment_length = i64::from(char_len(ctx.text(comment.span)));
             let max = self.max_line_length.unwrap_or(120);
             if source_length - comment_length <= max && max <= source_length {
                 let line_start = ctx.line_span(first_line).start;
@@ -726,8 +726,8 @@ impl IfUnlessModifier {
 
         let mut edits = Vec::new();
         if let Some(last_arg) = last_argument_if_call(body_stmt) {
-            if let Some((opening, content_span, closing)) = heredoc_regions(&last_arg) {
-                if ctx.text(opening.span()).starts_with(b"<<") {
+            if let Some((_opening, content_span, closing)) = heredoc_regions(&last_arg) {
+                if ruby_ast::ext::is_heredoc(&last_arg) {
                     let content_text = trim_end_newline(ctx.text(content_span));
                     let closing_text = trim_end_newline(ctx.text(closing.span()));
                     replacement.push(b'\n');
@@ -738,8 +738,8 @@ impl IfUnlessModifier {
                     replacement.extend_from_slice(indent.as_bytes());
                     replacement.extend_from_slice(b"  ");
                     replacement.extend_from_slice(closing_text);
-                    edits.push(Edit::delete(whole_lines_span(ctx, content_span)));
-                    edits.push(Edit::delete(whole_lines_span(ctx, closing.span())));
+                    edits.push(Edit::delete(ctx.whole_lines(content_span)));
+                    edits.push(Edit::delete(ctx.whole_lines(closing.span())));
                 }
             }
         }
@@ -1056,18 +1056,6 @@ fn heredoc_regions<'pr>(node: &Node<'pr>) -> Option<(Location<'pr>, Span, Locati
     }
 }
 
-/// Expands `span` to the whole line(s) it covers, including the trailing
-/// newline when there is one (RuboCop's `range_by_whole_lines`).
-fn whole_lines_span(ctx: &Context<'_>, span: Span) -> Span {
-    let first_line = ctx.line_col(span.start).line;
-    let last_line = ctx.line_col(span.end.saturating_sub(1).max(span.start)).line;
-    let start = ctx.line_span(first_line).start;
-    let line_end = ctx.line_span(last_line).end;
-    let source_len = u32::try_from(ctx.source().bytes().len()).unwrap_or(u32::MAX);
-    let end = if line_end < source_len { line_end + 1 } else { line_end };
-    Span::new(start, end)
-}
-
 fn matches_allowed_pattern(patterns: &[Regex], line: &[u8]) -> bool {
     let Ok(text) = std::str::from_utf8(line) else { return false };
     patterns.iter().any(|p| p.is_match(text))
@@ -1091,13 +1079,4 @@ fn trim_end_newline(bytes: &[u8]) -> &[u8] {
     } else {
         bytes
     }
-}
-
-/// Ruby's `String#length`: counts characters, not bytes.
-fn char_len(bytes: &[u8]) -> i64 {
-    let count = match std::str::from_utf8(bytes) {
-        Ok(s) => s.chars().count(),
-        Err(_) => bytes.iter().filter(|&&b| (b & 0xC0) != 0x80).count(),
-    };
-    i64::try_from(count).unwrap_or(i64::MAX)
 }

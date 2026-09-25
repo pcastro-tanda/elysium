@@ -38,8 +38,6 @@ use ruby_ast::node::CallNode;
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind, Visitor};
 use ruby_source::Span;
 
-use crate::style::trailing_comma::is_multiline_span;
-
 /// RuboCop's `MSG`.
 const MSG: &str = "Prefer string interpolation to string concatenation.";
 
@@ -211,7 +209,7 @@ fn line_end_concatenation(call: &CallNode<'_>, ctx: &Context<'_>) -> bool {
     if !is_string_literal(&receiver) || !is_string_literal(&arg) {
         return false;
     }
-    if !is_multiline_span(ctx, call.as_node().span()) {
+    if ctx.is_single_line(call.as_node().span()) {
         return false;
     }
     let Some(op) = call.message_loc() else { return false };
@@ -254,7 +252,7 @@ fn collect_chain<'pr>(
 
 /// RuboCop's `uncorrectable?`.
 fn is_uncorrectable(part: &Node<'_>, ctx: &Context<'_>) -> bool {
-    is_multiline_span(ctx, part.span())
+    !ctx.is_single_line(part.span())
         || is_heredoc_part(part, ctx)
         || contains_block_descendant(part)
 }

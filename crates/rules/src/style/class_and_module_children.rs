@@ -557,69 +557,16 @@ fn sub_first(haystack: &str, needle: &str) -> String {
     }
 }
 
-/// RuboCop's `AlignmentCorrector.correct`: one edit per physical line of
-/// `node_span`'s *original* source, per `line_edit`, skipping any edit whose
-/// range falls inside `taboo` (already covered by another edit in this same
-/// `Fix` -- upstream's `Corrector` silently swallows such nested edits;
-/// `Fix::edits` must be non-overlapping here, so they are built pre-filtered
-/// instead).
+/// RuboCop's `AlignmentCorrector.correct`, delegated to the shared
+/// [`linter::shift_lines`]; `taboo` here is the set of ranges this same
+/// `Fix` already edited (`replace_range`/`remove_range`), so the shift
+/// never re-touches them.
 fn build_alignment_edits(
     ctx: &Context<'_>,
     node_span: Span,
     delta: i64,
     taboo: &[Span],
 ) -> Vec<Edit> {
-    let bytes = ctx.source().bytes();
-    let mut edits = Vec::new();
-    let mut pos = node_span.start;
-    loop {
-        if let Some(edit) = line_edit(bytes, pos, delta) {
-            let overlaps_taboo =
-                taboo.iter().any(|t| edit.span.start < t.end && t.start < edit.span.end);
-            if !overlaps_taboo {
-                edits.push(edit);
-            }
-        }
-        let end = node_span.end.min(u32::try_from(bytes.len()).unwrap_or(u32::MAX));
-        match bytes[pos as usize..end as usize].iter().position(|&b| b == b'\n') {
-            Some(i) => pos += u32::try_from(i).unwrap_or(u32::MAX) + 1,
-            None => break,
-        }
-        if pos >= end {
-            break;
-        }
-    }
-    edits
-}
-
-/// RuboCop's `calculate_range` + `autocorrect_line`, combined and resolved
-/// to a single optional edit for the line starting at `line_start`.
-fn line_edit(bytes: &[u8], line_start: u32, delta: i64) -> Option<Edit> {
-    if delta > 0 {
-        // RuboCop's `range.resize(1).source != "\n"`: never indent a blank line.
-        if bytes.get(line_start as usize) == Some(&b'\n') {
-            return None;
-        }
-        let width = usize::try_from(delta).unwrap_or(0);
-        return Some(Edit::insert(line_start, " ".repeat(width).into_bytes()));
-    }
-    let abs = u32::try_from(-delta).unwrap_or(u32::MAX);
-    let starts_with_space = bytes.get(line_start as usize) == Some(&b' ');
-    let (start, end) = if starts_with_space {
-        (line_start, line_start + abs)
-    } else {
-        if line_start < abs {
-            return None;
-        }
-        (line_start - abs, line_start)
-    };
-    if end as usize > bytes.len() || start > end {
-        return None;
-    }
-    let slice = &bytes[start as usize..end as usize];
-    if !slice.is_empty() && slice.iter().all(|&b| b == b' ' || b == b'\t') {
-        Some(Edit::delete(Span::new(start, end)))
-    } else {
-        None
-    }
+    let delta = i32::try_from(delta).unwrap_or(0);
+    linter::shift_lines(ctx, node_span, delta, taboo)
 }

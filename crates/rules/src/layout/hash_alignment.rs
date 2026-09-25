@@ -392,7 +392,7 @@ impl HashAlignment {
         });
 
         let ref_start_line = ctx.line_col(selector_span.start).line;
-        let ref_end_line = ctx.line_col(last_offset(selector_span)).line;
+        let ref_end_line = ctx.last_line(selector_span);
         if ref_start_line == first_pair_start_line || ref_end_line == first_pair_start_line {
             self.incompatible_hashes.insert(hash_node.span());
         }
@@ -404,7 +404,7 @@ impl HashAlignment {
         if self.incompatible_hashes.contains(&span) || self.ignored_hashes.contains(&span) {
             return;
         }
-        if is_single_line(span, ctx) {
+        if ctx.is_single_line(span) {
             return;
         }
 
@@ -639,7 +639,7 @@ fn resolve_last_arg_style(options: &RuleOptions) -> Result<&str, OptionError> {
 fn build_pair_info(pair: &AssocNode<'_>, ctx: &Context<'_>) -> PairInfo {
     let span = pair.location().span();
     let start_line = ctx.line_col(span.start).line;
-    let end_line = ctx.line_col(last_offset(span)).line;
+    let end_line = ctx.last_line(span);
 
     let key = pair.key();
     let key_span = key.location().span();
@@ -691,21 +691,9 @@ fn build_splat_info(node: &Node<'_>, ctx: &Context<'_>) -> SplatInfo {
     SplatInfo {
         span,
         start_line: ctx.line_col(span.start).line,
-        end_line: ctx.line_col(last_offset(span)).line,
+        end_line: ctx.last_line(span),
         key_col: ctx.line_col(span.start).column,
     }
-}
-
-fn last_offset(span: Span) -> u32 {
-    if span.end > span.start {
-        span.end - 1
-    } else {
-        span.start
-    }
-}
-
-fn is_single_line(span: Span, ctx: &Context<'_>) -> bool {
-    ctx.line_col(span.start).line == ctx.line_col(last_offset(span)).line
 }
 
 /// RuboCop-AST's `HashElementNode#same_line?`.
@@ -774,7 +762,7 @@ fn key_deltas_for_first(fp: &PairInfo) -> Delta {
 
 /// `KeyAlignment#deltas`.
 fn key_deltas(fp: &PairInfo, current: &PairInfo, ctx: &Context<'_>) -> Delta {
-    if !begins_its_line(ctx, current.span) {
+    if !ctx.begins_its_line(current.span) {
         return Delta::default();
     }
     let key = if same_line_pair(fp, current) {
@@ -848,7 +836,7 @@ fn separator_value_delta_priv(fp: &PairInfo, current: &PairInfo) -> i64 {
 
 /// `KeywordSplatAlignment#deltas`.
 fn kwsplat_delta(fp: &PairInfo, splat: &SplatInfo, ctx: &Context<'_>) -> Delta {
-    if !begins_its_line(ctx, splat.span) {
+    if !ctx.begins_its_line(splat.span) {
         return Delta::default();
     }
     let same_line = fp.end_line == splat.start_line || fp.start_line == splat.end_line;
@@ -907,22 +895,4 @@ fn char_offset_before(ctx: &Context<'_>, point: u32, n: u32) -> u32 {
         remaining -= 1;
     }
     line_start + u32::try_from(idx).unwrap_or(0)
-}
-
-/// RuboCop's `Util#begins_its_line?`, character-based (matching Ruby's
-/// `String#index`/`Range#column`) so it also holds on lines with non-ASCII
-/// leading content.
-fn begins_its_line(ctx: &Context<'_>, span: Span) -> bool {
-    let line_col = ctx.line_col(span.start);
-    let line = ctx.line_text(line_col.line);
-    let Ok(text) = std::str::from_utf8(line) else { return line_col.column == 0 };
-    match text.chars().position(|ch| !is_ruby_whitespace(ch)) {
-        Some(index) => u32::try_from(index).unwrap_or(u32::MAX) == line_col.column,
-        None => false,
-    }
-}
-
-/// Ruby's `\s` character class, used by `begins_its_line?`'s regex.
-fn is_ruby_whitespace(ch: char) -> bool {
-    matches!(ch, ' ' | '\t' | '\r' | '\x0B' | '\x0C')
 }

@@ -66,7 +66,7 @@ impl TrailingCommaInHashLiteral {
         let closing = hash.closing_loc().span();
         let last = elements.last().expect("checked non-empty");
         let last_span = last.span();
-        let heredoc = elements.iter().any(|item| item_has_heredoc(ctx, &item));
+        let heredoc = elements.iter().any(|item| item_has_heredoc(&item));
 
         let after_last = ctx.text(Span::new(last_span.end, closing.start));
         match comma_offset(after_last, heredoc) {
@@ -251,12 +251,11 @@ and may cause a false positive comma match inside the heredoc body.",
 /// `!allowed_multiline_argument?`: a single element whose closing brace
 /// does not begin its own line is exempt.
 fn is_multiline(ctx: &Context<'_>, opening: Span, elements: &NodeList<'_>, closing: Span) -> bool {
-    let first_line = ctx.line_col(opening.start).line;
-    let last_line = ctx.line_col(closing.end.saturating_sub(1)).line;
-    if first_line == last_line {
+    if ctx.is_single_line(Span::new(opening.start, closing.end)) {
         return false;
     }
-    let allowed_single = elements.len() == 1 && !begins_its_line(ctx, closing.start);
+    let allowed_single =
+        elements.len() == 1 && !ctx.begins_its_line(Span::new(closing.start, closing.start));
     !allowed_single
 }
 
@@ -290,19 +289,6 @@ fn last_item_precedes_newline(ctx: &Context<'_>, last_span: Span, closing: Span)
         return true;
     }
     text.get(ws_end) == Some(&b'#') && text[ws_end..].contains(&b'\n')
-}
-
-/// RuboCop's `Util.begins_its_line?`: whether `pos` is the first
-/// non-whitespace character on its line.
-fn begins_its_line(ctx: &Context<'_>, pos: u32) -> bool {
-    let line = ctx.line_col(pos).line;
-    let line_start = ctx.line_span(line).start;
-    let text = ctx.line_text(line);
-    let Some(first_non_ws) = text.iter().position(|&b| !is_ruby_space(b)) else {
-        return false;
-    };
-    let first_non_ws_pos = line_start + u32::try_from(first_non_ws).unwrap_or(0);
-    ctx.line_col(first_non_ws_pos).column == ctx.line_col(pos).column
 }
 
 /// Ruby's `[ \t\r\n\f\v]` (`\s`).
@@ -345,49 +331,27 @@ fn autocorrect_range(ctx: &Context<'_>, item_span: Span) -> Span {
 /// RuboCop's `heredoc?`/`heredoc_send?` restricted to a hash element: does
 /// its value (recursing through receiver-only or last-argument call
 /// chains) resolve to a heredoc string/xstring?
-fn item_has_heredoc(ctx: &Context<'_>, item: &Node<'_>) -> bool {
+fn item_has_heredoc(item: &Node<'_>) -> bool {
     if let Some(assoc) = item.as_assoc_node() {
-        return is_heredoc_value(ctx, &assoc.value());
+        return is_heredoc_value(&assoc.value());
     }
     if let Some(splat) = item.as_assoc_splat_node() {
-        return splat.value().is_some_and(|value| is_heredoc_value(ctx, &value));
+        return splat.value().is_some_and(|value| is_heredoc_value(&value));
     }
     false
 }
 
-fn is_heredoc_value(ctx: &Context<'_>, node: &Node<'_>) -> bool {
-    if let Some(opening) = heredoc_opening_span(node) {
-        return ctx.text(opening).starts_with(b"<<");
+fn is_heredoc_value(node: &Node<'_>) -> bool {
+    if ruby_ast::ext::is_heredoc(node) {
+        return true;
     }
-    if let Some(call) = node.as_call_node() {
-        return is_heredoc_call(ctx, &call);
-    }
-    false
+    node.as_call_node().is_some_and(|call| is_heredoc_call(&call))
 }
 
-fn is_heredoc_call(ctx: &Context<'_>, call: &CallNode<'_>) -> bool {
+fn is_heredoc_call(call: &CallNode<'_>) -> bool {
     let last_arg = call.arguments().and_then(|args| args.arguments().last());
     match last_arg {
-        Some(arg) => is_heredoc_value(ctx, &arg),
-        None => call.receiver().is_some_and(|receiver| is_heredoc_value(ctx, &receiver)),
-    }
-}
-
-/// The opening-delimiter span of a string-like node, if it is one.
-fn heredoc_opening_span(node: &Node<'_>) -> Option<Span> {
-    match node {
-        Node::StringNode { .. } => {
-            node.as_string_node().and_then(|n| n.opening_loc()).map(|l| l.span())
-        }
-        Node::InterpolatedStringNode { .. } => {
-            node.as_interpolated_string_node().and_then(|n| n.opening_loc()).map(|l| l.span())
-        }
-        Node::XStringNode { .. } => {
-            Some(node.as_x_string_node().expect("kind matched").opening_loc().span())
-        }
-        Node::InterpolatedXStringNode { .. } => {
-            Some(node.as_interpolated_x_string_node().expect("kind matched").opening_loc().span())
-        }
-        _ => None,
+        Some(arg) => is_heredoc_value(&arg),
+        None => call.receiver().is_some_and(|receiver| is_heredoc_value(&receiver)),
     }
 }

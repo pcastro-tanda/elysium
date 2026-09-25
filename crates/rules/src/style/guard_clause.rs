@@ -643,9 +643,7 @@ fn elsif_conditional(else_branch: &Branch<'_>) -> bool {
 
 /// RuboCop's `Node#condition.multiline?`.
 fn predicate_multiline(shape: &Shape<'_>, ctx: &Context<'_>) -> bool {
-    let span = shape.predicate.location().span();
-    let last = if span.end > span.start { span.end - 1 } else { span.start };
-    ctx.line_col(span.start).line != ctx.line_col(last).line
+    !ctx.is_single_line(shape.predicate.location().span())
 }
 
 /// Names among `pairs` (source-ordered `(span, name)`, as recorded by
@@ -801,20 +799,20 @@ fn build_fix(
 
     if let Some((info, leave_branch)) = heredoc {
         let end_span = shape.end_span.expect("if/unless with a body has an end keyword");
-        edits.push(Edit::delete(whole_lines_span(ctx, end_span)));
+        edits.push(Edit::delete(ctx.whole_lines(end_span)));
         if shape.has_else {
             if let Some(span) = branch_span(leave_branch) {
-                edits.push(Edit::delete(whole_lines_span(ctx, span)));
+                edits.push(Edit::delete(ctx.whole_lines(span)));
             }
             let else_span = shape.else_span.expect("has_else implies an else span");
-            edits.push(Edit::delete(whole_lines_span(ctx, else_span)));
+            edits.push(Edit::delete(ctx.whole_lines(else_span)));
             let removed = match guard_side {
                 Some(Side::If) => &shape.if_branch,
                 Some(Side::Else) => &shape.else_branch,
                 None => unreachable!("build_fix only removes a branch when a guard side is known"),
             };
             if let Some(span) = branch_span(removed) {
-                edits.push(Edit::delete(whole_lines_span(ctx, span)));
+                edits.push(Edit::delete(ctx.whole_lines(span)));
             }
             if let Some(leave_span) = branch_span(leave_branch) {
                 let mut insert_text = b"\n".to_vec();
@@ -854,10 +852,10 @@ fn heredoc_branch(branch: &Branch<'_>, ctx: &Context<'_>) -> Option<HeredocInfo>
     let call = n.as_call_node()?;
     let args = call.arguments()?;
     let last = args.arguments().last()?;
-    let (opening, closing) = string_heredoc_locs(&last)?;
-    if !ctx.text(opening).starts_with(b"<<") {
+    if !ruby_ast::ext::is_heredoc(&last) {
         return None;
     }
+    let closing = heredoc_closing_span(&last)?;
     // Prism's heredoc closing location includes the trailing line
     // terminator (`"MESSAGE\n"`); RuboCop's `loc.heredoc_end` (parser gem)
     // stops before it, which is where `insert_after` must land.
@@ -868,37 +866,21 @@ fn heredoc_branch(branch: &Branch<'_>, ctx: &Context<'_>) -> Option<HeredocInfo>
     Some(HeredocInfo { closing_end })
 }
 
-/// Opening/closing delimiter spans for a heredoc-capable string literal.
-fn string_heredoc_locs(n: &Node<'_>) -> Option<(Span, Span)> {
+/// The closing-delimiter span of a heredoc-capable string literal.
+fn heredoc_closing_span(n: &Node<'_>) -> Option<Span> {
     match n {
         Node::StringNode { .. } => {
-            let s = n.as_string_node().expect("kind matched");
-            Some((s.opening_loc()?.span(), s.closing_loc()?.span()))
+            n.as_string_node().expect("kind matched").closing_loc().map(|l| l.span())
         }
         Node::InterpolatedStringNode { .. } => {
-            let s = n.as_interpolated_string_node().expect("kind matched");
-            Some((s.opening_loc()?.span(), s.closing_loc()?.span()))
+            n.as_interpolated_string_node().expect("kind matched").closing_loc().map(|l| l.span())
         }
         Node::XStringNode { .. } => {
-            let s = n.as_x_string_node().expect("kind matched");
-            Some((s.opening_loc().span(), s.closing_loc().span()))
+            Some(n.as_x_string_node().expect("kind matched").closing_loc().span())
         }
         Node::InterpolatedXStringNode { .. } => {
-            let s = n.as_interpolated_x_string_node().expect("kind matched");
-            Some((s.opening_loc().span(), s.closing_loc().span()))
+            Some(n.as_interpolated_x_string_node().expect("kind matched").closing_loc().span())
         }
         _ => None,
     }
-}
-
-/// RuboCop's `range_by_whole_lines(range, include_final_newline: true)`.
-fn whole_lines_span(ctx: &Context<'_>, span: Span) -> Span {
-    let start_line = ctx.line_col(span.start).line;
-    let last_included = if span.end > span.start { span.end - 1 } else { span.start };
-    let end_line = ctx.line_col(last_included).line;
-    let start = ctx.line_span(start_line).start;
-    let line_end = ctx.line_span(end_line).end;
-    let source_len = u32::try_from(ctx.source().bytes().len()).unwrap_or(u32::MAX);
-    let end = if line_end < source_len { line_end + 1 } else { line_end };
-    Span::new(start, end)
 }

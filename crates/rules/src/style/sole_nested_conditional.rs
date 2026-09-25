@@ -7,7 +7,7 @@ use linter::{
 };
 use ruby_ast::node::CallNode;
 use ruby_ast::{walk, LocationExt as _, Node, NodeExt as _, NodeKind, Visitor};
-use ruby_source::Span;
+use ruby_source::{Side, Span};
 
 /// RuboCop's `MSG`.
 fn message(conditional_type: &str) -> String {
@@ -429,7 +429,8 @@ fn parenthesized_and(node: &Node<'_>, ctx: &Context<'_>) -> Vec<u8> {
     let and = node.as_and_node().expect("kind matched");
     let left = ctx.text(and.left().span());
     let right = parenthesized_and_clause(&and.right(), ctx);
-    let operator = ctx.text(full_space_span(ctx, and.operator_loc().span()));
+    let operator =
+        ctx.text(ctx.with_surrounding_space(and.operator_loc().span(), Side::Both, true, true));
     let mut out = Vec::with_capacity(left.len() + operator.len() + right.len());
     out.extend_from_slice(left);
     out.extend_from_slice(operator);
@@ -489,54 +490,6 @@ fn chainable_condition(is_if: bool, condition: &Node<'_>, ctx: &Context<'_>) -> 
     out
 }
 
-/// RuboCop's `range_with_surrounding_space(range, newlines: false)`:
-/// expands over adjoining spaces/tabs only, never crossing a newline.
-fn horizontal_space_span(ctx: &Context<'_>, span: Span) -> Span {
-    let bytes = ctx.source().bytes();
-    let mut start = span.start;
-    while start > 0 && matches!(bytes[start as usize - 1], b' ' | b'\t') {
-        start -= 1;
-    }
-    let mut end = span.end;
-    let len = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
-    while end < len && matches!(bytes[end as usize], b' ' | b'\t') {
-        end += 1;
-    }
-    Span::new(start, end)
-}
-
-/// RuboCop's `range_with_surrounding_space(range, whitespace: true)`:
-/// expands over any adjoining whitespace, including newlines.
-fn full_space_span(ctx: &Context<'_>, span: Span) -> Span {
-    let bytes = ctx.source().bytes();
-    let mut start = span.start;
-    while start > 0 && bytes[start as usize - 1].is_ascii_whitespace() {
-        start -= 1;
-    }
-    let mut end = span.end;
-    let len = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
-    while end < len && bytes[end as usize].is_ascii_whitespace() {
-        end += 1;
-    }
-    Span::new(start, end)
-}
-
-/// RuboCop's `range_by_whole_lines(range, include_final_newline: true)`.
-fn whole_lines_span(ctx: &Context<'_>, span: Span) -> Span {
-    let start_line = ctx.line_col(span.start).line;
-    let last_included = if span.end > span.start { span.end - 1 } else { span.start };
-    let end_line = ctx.line_col(last_included).line;
-    let start = ctx.line_span(start_line).start;
-    let line_end = ctx.line_span(end_line).end;
-    let source_len = u32::try_from(ctx.source().bytes().len()).unwrap_or(u32::MAX);
-    let end = if line_end < source_len { line_end + 1 } else { line_end };
-    Span::new(start, end)
-}
-
-fn same_line(ctx: &Context<'_>, a: Span, b: Span) -> bool {
-    ctx.line_col(a.start).line == ctx.line_col(b.start).line
-}
-
 /// RuboCop's `correct_for_comment`: comments attached to the nested
 /// conditional (anything sitting inside the merged-away range between the
 /// outer condition and the nested one) are hoisted above the outer
@@ -594,10 +547,10 @@ fn build_basic_fix(edits: &mut Vec<Edit>, outer: &Shape<'_>, inner: &Shape<'_>, 
         edits.push(Edit::replace(inner.predicate.span(), inner_replacement));
 
         let outer_end = outer.end_span.expect("basic form has an end keyword");
-        let end_range = if same_line(ctx, outer_end, inner_end) {
+        let end_range = if ctx.same_line(outer_end, inner_end) {
             outer_end
         } else {
-            whole_lines_span(ctx, outer_end)
+            ctx.whole_lines(outer_end)
         };
         edits.push(Edit::delete(end_range));
 
@@ -613,9 +566,11 @@ fn build_basic_fix(edits: &mut Vec<Edit>, outer: &Shape<'_>, inner: &Shape<'_>, 
         insert_text.extend_from_slice(&inner_wrapped);
         edits.push(Edit::insert(outer.predicate.span().end, insert_text));
 
-        let remove_span = horizontal_space_span(
-            ctx,
+        let remove_span = ctx.with_surrounding_space(
             Span::new(inner.keyword_span.start, inner.predicate.span().end),
+            Side::Both,
+            false,
+            false,
         );
         edits.push(Edit::delete(remove_span));
     }
@@ -644,7 +599,11 @@ fn build_modify_form_fix(
     merged.extend_from_slice(&inner_wrapped);
     edits.push(Edit::replace(inner.predicate.span(), merged));
 
-    let remove_span =
-        horizontal_space_span(ctx, Span::new(outer.keyword_span.start, outer.predicate.span().end));
+    let remove_span = ctx.with_surrounding_space(
+        Span::new(outer.keyword_span.start, outer.predicate.span().end),
+        Side::Both,
+        false,
+        false,
+    );
     edits.push(Edit::delete(remove_span));
 }

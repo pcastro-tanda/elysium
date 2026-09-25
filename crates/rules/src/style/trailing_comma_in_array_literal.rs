@@ -293,7 +293,7 @@ fn no_elements_on_same_line(ctx: &Context<'_>, elements: &[Span], closing: Span)
         if prev_last_line == Some(first_line) {
             return false;
         }
-        prev_last_line = Some(last_line_of(ctx, span));
+        prev_last_line = Some(ctx.last_line(span));
     }
     true
 }
@@ -303,59 +303,23 @@ fn no_elements_on_same_line(ctx: &Context<'_>, elements: &[Span], closing: Span)
 /// then the array isn't considered "spread over multiple lines" even though
 /// its source technically is.
 fn is_multiline(ctx: &Context<'_>, node_span: Span, element_count: usize, closing: Span) -> bool {
-    let first_line = ctx.line_col(node_span.start).line;
-    let last_line = last_line_of(ctx, node_span);
-    if first_line == last_line {
+    if ctx.is_single_line(node_span) {
         return false;
     }
-    let allowed_single_element = element_count == 1 && !begins_its_line(ctx, closing);
+    let allowed_single_element = element_count == 1 && !ctx.begins_its_line(closing);
     !allowed_single_element
-}
-
-/// RuboCop's `Util.begins_its_line?`: `range` is the first non-blank thing on
-/// its (1-based) source line.
-fn begins_its_line(ctx: &Context<'_>, span: Span) -> bool {
-    let line_col = ctx.line_col(span.start);
-    let text = ctx.line_text(line_col.line);
-    let column = line_col.column as usize;
-    match std::str::from_utf8(text) {
-        Ok(line) => line.chars().position(|c| !c.is_whitespace()) == Some(column),
-        Err(_) => text.iter().position(|&b| !b.is_ascii_whitespace()) == Some(column),
-    }
-}
-
-/// The 1-based line of the last byte covered by `span` (RuboCop's
-/// `Range#last_line`).
-fn last_line_of(ctx: &Context<'_>, span: Span) -> u32 {
-    let last_byte = if span.start == span.end { span.start } else { span.end - 1 };
-    ctx.line_col(last_byte).line
 }
 
 /// RuboCop's `heredoc?`: whether `node` is (or, for a method chain, is
 /// rooted in) a heredoc string literal.
 fn is_heredoc(node: &Node<'_>) -> bool {
-    match node {
-        Node::StringNode { .. } => node
-            .as_string_node()
-            .and_then(|n| n.opening_loc())
-            .is_some_and(|loc| loc.as_slice().starts_with(b"<<")),
-        Node::InterpolatedStringNode { .. } => node
-            .as_interpolated_string_node()
-            .and_then(|n| n.opening_loc())
-            .is_some_and(|loc| loc.as_slice().starts_with(b"<<")),
-        Node::XStringNode { .. } => {
-            node.as_x_string_node().is_some_and(|n| n.opening_loc().as_slice().starts_with(b"<<"))
-        }
-        Node::InterpolatedXStringNode { .. } => node
-            .as_interpolated_x_string_node()
-            .is_some_and(|n| n.opening_loc().as_slice().starts_with(b"<<")),
-        Node::CallNode { .. } => {
-            let Some(call) = node.as_call_node() else { return false };
-            match call.arguments() {
-                Some(args) => args.arguments().last().is_some_and(|last| is_heredoc(&last)),
-                None => call.receiver().is_some_and(|receiver| is_heredoc(&receiver)),
-            }
-        }
-        _ => false,
+    if ruby_ast::ext::is_heredoc(node) {
+        return true;
+    }
+    let Node::CallNode { .. } = node else { return false };
+    let call = node.as_call_node().expect("kind matched");
+    match call.arguments() {
+        Some(args) => args.arguments().last().is_some_and(|last| is_heredoc(&last)),
+        None => call.receiver().is_some_and(|receiver| is_heredoc(&receiver)),
     }
 }

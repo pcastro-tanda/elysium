@@ -9,7 +9,6 @@
 //! that all three cops share.
 
 use linter::{Applicability, Context, Edit, Fix, RuleMeta};
-use ruby_ast::{LocationExt as _, Node};
 use ruby_source::Span;
 
 /// RuboCop's `EnforcedStyleForMultiline` (shared `style_parameter_name`).
@@ -88,35 +87,16 @@ fn first_line(ctx: &Context<'_>, span: Span) -> u32 {
     ctx.line_col(span.start).line
 }
 
-/// RuboCop's `Range#last_line`: the line containing the range's last byte.
-fn last_line(ctx: &Context<'_>, span: Span) -> u32 {
-    let end = span.end.saturating_sub(1).max(span.start);
-    ctx.line_col(end).line
-}
-
-/// RuboCop's `Node#multiline?` on an arbitrary span: does it cross a line boundary.
-#[must_use]
-pub fn is_multiline_span(ctx: &Context<'_>, span: Span) -> bool {
-    first_line(ctx, span) != last_line(ctx, span)
-}
-
-/// RuboCop's `Util.begins_its_line?`: true when only blank characters precede `span` on its line.
-fn begins_its_line(ctx: &Context<'_>, span: Span) -> bool {
-    let line = ctx.line_col(span.start).line;
-    let line_start = ctx.line_span(line).start;
-    ctx.text(Span::new(line_start, span.start)).iter().all(|&b| b == b' ' || b == b'\t')
-}
-
 /// RuboCop's `allowed_multiline_argument?`: a single element whose closing bracket does not begin
 /// its own line is not considered multiline, even if the element itself spans several lines (e.g.
 /// a single heredoc argument whose closing paren sits right after the heredoc tag).
 fn allowed_multiline_argument(ctx: &Context<'_>, node: &TrailingCommaNode) -> bool {
-    node.elements.len() == 1 && !begins_its_line(ctx, node.closing)
+    node.elements.len() == 1 && !ctx.begins_its_line(node.closing)
 }
 
 /// RuboCop's `multiline?`.
 fn is_multiline(ctx: &Context<'_>, node: &TrailingCommaNode) -> bool {
-    is_multiline_span(ctx, node.node_span) && !allowed_multiline_argument(ctx, node)
+    !ctx.is_single_line(node.node_span) && !allowed_multiline_argument(ctx, node)
 }
 
 /// RuboCop's `no_elements_on_same_line?`: none of the elements, followed by the closing token, may
@@ -129,7 +109,7 @@ fn no_elements_on_same_line(ctx: &Context<'_>, node: &TrailingCommaNode) -> bool
                 return false;
             }
         }
-        prev_last_line = Some(last_line(ctx, el));
+        prev_last_line = Some(ctx.last_line(el));
     }
     true
 }
@@ -137,13 +117,13 @@ fn no_elements_on_same_line(ctx: &Context<'_>, node: &TrailingCommaNode) -> bool
 /// RuboCop's `method_name_and_arguments_on_same_line?`.
 fn method_name_and_arguments_on_same_line(ctx: &Context<'_>, node: &TrailingCommaNode) -> bool {
     let Some(selector_line) = node.selector_line else { return false };
-    if last_line(ctx, node.node_span) != last_line(ctx, node.last_item) {
+    if ctx.last_line(node.node_span) != ctx.last_line(node.last_item) {
         return false;
     }
     if node.last_is_braced_hash {
         return true;
     }
-    selector_line == last_line(ctx, node.last_item)
+    selector_line == ctx.last_line(node.last_item)
 }
 
 /// RuboCop's `last_item_precedes_newline?`: does the text right after the last item (skipping an
@@ -279,56 +259,4 @@ pub fn check(
         }
         _ => {}
     }
-}
-
-/// RuboCop's `heredoc?`: true for a heredoc string/xstring itself, or (recursively) for a call
-/// whose receiver (when it takes no arguments, e.g. `<<~SQL.strip`) or last argument (when it does,
-/// e.g. `method(<<~SQL.strip)`) is one, or for a hash/keyword-hash/pair whose last element/value is
-/// one.
-#[must_use]
-pub fn is_heredoc(ctx: &Context<'_>, node: &Node<'_>) -> bool {
-    match node {
-        Node::StringNode { .. } => {
-            let n = node.as_string_node().expect("kind matched");
-            n.opening_loc().is_some_and(|o| ctx.text(o.span()).starts_with(b"<<"))
-        }
-        Node::InterpolatedStringNode { .. } => {
-            let n = node.as_interpolated_string_node().expect("kind matched");
-            n.opening_loc().is_some_and(|o| ctx.text(o.span()).starts_with(b"<<"))
-        }
-        Node::XStringNode { .. } => {
-            let n = node.as_x_string_node().expect("kind matched");
-            ctx.text(n.opening_loc().span()).starts_with(b"<<")
-        }
-        Node::InterpolatedXStringNode { .. } => {
-            let n = node.as_interpolated_x_string_node().expect("kind matched");
-            ctx.text(n.opening_loc().span()).starts_with(b"<<")
-        }
-        Node::CallNode { .. } => {
-            let call = node.as_call_node().expect("kind matched");
-            match call.arguments() {
-                None => call.receiver().is_some_and(|r| is_heredoc(ctx, &r)),
-                Some(args) => args.arguments().last().is_some_and(|a| is_heredoc(ctx, &a)),
-            }
-        }
-        Node::AssocNode { .. } => {
-            let assoc = node.as_assoc_node().expect("kind matched");
-            is_heredoc(ctx, &assoc.value())
-        }
-        Node::HashNode { .. } => {
-            let hash = node.as_hash_node().expect("kind matched");
-            hash.elements().last().is_some_and(|e| is_heredoc(ctx, &e))
-        }
-        Node::KeywordHashNode { .. } => {
-            let hash = node.as_keyword_hash_node().expect("kind matched");
-            hash.elements().last().is_some_and(|e| is_heredoc(ctx, &e))
-        }
-        _ => false,
-    }
-}
-
-/// RuboCop's `any_heredoc?`.
-#[must_use]
-pub fn any_heredoc<'pr>(ctx: &Context<'_>, items: impl IntoIterator<Item = Node<'pr>>) -> bool {
-    items.into_iter().any(|n| is_heredoc(ctx, &n))
 }

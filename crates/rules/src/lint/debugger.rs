@@ -17,7 +17,7 @@
 //!
 //! A `CallNode`'s own span always extends through its attached block (unlike
 //! whitequark's separate block-wrapper node), so the offense span and
-//! message both use [`call_span_excluding_block`] to recover RuboCop's
+//! message both use [`ruby_ast::ext::call_span_excluding_block`] to recover RuboCop's
 //! `send_node.source`.
 
 use std::collections::HashSet;
@@ -27,8 +27,7 @@ use linter::{
     Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::node::CallNode;
-use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
-use ruby_source::Span;
+use ruby_ast::{ext, Node, NodeExt as _, NodeKind};
 
 /// RuboCop's `MSG`.
 const MSG: &str = "Remove debugger entry point `{source}`.";
@@ -198,7 +197,7 @@ block body (named params, `_1`, or `it`) with one `BlockNode` kind.",
         if !self.is_debugger_method(&call) && !self.is_debugger_require(&call) {
             return;
         }
-        let span = call_span_excluding_block(&call);
+        let span = ext::call_span_excluding_block(&call);
         let source = String::from_utf8_lossy(ctx.text(span));
         ctx.report(&Self::META, span, MSG.replace("{source}", &source));
     }
@@ -321,26 +320,6 @@ fn is_assumed_argument_kind(kind: NodeKind) -> bool {
             | NodeKind::ImaginaryNode
             | NodeKind::RationalNode
     )
-}
-
-/// The end of `call`'s own source, excluding any attached block: RuboCop's
-/// `send_node.source`, ported since a `CallNode`'s span always extends
-/// through its own attached block.
-fn call_end_excluding_block(call: &CallNode<'_>) -> u32 {
-    if let Some(closing) = call.closing_loc() {
-        return closing.span().end;
-    }
-    if let Some(args) = call.arguments() {
-        if let Some(last) = args.arguments().last() {
-            return last.span().end;
-        }
-    }
-    call.message_loc().map_or_else(|| call.as_node().span().start, |loc| loc.span().end)
-}
-
-/// `call`'s own span, excluding any attached block.
-fn call_span_excluding_block(call: &CallNode<'_>) -> Span {
-    Span::new(call.as_node().span().start, call_end_excluding_block(call))
 }
 
 /// RuboCop's `debugger_methods`/`debugger_requires`: `config.is_a?(Array) ?

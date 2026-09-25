@@ -37,39 +37,10 @@ use linter::{
     ConfigDefault, ConfigOption, Context, Department, FixAvailability, OptionError, Rule, RuleMeta,
     RuleOptions, Severity, Stability,
 };
-use ruby_ast::node::CallNode;
-use ruby_ast::{Node, NodeExt as _, NodeKind};
+use ruby_ast::{ext, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 const MSG: &str = "Empty block detected.";
-
-/// `(const {nil? cbase} :Proc)`: a bare or top-level-qualified `Proc`
-/// constant, receiver of `.new`.
-fn is_proc_const(node: &Node<'_>) -> bool {
-    match node {
-        Node::ConstantReadNode { .. } => {
-            node.as_constant_read_node().is_some_and(|c| c.name().as_slice() == b"Proc")
-        }
-        Node::ConstantPathNode { .. } => node.as_constant_path_node().is_some_and(|path| {
-            path.parent().is_none() && path.name().is_some_and(|n| n.as_slice() == b"Proc")
-        }),
-        _ => false,
-    }
-}
-
-/// RuboCop-AST's `lambda_or_proc?` restricted to the `CallNode` shapes that
-/// can ever reach it here: `lambda { }`, `proc { }`, `Proc.new { }`, or
-/// `::Proc.new { }`. A bare method named `proc`/`lambda` on an explicit
-/// receiver (e.g. `Foo.proc { }`) does not match, per RuboCop's
-/// `(send nil? :proc)`/`(send nil? :lambda)` alternatives.
-fn is_lambda_or_proc(call: &CallNode<'_>) -> bool {
-    let name = call.name();
-    let name = name.as_slice();
-    if call.receiver().is_none() && (name == b"lambda" || name == b"proc") {
-        return true;
-    }
-    name == b"new" && call.receiver().is_some_and(|r| is_proc_const(&r))
-}
 
 /// RuboCop's `contains_comment?`: any comment on any line `span` spans
 /// (inclusive of both endpoints), regardless of column.
@@ -109,7 +80,7 @@ impl EmptyBlock {
         if block.body().is_some() {
             return;
         }
-        self.check(ctx, node.span(), is_lambda_or_proc(&call));
+        self.check(ctx, node.span(), ext::is_lambda_or_proc(&call));
     }
 
     fn check_super(&self, node: &Node<'_>, ctx: &mut Context<'_>) {

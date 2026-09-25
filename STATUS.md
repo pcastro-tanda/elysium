@@ -236,3 +236,18 @@ CI needs its own recorded baseline before `--check` is a hard gate
    `Performance/*`, ...) — their `config/default.yml` layering and
    conformance skip-list (`EXTENSION_DEPARTMENTS`) already exist; only the
    cops themselves are unported.
+
+## Debt to clear before 1.0
+
+- Backfill shared helpers into the rules that still carry private copies.
+  The head helpers (`Context::{is_single_line,last_line,same_line,
+  begins_its_line,whole_lines,with_surrounding_space}`, `ruby_ast::ext`,
+  `linter::{shift_lines,heredoc_bodies}`, `ruby_source::{is_ruby_whitespace,
+  char_len,is_comment_line}`) were ported once and the 34 rules that used
+  them most were migrated. The tail from `docs/planning/helper-inventory.md`
+  (bare access-modifier detection in 4 rules, `recursive_basic_literal?`
+  variants in 3, `names_within`, `SurroundingSpace#reposition`,
+  `Layout::ExtraSpacing`'s space-only walk, and any copy an agent kept
+  inline because it differed from the shared version) is still duplicated.
+  New rules must use the shared modules; existing ones get migrated in one
+  sweep before release, with fixtures as the check.

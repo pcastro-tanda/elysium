@@ -25,7 +25,7 @@ use linter::{
 };
 use ruby_ast::node::CallNode;
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
-use ruby_source::Span;
+use ruby_source::{is_comment_line, Side, Span};
 
 /// RuboCop's `EnforcedStyle`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -263,20 +263,11 @@ fn previous_line_comment(ctx: &Context<'_>, call: &CallNode<'_>) -> bool {
     is_comment_line(ctx.line_text(line - 1))
 }
 
-/// RuboCop's `Util#comment_line?`: `/^\s*#/`.
-fn is_comment_line(text: &[u8]) -> bool {
-    text.iter().find(|b| !b.is_ascii_whitespace()).copied() == Some(b'#')
-}
-
-fn last_line(ctx: &Context<'_>, span: Span) -> u32 {
-    ctx.line_col(span.end.saturating_sub(1).max(span.start)).line
-}
-
 /// Whether a comment starting with `` #: `` (an `RBS::Inline` annotation) sits on
 /// `span`'s own line -- RuboCop's `same_line?(c, previous_expression) &&
 /// c.text.start_with?('#:')` check in `groupable_accessor?`.
 fn has_rbs_inline_comment(ctx: &Context<'_>, span: Span) -> bool {
-    let line = last_line(ctx, span);
+    let line = ctx.last_line(span);
     ctx.comments().iter().any(|c| c.line == line && ctx.text(c.span).starts_with(b"#:"))
 }
 
@@ -292,7 +283,7 @@ fn groupable_accessor(ctx: &Context<'_>, stmts: &[Node<'_>], i: usize) -> bool {
     }
     let this_call = stmts[i].as_call_node().expect("accessor is a call");
     let gap = ctx.line_col(this_call.location().span().start).line
-        - last_line(ctx, prev_call.location().span());
+        - ctx.last_line(prev_call.location().span());
     gap > 1
 }
 
@@ -370,15 +361,7 @@ fn group_accessors(ctx: &Context<'_>, stmts: &[Node<'_>], i: usize, accessors: &
 /// (spaces/tabs), then across every immediately preceding newline (so a
 /// deleted node's blank predecessor lines collapse away too).
 fn span_with_leading_space_removed(ctx: &Context<'_>, span: Span) -> Span {
-    let prefix = ctx.text(Span::new(0, span.start));
-    let mut pos = prefix.len();
-    while pos > 0 && matches!(prefix[pos - 1], b' ' | b'\t') {
-        pos -= 1;
-    }
-    while pos > 0 && prefix[pos - 1] == b'\n' {
-        pos -= 1;
-    }
-    Span::new(u32::try_from(pos).unwrap_or(0), span.end)
+    ctx.with_surrounding_space(span, Side::Left, true, false)
 }
 
 /// RuboCop's `separate_accessors` plus `range_with_trailing_argument_comment`:
@@ -438,7 +421,7 @@ fn comments_for_args(ctx: &Context<'_>, args: &[Node<'_>]) -> Vec<Vec<Span>> {
             result[k].push(comments[ci].span);
             ci += 1;
         }
-        let arg_last_line = last_line(ctx, arg_span);
+        let arg_last_line = ctx.last_line(arg_span);
         while ci < comments.len() && comments[ci].line == arg_last_line {
             result[k].push(comments[ci].span);
             ci += 1;

@@ -6,7 +6,7 @@ use linter::{
     OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::{LocationExt as _, Node, NodeKind};
-use ruby_source::Span;
+use ruby_source::{char_len, Span};
 
 /// RuboCop's `MSG`.
 const MSG: &str = "Trailing whitespace detected.";
@@ -200,7 +200,7 @@ fn heredoc_fix(
     whitespace_only: bool,
     heredoc: HeredocBody,
 ) -> Option<Fix> {
-    if whitespace_only && char_count(ctx.text(range)) <= heredoc.indent {
+    if whitespace_only && char_len(ctx.text(range)) <= heredoc.indent {
         return Some(Fix { applicability: Applicability::Safe, edits: vec![Edit::delete(range)] });
     }
     if heredoc.is_static {
@@ -264,8 +264,4 @@ fn is_blank(ch: char) -> bool {
         '\t' | ' ' | '\u{a0}' | '\u{1680}' | '\u{2000}'
             ..='\u{200a}' | '\u{202f}' | '\u{205f}' | '\u{3000}'
     )
-}
-
-fn char_count(bytes: &[u8]) -> u32 {
-    u32::try_from(bytes.iter().filter(|&&b| (b & 0xC0) != 0x80).count()).unwrap_or(u32::MAX)
 }

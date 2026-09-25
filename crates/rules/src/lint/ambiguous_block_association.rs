@@ -19,7 +19,7 @@
 //!
 //! A `CallNode`'s own span always extends through its attached block (there
 //! is no separate wrapper node whose span stops short of it, unlike
-//! whitequark's inner `send`), so [`call_span_excluding_block`] recomputes
+//! whitequark's inner `send`), so [`ruby_ast::ext::call_span_excluding_block`] recomputes
 //! RuboCop's `send_node.source` -- used for both the offense message's
 //! `%<method>s` placeholder and `AllowedPatterns` matching -- as the call's
 //! own span up to its closing paren, last argument, or method name,
@@ -35,7 +35,7 @@
 //! `CallNode`, so it can never satisfy [`last_argument_call`] to begin
 //! with; RuboCop's `lambda_or_proc?` exclusion is therefore only needed
 //! here for the bare-method forms `lambda { }`/`proc { }`/`Proc.new { }`
-//! ([`is_lambda_or_proc`]), which *are* `CallNode`s with an attached block.
+//! ([`ruby_ast::ext::is_lambda_or_proc`]), which *are* `CallNode`s with an attached block.
 //!
 //! `node.assignment?` in RuboCop's `allowed_method_pattern?` is
 //! `MethodDispatchNode#assignment?`, aliased to `setter_method?` (`loc?(:operator)`)
@@ -57,7 +57,7 @@ use linter::{
 };
 use regex::Regex;
 use ruby_ast::node::CallNode;
-use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
+use ruby_ast::{ext, LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 /// RuboCop-AST's `OPERATOR_METHODS` (private in `MethodIdentifierPredicates`),
@@ -68,52 +68,6 @@ const OPERATOR_METHODS: &[&[u8]] = &[
     b"-", b"*", b"/", b"%", b"**", b"~", b"+@", b"-@", b"!@", b"~@", b"[]", b"[]=", b"!", b"!=",
     b"!~", b"`",
 ];
-
-/// `(const {nil? cbase} :Proc)`: a bare or top-level-qualified `Proc`
-/// constant, receiver of `.new`.
-fn is_proc_const(node: &Node<'_>) -> bool {
-    match node {
-        Node::ConstantReadNode { .. } => {
-            node.as_constant_read_node().is_some_and(|c| c.name().as_slice() == b"Proc")
-        }
-        Node::ConstantPathNode { .. } => node.as_constant_path_node().is_some_and(|path| {
-            path.parent().is_none() && path.name().is_some_and(|n| n.as_slice() == b"Proc")
-        }),
-        _ => false,
-    }
-}
-
-/// RuboCop-AST's `lambda_or_proc?` restricted to the `CallNode` shapes that
-/// can ever reach it here: `lambda { }`, `proc { }`, `Proc.new { }`, or
-/// `::Proc.new { }`.
-fn is_lambda_or_proc(call: &CallNode<'_>) -> bool {
-    let name = call.name();
-    let name = name.as_slice();
-    if call.receiver().is_none() && (name == b"lambda" || name == b"proc") {
-        return true;
-    }
-    name == b"new" && call.receiver().is_some_and(|r| is_proc_const(&r))
-}
-
-/// The end of `call`'s own source, excluding any attached block: RuboCop's
-/// `send_node.source` for a block's associated call, ported since a
-/// `CallNode`'s span always extends through its own attached block.
-fn call_end_excluding_block(call: &CallNode<'_>) -> u32 {
-    if let Some(closing) = call.closing_loc() {
-        return closing.span().end;
-    }
-    if let Some(args) = call.arguments() {
-        if let Some(last) = args.arguments().last() {
-            return last.span().end;
-        }
-    }
-    call.message_loc().map_or_else(|| call.as_node().span().start, |loc| loc.span().end)
-}
-
-/// `call`'s own span, excluding any attached block.
-fn call_span_excluding_block(call: &CallNode<'_>) -> Span {
-    Span::new(call.as_node().span().start, call_end_excluding_block(call))
-}
 
 /// RuboCop's `ambiguous_block_association?`: `node`'s last argument is
 /// itself a `CallNode` carrying a real `{}`/`do...end` block (not an
@@ -143,7 +97,7 @@ fn allowed_method_pattern(
     if allowed_methods.iter().any(|m| m == inner_name.as_ref()) {
         return true;
     }
-    let text = String::from_utf8_lossy(ctx.text(call_span_excluding_block(inner)));
+    let text = String::from_utf8_lossy(ctx.text(ext::call_span_excluding_block(inner)));
     allowed_patterns.iter().any(|pattern| pattern.is_match(&text))
 }
 
@@ -176,7 +130,7 @@ pub struct AmbiguousBlockAssociation {
 impl AmbiguousBlockAssociation {
     fn check(&self, node: &CallNode<'_>, ctx: &mut Context<'_>) {
         let Some(inner) = last_argument_call(node) else { return };
-        if node.opening_loc().is_some() || is_lambda_or_proc(&inner) {
+        if node.opening_loc().is_some() || ext::is_lambda_or_proc(&inner) {
             return;
         }
         if allowed_method_pattern(node, &inner, ctx, &self.allowed_methods, &self.allowed_patterns)
@@ -185,7 +139,7 @@ impl AmbiguousBlockAssociation {
         }
 
         let param_span = inner.as_node().span();
-        let method_span = call_span_excluding_block(&inner);
+        let method_span = ext::call_span_excluding_block(&inner);
         let param_text = String::from_utf8_lossy(ctx.text(param_span)).into_owned();
         let method_text = String::from_utf8_lossy(ctx.text(method_span)).into_owned();
         let message = format!(

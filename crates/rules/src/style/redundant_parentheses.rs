@@ -60,7 +60,7 @@ use linter::{
 };
 use ruby_ast::node::NodeList;
 use ruby_ast::{LocationExt, Node, NodeExt, NodeKind};
-use ruby_source::Span;
+use ruby_source::{Side, Span};
 
 const OPERATOR_METHODS: &[&[u8]] = &[
     b"|", b"^", b"&", b"<=>", b"==", b"===", b"=~", b">", b">=", b"<", b"<=", b"<<", b">>", b"+",
@@ -131,14 +131,9 @@ fn parens_required(ctx: &Context<'_>, span: Span) -> bool {
     before || after
 }
 
-fn line_of(ctx: &Context<'_>, offset: u32) -> u32 {
-    ctx.source().line_col(offset).line
-}
-
 /// RuboCop-AST's `Node#multiline?` for a node's own span.
 fn is_multiline(ctx: &Context<'_>, span: Span) -> bool {
-    let end = if span.end > span.start { span.end - 1 } else { span.start };
-    line_of(ctx, span.start) != line_of(ctx, end)
+    !ctx.is_single_line(span)
 }
 
 /// Builds [`Facts`] for the node kinds this rule cares about; `None` for
@@ -510,38 +505,6 @@ fn do_end_block_in_method_chain(
     ctx: &Context<'_>,
 ) -> bool {
     chain_has_do_end_block(content, ctx) && chain.iter().any(|(_, k)| *k == NodeKind::CallNode)
-}
-
-/// Text of a JavaScript-style `\s`-adjacent run: `final_pos` from RuboCop's
-/// `RangeHelp`, ported directly (its `continuations` parameter is always
-/// `false` for `ParenthesesCorrector`'s two call sites, so it's dropped).
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn final_pos(src: &[u8], pos: u32, step: i64, newlines: bool, whitespace: bool) -> u32 {
-    let mut p = i64::from(pos);
-    p = move_while(src, p, step, |b| b == b' ' || b == b'\t');
-    if newlines {
-        p = move_while(src, p, step, |b| b == b'\n');
-    }
-    if whitespace {
-        p = move_while(src, p, step, |b| matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0B | 0x0C));
-    }
-    p.max(0) as u32
-}
-
-#[allow(clippy::cast_possible_truncation, clippy::cast_sign_loss)]
-fn move_while(src: &[u8], mut p: i64, step: i64, pred: impl Fn(u8) -> bool) -> i64 {
-    loop {
-        let look = if step < 0 { p - 1 } else { p };
-        if look < 0 || look as usize >= src.len() {
-            break;
-        }
-        if pred(src[look as usize]) {
-            p += step;
-        } else {
-            break;
-        }
-    }
-    p
 }
 
 /// Looks for redundant parentheses.
@@ -1055,8 +1018,12 @@ impl RedundantParentheses {
     ) {
         let message = format!("Don't use parentheses around {msg}.");
         let src = ctx.source().bytes();
-        let open_end = final_pos(src, open.end, 1, true, true);
-        let close_start = final_pos(src, close.start, -1, true, false).max(open_end);
+        let open_end =
+            ctx.with_surrounding_space(Span::new(open.end, open.end), Side::Right, true, true).end;
+        let close_start = ctx
+            .with_surrounding_space(Span::new(close.start, close.start), Side::Left, true, false)
+            .start
+            .max(open_end);
 
         let mut edits = vec![Edit::delete(Span::new(open.start, open_end))];
 

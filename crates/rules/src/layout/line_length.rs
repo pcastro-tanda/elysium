@@ -9,8 +9,8 @@ use linter::{
 };
 use regex::Regex;
 use ruby_ast::node::{BlockNode, BlockParametersNode, CallNode, ParametersNode};
-use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind, Visitor};
-use ruby_source::Span;
+use ruby_ast::{ext::is_heredoc, LocationExt as _, Node, NodeExt as _, NodeKind, Visitor};
+use ruby_source::{char_len, Span};
 
 /// RuboCop's `MSG`.
 fn message(length: i64, max: i64) -> String {
@@ -357,7 +357,7 @@ impl LineLength {
         let line_start = ctx.line_span(line).start;
         let prefix_len = usize::try_from(directive_start.saturating_sub(line_start)).unwrap_or(0);
         let prefix = &text[..prefix_len.min(text.len())];
-        let length_without_directive = i64::from(char_count(rstrip(prefix)));
+        let length_without_directive = i64::from(char_len(rstrip(prefix)));
         if length_without_directive <= self.max {
             return;
         }
@@ -511,7 +511,7 @@ fn is_rbs_annotation(text: &[u8]) -> bool {
 /// RuboCop's `line_length_help#line_length`: character count plus the tab
 /// indentation penalty.
 fn line_length_chars(text: &[u8], tab_width: Option<i64>) -> i64 {
-    i64::from(char_count(text)) + indentation_difference(text, tab_width)
+    i64::from(char_len(text)) + indentation_difference(text, tab_width)
 }
 
 /// Fast rejection for [`line_length_chars`]: characters never outnumber
@@ -546,14 +546,9 @@ fn highlight_start(text: &[u8], max: i64, tab_width: Option<i64>) -> i64 {
     (max - indentation_difference(text, tab_width)).max(0)
 }
 
-/// Characters (not bytes) in a byte slice, matching RuboCop's columns.
-fn char_count(bytes: &[u8]) -> u32 {
-    u32::try_from(bytes.iter().filter(|&&b| (b & 0xC0) != 0x80).count()).unwrap_or(u32::MAX)
-}
-
 /// Character column of a byte offset within `text`.
 fn byte_to_char_col(text: &[u8], byte_offset: usize) -> i64 {
-    i64::from(char_count(&text[..byte_offset.min(text.len())]))
+    i64::from(char_len(&text[..byte_offset.min(text.len())]))
 }
 
 /// Trims trailing ASCII whitespace, matching Ruby's `String#rstrip` closely
@@ -677,25 +672,6 @@ fn compute_semicolons(ctx: &Context<'_>, opaque: &[Span]) -> HashMap<u32, Breaka
     result
 }
 
-/// A node considered "heredoc" by RuboCop's `node.heredoc?`: a string-like
-/// node whose opening delimiter is `<<...`.
-fn is_heredoc_node(node: &Node<'_>, ctx: &Context<'_>) -> bool {
-    let open = match node {
-        Node::StringNode { .. } => node.as_string_node().and_then(|n| n.opening_loc()),
-        Node::InterpolatedStringNode { .. } => {
-            node.as_interpolated_string_node().and_then(|n| n.opening_loc())
-        }
-        Node::XStringNode { .. } => {
-            Some(node.as_x_string_node().expect("kind matched").opening_loc())
-        }
-        Node::InterpolatedXStringNode { .. } => {
-            Some(node.as_interpolated_x_string_node().expect("kind matched").opening_loc())
-        }
-        _ => None,
-    };
-    open.is_some_and(|loc| ctx.text(loc.span()).starts_with(b"<<"))
-}
-
 /// Every entry in a `def`'s parameter list, in declaration order.
 fn def_parameter_list(params: Option<ParametersNode<'_>>) -> Vec<Node<'_>> {
     let mut out = Vec::new();
@@ -805,8 +781,7 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
     }
 
     fn single_line(&self, span: Span) -> bool {
-        self.line_of(span.start)
-            == self.line_of(span.end.max(span.start).saturating_sub(1).max(span.start))
+        self.ctx.is_single_line(span)
     }
 
     fn ancestor_info(&self, node: &Node<'src>) -> AncestorInfo {
@@ -817,9 +792,9 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
             _ => None,
         };
         let call_receiver_contains_heredoc = match node {
-            Node::CallNode { .. } => node.as_call_node().is_some_and(|c| {
-                c.receiver().is_some_and(|r| contains_heredoc_descendant(&r, self.ctx))
-            }),
+            Node::CallNode { .. } => node
+                .as_call_node()
+                .is_some_and(|c| c.receiver().is_some_and(|r| contains_heredoc_descendant(&r))),
             _ => false,
         };
         let (is_breakable_collection, children_could_be_broken_up) = match node {
@@ -903,7 +878,7 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
     }
 
     fn last_line_of(&self, span: Span) -> u32 {
-        self.line_of(span.end.saturating_sub(1).max(span.start))
+        self.ctx.last_line(span)
     }
 
     /// Records a heredoc body's line range (first body line through the
@@ -967,7 +942,7 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
             i += 1;
         }
         let idx = if heredoc_shift_applies {
-            match shift_for_heredoc(effective, i, self.ctx) {
+            match shift_for_heredoc(effective, i) {
                 Some(v) => v,
                 None => return,
             }
@@ -984,10 +959,10 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
         self.col(span.start) <= self.max && self.line_of(span.start) == first_line
     }
 
-    fn chained_to_heredoc(&self, call: &CallNode<'src>) -> bool {
+    fn chained_to_heredoc(call: &CallNode<'src>) -> bool {
         let mut current = call.receiver();
         while let Some(node) = current {
-            if is_heredoc_node(&node, self.ctx) {
+            if is_heredoc(&node) {
                 return true;
             }
             current = match &node {
@@ -1000,7 +975,7 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
 
     fn handle_call(&mut self, node: &Node<'src>) {
         let n = node.as_call_node().expect("kind matched");
-        if self.chained_to_heredoc(&n) {
+        if Self::chained_to_heredoc(&n) {
             return;
         }
         let span = n.location().span();
@@ -1009,7 +984,7 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
         let first_arg_is_heredoc = n
             .arguments()
             .and_then(|a| a.arguments().first())
-            .is_some_and(|first| is_heredoc_node(&first, self.ctx));
+            .is_some_and(|first| is_heredoc(&first));
         let drop_first = n.opening_loc().is_none() && !first_arg_is_heredoc;
         self.try_breakable_elements(span, &elements, drop_first, true, already_multiline);
     }
@@ -1106,7 +1081,7 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
         }
         let end_col = self.col(span.end);
         let adjustment = self.max - end_col - 3;
-        let node_len = i64::from(char_count(content));
+        let node_len = i64::from(char_len(content));
         if adjustment.abs() > node_len {
             return None;
         }
@@ -1128,7 +1103,7 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
         if !self.split_strings || !self.single_line(span) {
             return;
         }
-        if is_heredoc_node(node, self.ctx) {
+        if is_heredoc(node) {
             return;
         }
         if matches!(
@@ -1168,7 +1143,7 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
         if !self.split_strings || !self.single_line(span) {
             return;
         }
-        if is_heredoc_node(node, self.ctx) {
+        if is_heredoc(node) {
             return;
         }
         if matches!(
@@ -1255,8 +1230,8 @@ impl<'pr> Visitor<'pr> for Walker<'_, 'pr> {
 
 /// RuboCop's `shift_elements_for_heredoc_arg`, applied only to arrays and
 /// calls.
-fn shift_for_heredoc(elements: &[Node<'_>], index: usize, ctx: &Context<'_>) -> Option<usize> {
-    let heredoc_index = elements.iter().position(|e| is_heredoc_node(e, ctx));
+fn shift_for_heredoc(elements: &[Node<'_>], index: usize) -> Option<usize> {
+    let heredoc_index = elements.iter().position(|e| is_heredoc(e));
     match heredoc_index {
         None => Some(index),
         Some(0) => None,
@@ -1284,19 +1259,18 @@ fn call_elements<'pr>(n: &CallNode<'pr>) -> Vec<Node<'pr>> {
 
 /// RuboCop's `receiver_contains_heredoc?`: `root` itself, or any of its
 /// descendants, is a heredoc string.
-fn contains_heredoc_descendant(root: &Node<'_>, ctx: &Context<'_>) -> bool {
-    struct Finder<'a, 'b> {
-        ctx: &'a Context<'b>,
+fn contains_heredoc_descendant(root: &Node<'_>) -> bool {
+    struct Finder {
         found: bool,
     }
-    impl<'pr> Visitor<'pr> for Finder<'_, 'pr> {
+    impl<'pr> Visitor<'pr> for Finder {
         fn enter(&mut self, node: &Node<'pr>) {
-            if is_heredoc_node(node, self.ctx) {
+            if is_heredoc(node) {
                 self.found = true;
             }
         }
     }
-    let mut finder = Finder { ctx, found: false };
+    let mut finder = Finder { found: false };
     ruby_ast::walk(root, &mut finder);
     finder.found
 }

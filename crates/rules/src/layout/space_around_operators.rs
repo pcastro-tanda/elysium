@@ -25,7 +25,7 @@ use linter::{
 };
 use ruby_ast::node::CallNode;
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
-use ruby_source::Span;
+use ruby_source::{Side, Span};
 
 /// RuboCop's `should_not_have_surrounding_space?`/`offense_message` combined
 /// with `PrecedingFollowingAlignment`'s alignment allowances.
@@ -67,30 +67,6 @@ enum AlignResult {
 /// these checks; embedded `\r` never appears in the fixture set).
 fn is_blank(b: u8) -> bool {
     matches!(b, b' ' | b'\t')
-}
-
-/// RuboCop's `RangeHelp#final_pos` walking left: one pass over contiguous
-/// `[ \t]`, then one pass over contiguous `\n` (blank lines included).
-fn extend_left(bytes: &[u8], mut pos: u32) -> u32 {
-    while pos > 0 && is_blank(bytes[(pos - 1) as usize]) {
-        pos -= 1;
-    }
-    while pos > 0 && bytes[(pos - 1) as usize] == b'\n' {
-        pos -= 1;
-    }
-    pos
-}
-
-/// Mirror of [`extend_left`] walking right.
-fn extend_right(bytes: &[u8], mut pos: u32) -> u32 {
-    let len = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
-    while pos < len && is_blank(bytes[pos as usize]) {
-        pos += 1;
-    }
-    while pos < len && bytes[pos as usize] == b'\n' {
-        pos += 1;
-    }
-    pos
 }
 
 /// RuboCop's `ProcessedSource#line_indentation`: length of the line's
@@ -600,8 +576,17 @@ impl SpaceAroundOperators {
         is_plain_assignment: bool,
     ) {
         let bytes = ctx.source().bytes();
-        let lead_start = extend_left(bytes, op_span.start);
-        let trail_end = extend_right(bytes, op_span.end);
+        let lead_start = ctx
+            .with_surrounding_space(
+                Span::new(op_span.start, op_span.start),
+                Side::Left,
+                true,
+                false,
+            )
+            .start;
+        let trail_end = ctx
+            .with_surrounding_space(Span::new(op_span.end, op_span.end), Side::Right, true, false)
+            .end;
         let leading = &bytes[lead_start as usize..op_span.start as usize];
         let trailing = &bytes[op_span.end as usize..trail_end as usize];
 

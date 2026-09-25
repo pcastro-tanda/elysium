@@ -35,7 +35,7 @@ use linter::{
     OptionError, OptionValue, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::{LocationExt as _, Node, NodeKind};
-use ruby_source::Span;
+use ruby_source::{Side, Span};
 
 const MSG_EMPTY_MISSING: &str = "Space missing inside empty braces.";
 const MSG_EMPTY_DETECTED: &str = "Space inside empty braces detected.";
@@ -310,7 +310,14 @@ impl SpaceInsideBlockBraces {
             }
             return;
         }
-        let extended_end = extend_forward(ctx.source().bytes(), left_brace.end);
+        let extended_end = ctx
+            .with_surrounding_space(
+                Span::new(left_brace.end, left_brace.end),
+                Side::Right,
+                true,
+                false,
+            )
+            .end;
         self.space(ctx, i64::from(left_brace.end), i64::from(extended_end), MSG_LEFT_DETECTED);
     }
 
@@ -323,8 +330,7 @@ impl SpaceInsideBlockBraces {
         right_brace: Span,
         column: u32,
     ) {
-        let single_line =
-            ctx.line_col(left_brace.start).line == ctx.line_col(right_brace.start).line;
+        let single_line = ctx.same_line(left_brace, right_brace);
         let ends_non_space = inner.last().is_some_and(|&b| !b.is_ascii_whitespace());
         if single_line && ends_non_space {
             self.no_space(
@@ -353,7 +359,14 @@ impl SpaceInsideBlockBraces {
         column: u32,
     ) {
         let bytes = ctx.source().bytes();
-        let extended_begin = extend_backward(bytes, right_brace.start);
+        let extended_begin = ctx
+            .with_surrounding_space(
+                Span::new(right_brace.start, right_brace.start),
+                Side::Left,
+                true,
+                false,
+            )
+            .start;
         let mut begin = i64::from(extended_begin);
         let mut end = i64::from(right_brace.start);
 
@@ -411,31 +424,6 @@ fn build_fix(ctx: &Context<'_>, span: Span) -> Fix {
         vec![Edit::insert(span.start, b" ".as_slice())]
     };
     Fix { applicability: Applicability::Safe, edits }
-}
-
-/// RuboCop's `RangeHelp#final_pos` stepping forward with
-/// `newlines: true, whitespace: false, continuations: false`: consumes a
-/// run of spaces/tabs, then a run of bare `\n`s.
-fn extend_forward(bytes: &[u8], mut pos: u32) -> u32 {
-    let len = u32::try_from(bytes.len()).unwrap_or(u32::MAX);
-    while pos < len && matches!(bytes[pos as usize], b' ' | b'\t') {
-        pos += 1;
-    }
-    while pos < len && bytes[pos as usize] == b'\n' {
-        pos += 1;
-    }
-    pos
-}
-
-/// The backward-stepping mirror of [`extend_forward`].
-fn extend_backward(bytes: &[u8], mut pos: u32) -> u32 {
-    while pos > 0 && matches!(bytes[(pos - 1) as usize], b' ' | b'\t') {
-        pos -= 1;
-    }
-    while pos > 0 && bytes[(pos - 1) as usize] == b'\n' {
-        pos -= 1;
-    }
-    pos
 }
 
 /// RuboCop's `inner_last_space_count`: the number of `' '` bytes on the last

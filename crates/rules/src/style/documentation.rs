@@ -7,7 +7,7 @@ use linter::{
     RuleOptions, Severity, Stability,
 };
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
-use ruby_source::Span;
+use ruby_source::{is_ruby_whitespace, Span};
 
 /// RuboCop's `Style/CommentAnnotation` default `Keywords`, read as a peer
 /// option when configured; this is the fallback when it isn't.
@@ -435,13 +435,8 @@ fn is_word_byte(b: u8) -> bool {
     b.is_ascii_alphanumeric() || b == b'_'
 }
 
-/// Ruby's default (non-Unicode) `\s`: space, tab, newline, CR, FF, VT.
-fn is_regex_ws(b: u8) -> bool {
-    matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0B | 0x0C)
-}
-
 fn trim_leading_ws(bytes: &[u8]) -> &[u8] {
-    let start = bytes.iter().position(|&b| !is_regex_ws(b)).unwrap_or(bytes.len());
+    let start = bytes.iter().position(|&b| !is_ruby_whitespace(b)).unwrap_or(bytes.len());
     &bytes[start..]
 }
 
@@ -484,19 +479,19 @@ fn is_annotation(text: &[u8], keywords: &[String]) -> bool {
     // eating the whitespace, which stays available for the `(\s+)?` group
     // below.
     let mut ws_run = 0;
-    while ws_run < after.len() && is_regex_ws(after[ws_run]) {
+    while ws_run < after.len() && is_ruby_whitespace(after[ws_run]) {
         ws_run += 1;
     }
     let colon_present = ws_run < after.len() && after[ws_run] == b':';
     let mut idx = if colon_present { ws_run + 1 } else { 0 };
 
     let space_start = idx;
-    while idx < after.len() && is_regex_ws(after[idx]) {
+    while idx < after.len() && is_ruby_whitespace(after[idx]) {
         idx += 1;
     }
     let space_present = idx > space_start;
 
-    let note_present = idx < after.len() && !is_regex_ws(after[idx]);
+    let note_present = idx < after.len() && !is_ruby_whitespace(after[idx]);
 
     if !(colon_present || space_present) {
         return false;
@@ -518,14 +513,14 @@ fn is_nodoc(text: &[u8], require_all: bool) -> bool {
         return true;
     }
     let mut idx = 0;
-    while idx < rest.len() && is_regex_ws(rest[idx]) {
+    while idx < rest.len() && is_ruby_whitespace(rest[idx]) {
         idx += 1;
     }
     if idx == 0 {
         return false;
     }
     let Some(after_all) = rest[idx..].strip_prefix(b"all") else { return false };
-    after_all.iter().all(|&b| is_regex_ws(b))
+    after_all.iter().all(|&b| is_ruby_whitespace(b))
 }
 
 /// True when the comment on `line`, if any, is a `:nodoc:` comment

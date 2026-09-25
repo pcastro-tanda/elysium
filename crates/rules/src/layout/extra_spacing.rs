@@ -46,7 +46,7 @@ use linter::{
     FixAvailability, OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
-use ruby_source::Span;
+use ruby_source::{is_ruby_whitespace, Span};
 
 /// RuboCop's `MSG_UNNECESSARY`.
 const MSG_UNNECESSARY: &str = "Unnecessary spacing detected.";
@@ -537,17 +537,7 @@ fn comment_pair_aligned_lines(comments: &[CommentInfo], ctx: &Context<'_>) -> Ha
 /// RuboCop's mixin-level `aligned_comment_lines`: lines whose comment
 /// begins its own line (only whitespace precedes it).
 fn standalone_comment_lines(comments: &[CommentInfo], ctx: &Context<'_>) -> HashSet<u32> {
-    comments
-        .iter()
-        .filter(|c| {
-            let line_span = ctx.line_span(c.line);
-            let prefix_len = (c.span.start - line_span.start) as usize;
-            ctx.line_text(c.line)
-                .get(..prefix_len)
-                .is_some_and(|prefix| prefix.iter().all(|&b| b == b' ' || b == b'\t'))
-        })
-        .map(|c| c.line)
-        .collect()
+    comments.iter().filter(|c| ctx.begins_its_line(c.span)).map(|c| c.line).collect()
 }
 
 /// RuboCop's `aligned_with_something?`: does `pos` (the start of the token
@@ -580,7 +570,7 @@ fn aligned_with_something(
         return true;
     }
 
-    let base_indentation = line_indentation(line_bytes);
+    let base_indentation = line_indentation(ctx, line);
     aligned_with_line(ctx, (1..line).rev(), Some(base_indentation), col, token_text, a)
         || aligned_with_line(
             ctx,
@@ -614,7 +604,7 @@ fn aligned_with_line(
             continue;
         }
         if let Some(want) = indent {
-            if line_indentation(line_bytes) != want {
+            if line_indentation(ctx, candidate) != want {
                 continue;
             }
         }
@@ -729,13 +719,13 @@ fn relevant_assignment_lines(
 ) -> Vec<u32> {
     let mut result = Vec::new();
     let total = i64::from(ctx.line_count());
-    let original_indent = line_indentation(ctx.line_text(start_line));
+    let original_indent = line_indentation(ctx, start_line);
     let mut relevant_at_level = true;
     let mut line = i64::from(start_line);
     while line >= 1 && line <= total {
         let ln = u32::try_from(line).unwrap_or(u32::MAX);
         let text = ctx.line_text(ln);
-        let indent = line_indentation(text);
+        let indent = line_indentation(ctx, ln);
         let blank = is_blank_line(text);
         if (indent < original_indent && !blank) || (relevant_at_level && blank) {
             break;
@@ -751,12 +741,20 @@ fn relevant_assignment_lines(
     result
 }
 
-fn line_indentation(line: &[u8]) -> usize {
-    line.iter().take_while(|&&b| b == b' ' || b == b'\t').count()
+/// RuboCop's `ProcessedSource#line_indentation`: the character count of the
+/// run of `\s` bytes at the start of `line`, expressed as a display column
+/// (equal to the character count, since `\s` bytes are always width 1).
+fn line_indentation(ctx: &Context<'_>, line: u32) -> usize {
+    let text = ctx.line_text(line);
+    let offset = text.iter().take_while(|&&b| is_ruby_whitespace(b)).count();
+    let line_start = ctx.line_span(line).start;
+    let column = ctx.display_column(line_start + u32::try_from(offset).unwrap_or(u32::MAX));
+    usize::try_from(column).unwrap_or(usize::MAX)
 }
 
+/// `String#blank?`: every byte on the line is `\s`.
 fn is_blank_line(line: &[u8]) -> bool {
-    line.iter().all(|&b| b == b' ' || b == b'\t')
+    line.iter().all(|&b| is_ruby_whitespace(b))
 }
 
 /// RuboCop's `all_relevant_assignment_lines` plus `align_column`/

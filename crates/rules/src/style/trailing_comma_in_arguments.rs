@@ -218,8 +218,8 @@ Prism) are never checked, since RuboCop doesn't check them either.",
         ));
         let last_is_braced_hash = block_pass.is_none()
             && matches!(args_list.last().expect("checked non-empty"), Node::HashNode { .. });
-        let any_heredoc = trailing_comma::any_heredoc(ctx, args_list.iter())
-            || block_pass.as_ref().is_some_and(|bp| trailing_comma::is_heredoc(ctx, bp));
+        let any_heredoc = args_list.iter().any(|arg| is_heredoc(&arg))
+            || block_pass.as_ref().is_some_and(|bp| is_heredoc(bp));
         let mut elements = elements(ctx, &args_list);
         if let Some(bp) = &block_pass {
             elements.push(bp.location().span());
@@ -248,7 +248,7 @@ fn elements(ctx: &Context<'_>, args: &NodeList<'_>) -> Vec<Span> {
         if let Node::KeywordHashNode { .. } = &arg {
             let kw = arg.as_keyword_hash_node().expect("kind matched");
             let span = kw.location().span();
-            if trailing_comma::is_multiline_span(ctx, span) {
+            if !ctx.is_single_line(span) {
                 out.extend(kw.elements().iter().map(|el| el.location().span()));
                 continue;
             }
@@ -256,4 +256,36 @@ fn elements(ctx: &Context<'_>, args: &NodeList<'_>) -> Vec<Span> {
         out.push(arg.location().span());
     }
     out
+}
+
+/// RuboCop's `heredoc?`: true for a heredoc string/xstring itself, or (recursively) for a call
+/// whose receiver (when it takes no arguments, e.g. `<<~SQL.strip`) or last argument (when it does,
+/// e.g. `method(<<~SQL.strip)`) is one, or for a hash/keyword-hash/pair whose last element/value is
+/// one.
+fn is_heredoc(node: &Node<'_>) -> bool {
+    if ruby_ast::ext::is_heredoc(node) {
+        return true;
+    }
+    match node {
+        Node::CallNode { .. } => {
+            let call = node.as_call_node().expect("kind matched");
+            match call.arguments() {
+                None => call.receiver().is_some_and(|r| is_heredoc(&r)),
+                Some(args) => args.arguments().last().is_some_and(|a| is_heredoc(&a)),
+            }
+        }
+        Node::AssocNode { .. } => {
+            let assoc = node.as_assoc_node().expect("kind matched");
+            is_heredoc(&assoc.value())
+        }
+        Node::HashNode { .. } => {
+            let hash = node.as_hash_node().expect("kind matched");
+            hash.elements().last().is_some_and(|e| is_heredoc(&e))
+        }
+        Node::KeywordHashNode { .. } => {
+            let hash = node.as_keyword_hash_node().expect("kind matched");
+            hash.elements().last().is_some_and(|e| is_heredoc(&e))
+        }
+        _ => false,
+    }
 }

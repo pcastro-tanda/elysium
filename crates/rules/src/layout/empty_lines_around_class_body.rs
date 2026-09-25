@@ -207,7 +207,7 @@ control characters as indentation, which does not occur in practice.",
                 // the body's "first line" for placement purposes is the
                 // superclass's own last line, not the `class` keyword's.
                 let adjusted_first_line =
-                    class.superclass().map(|sc| last_line_of(ctx, sc.location().span()));
+                    class.superclass().map(|sc| ctx.last_line(sc.location().span()));
                 self.check(ctx, node.location().span(), class.body(), adjusted_first_line);
             }
             Node::SingletonClassNode { .. } => {
@@ -234,12 +234,12 @@ impl EmptyLinesAroundClassBody {
         if body.is_none() && self.style != Style::NoEmptyLines {
             return;
         }
-        if is_single_line(ctx, node_span) {
+        if ctx.is_single_line(node_span) {
             return;
         }
 
         let first_line = adjusted_first_line.unwrap_or_else(|| ctx.line_col(node_span.start).line);
-        let last_line = last_line_of(ctx, node_span);
+        let last_line = ctx.last_line(node_span);
 
         match self.style {
             Style::EmptyLinesExceptNamespace => {
@@ -359,20 +359,11 @@ fn check_deferred_empty_line(ctx: &mut Context<'_>, shape: &BodyShape<'_>) {
 /// every line up to the top of the file is a comment.
 fn previous_line_ignoring_comments(ctx: &Context<'_>, send_line: u32) -> u32 {
     for candidate in (1..send_line.max(1)).rev() {
-        if !is_comment_line(ctx, candidate) {
+        if !ruby_source::is_comment_line(ctx.line_text(candidate)) {
             return candidate;
         }
     }
     1
-}
-
-/// RuboCop's `Util#comment_line?`: `/^\s*#/`.
-fn is_comment_line(ctx: &Context<'_>, line: u32) -> bool {
-    let text = ctx.line_text(line);
-    match text.iter().position(|&b| b != b' ' && b != b'\t') {
-        Some(i) => text[i] == b'#',
-        None => false,
-    }
 }
 
 /// An "Extra empty line detected" offense: `range` is the blank line's own
@@ -404,17 +395,6 @@ fn report_missing(ctx: &mut Context<'_>, line: u32, desc: &str) {
 fn char_span(ctx: &Context<'_>, line: u32) -> Span {
     let start = ctx.line_span(line).start;
     Span::new(start, start + 1)
-}
-
-/// RuboCop's `Range#last_line`: the line containing the span's last byte.
-fn last_line_of(ctx: &Context<'_>, span: Span) -> u32 {
-    let last_byte = if span.end > span.start { span.end - 1 } else { span.start };
-    ctx.line_col(last_byte).line
-}
-
-/// RuboCop's `Node#single_line?` on the whole `class`/`class << self` node.
-fn is_single_line(ctx: &Context<'_>, span: Span) -> bool {
-    ctx.line_col(span.start).line == last_line_of(ctx, span)
 }
 
 /// Renormalizes a Prism body (always a [`NodeKind::StatementsNode`] when

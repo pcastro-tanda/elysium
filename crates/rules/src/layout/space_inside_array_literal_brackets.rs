@@ -29,7 +29,7 @@
 //!   bracket's own line is blank, i.e. the first element starts on the next
 //!   line) -> [`starts_on_next_line`].
 //! * `end_has_own_line?` (no non-whitespace before the bracket on its own
-//!   line) -> [`end_has_own_line`].
+//!   line) -> the shared `Context::begins_its_line`.
 //!
 //! Prism folds a pattern's leading constant directly into
 //! [`ArrayPatternNode`]/[`FindPatternNode`] (`ADT[a, b]` is one node with a
@@ -46,7 +46,7 @@ use linter::{
 };
 use ruby_ast::node::Node;
 use ruby_ast::{LocationExt, NodeExt, NodeKind};
-use ruby_source::Span;
+use ruby_source::{is_ruby_whitespace, Span};
 
 /// RuboCop's `MSG`, formatted with `SPACE_COMMAND`.
 const MSG_USE: &str = "Use space inside array brackets.";
@@ -72,11 +72,6 @@ enum EmptyStyle {
     Space,
 }
 
-/// Ruby's `\s`: space, tab, newline, carriage return, form feed, vertical tab.
-const fn is_blank(b: u8) -> bool {
-    matches!(b, b' ' | b'\t' | b'\n' | b'\r' | 0x0B | 0x0C)
-}
-
 /// `SurroundingSpace::SINGLE_SPACE_REGEXP`: plain space or tab only, never a
 /// newline (which is instead handled by the multiline `start_ok`/`end_ok`
 /// checks).
@@ -86,12 +81,12 @@ const fn is_space_or_tab(b: u8) -> bool {
 
 /// `Token#space_after?`-alike: is the byte right after `pos` any whitespace?
 fn any_space_after(bytes: &[u8], pos: u32) -> bool {
-    bytes.get(pos as usize).is_some_and(|&b| is_blank(b))
+    bytes.get(pos as usize).is_some_and(|&b| is_ruby_whitespace(b))
 }
 
 /// `Token#space_before?`-alike: is the byte right before `pos` any whitespace?
 fn any_space_before(bytes: &[u8], pos: u32) -> bool {
-    pos > 0 && is_blank(bytes[pos as usize - 1])
+    pos > 0 && is_ruby_whitespace(bytes[pos as usize - 1])
 }
 
 /// `extra_space?(token, :left)`-alike: a plain space/tab right after `pos`.
@@ -136,7 +131,7 @@ fn reposition_backward(bytes: &[u8], mut pos: u32, include_newlines: bool) -> u3
 /// (including comments) are never whitespace, so this always lands exactly
 /// on the next real token's first byte.
 fn skip_blank_forward(bytes: &[u8], mut pos: u32) -> u32 {
-    while bytes.get(pos as usize).is_some_and(|&b| is_blank(b)) {
+    while bytes.get(pos as usize).is_some_and(|&b| is_ruby_whitespace(b)) {
         pos += 1;
     }
     pos
@@ -144,7 +139,7 @@ fn skip_blank_forward(bytes: &[u8], mut pos: u32) -> u32 {
 
 /// Backward counterpart of [`skip_blank_forward`].
 fn skip_blank_backward(bytes: &[u8], mut pos: u32) -> u32 {
-    while pos > 0 && is_blank(bytes[pos as usize - 1]) {
+    while pos > 0 && is_ruby_whitespace(bytes[pos as usize - 1]) {
         pos -= 1;
     }
     pos
@@ -183,14 +178,6 @@ fn starts_on_next_line(bytes: &[u8], open_end: u32) -> bool {
             _ => return false,
         }
     }
-}
-
-/// `end_has_own_line?`: no non-whitespace byte precedes the right bracket on
-/// its own line.
-fn end_has_own_line(ctx: &Context<'_>, close_start: u32) -> bool {
-    let line = ctx.line_col(close_start).line;
-    let line_start = ctx.line_span(line).start;
-    ctx.text(Span::new(line_start, close_start)).iter().all(|&b| is_blank(b))
 }
 
 /// Resolves the `[`/`]` bracket spans of an array literal, array pattern, or
@@ -338,13 +325,13 @@ fn check_empty(
 fn check(open: Span, close: Span, style: Style, empty_style: EmptyStyle, ctx: &mut Context<'_>) {
     let bytes = ctx.source().bytes();
     let between = Span::new(open.end, close.start);
-    if bytes[between.range()].iter().all(|&b| is_blank(b)) {
+    if bytes[between.range()].iter().all(|&b| is_ruby_whitespace(b)) {
         check_empty(open, close, empty_style, bytes, ctx);
         return;
     }
 
-    let single_line = ctx.line_col(open.start).line == ctx.line_col(close.start).line;
-    let end_ok = !single_line && end_has_own_line(ctx, close.start);
+    let single_line = ctx.same_line(open, close);
+    let end_ok = !single_line && ctx.begins_its_line(Span::new(close.start, close.start));
 
     match style {
         Style::NoSpace => {

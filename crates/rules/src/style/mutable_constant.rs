@@ -21,7 +21,7 @@ use linter::{
     Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
     OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
-use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
+use ruby_ast::{ext, LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 /// RuboCop's `MSG`.
@@ -87,17 +87,22 @@ fn is_frozen_string_literal(value: &Node<'_>, ctx: &Context<'_>) -> bool {
 }
 
 /// A bare `Name` or top-level `::Name` constant reference (RuboCop's
-/// `(const {nil? cbase} :Name)`).
+/// `(const {nil? cbase} :Name)`). Shape check delegated to
+/// [`ruby_ast::ext::is_bare_or_toplevel_const`]; the name comparison stays
+/// local since the shared helper only checks shape.
 fn is_bare_or_toplevel_const(node: &Node<'_>, expected: &[u8]) -> bool {
+    if !ext::is_bare_or_toplevel_const(node) {
+        return false;
+    }
     match node.kind() {
         NodeKind::ConstantReadNode => {
             node.as_constant_read_node().is_some_and(|n| n.name().as_slice() == expected)
         }
-        NodeKind::ConstantPathNode => {
-            let path = node.as_constant_path_node().expect("kind matched");
-            path.parent().is_none() && path.name().is_some_and(|id| id.as_slice() == expected)
-        }
-        _ => false,
+        NodeKind::ConstantPathNode => node
+            .as_constant_path_node()
+            .and_then(|path| path.name())
+            .is_some_and(|id| id.as_slice() == expected),
+        _ => unreachable!("ext::is_bare_or_toplevel_const already checked the shape"),
     }
 }
 

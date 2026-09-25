@@ -118,7 +118,7 @@ impl EmptyLineBetweenDefs {
         in_macro_scope: bool,
     ) -> Option<Candidate> {
         let span = node.span();
-        let single_line = single_line(ctx, span);
+        let single_line = ctx.is_single_line(span);
 
         if let Some(def) = node.as_def_node() {
             if !self.enabled_for.method {
@@ -204,12 +204,6 @@ impl EmptyLineBetweenDefs {
     }
 }
 
-/// RuboCop's `Node#single_line?`.
-fn single_line(ctx: &Context<'_>, span: Span) -> bool {
-    let end = if span.end > span.start { span.end - 1 } else { span.end };
-    ctx.line_col(span.start).line == ctx.line_col(end).line
-}
-
 /// First `\n` at or after `from`, if any.
 fn find_byte(bytes: &[u8], needle: u8, from: u32) -> Option<u32> {
     let from = from as usize;
@@ -232,9 +226,7 @@ fn is_blank_line(ctx: &Context<'_>, line: u32) -> bool {
 /// line and `second_span`'s start line, or `None` when they are adjacent
 /// or share a line (RuboCop's `lines_between_defs` returning `[]`).
 fn gap_lines(ctx: &Context<'_>, first_span: Span, second_span: Span) -> Option<(u32, u32)> {
-    let first_end =
-        if first_span.end > first_span.start { first_span.end - 1 } else { first_span.end };
-    let end_line = ctx.line_col(first_end).line;
+    let end_line = ctx.last_line(first_span);
     let start_line = ctx.line_col(second_span.start).line;
     let gap_first = end_line + 1;
     let gap_last = start_line.saturating_sub(1);

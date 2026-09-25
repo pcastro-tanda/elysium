@@ -142,16 +142,22 @@ fn unsafe_array_usage(call: &CallNode<'_>) -> bool {
 }
 
 /// `(const {nil? cbase} :Proc)`: a bare or top-level-qualified `Proc`
-/// constant, receiver of `.new`.
+/// constant, receiver of `.new`. Shape check delegated to
+/// [`ruby_ast::ext::is_bare_or_toplevel_const`]; the name comparison stays
+/// local since the shared helper only checks shape.
 fn is_proc_const(node: &Node<'_>) -> bool {
+    if !ruby_ast::ext::is_bare_or_toplevel_const(node) {
+        return false;
+    }
     match node {
         Node::ConstantReadNode { .. } => {
             node.as_constant_read_node().is_some_and(|c| c.name().as_slice() == b"Proc")
         }
-        Node::ConstantPathNode { .. } => node.as_constant_path_node().is_some_and(|path| {
-            path.parent().is_none() && path.name().is_some_and(|n| n.as_slice() == b"Proc")
-        }),
-        _ => false,
+        Node::ConstantPathNode { .. } => node
+            .as_constant_path_node()
+            .and_then(|path| path.name())
+            .is_some_and(|n| n.as_slice() == b"Proc"),
+        _ => unreachable!("is_bare_or_toplevel_const already checked the shape"),
     }
 }
 

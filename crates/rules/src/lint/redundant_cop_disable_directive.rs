@@ -20,7 +20,7 @@ use linter::{
 };
 use regex::Regex;
 use ruby_directives::{CopRef, Directive, DirectiveKind};
-use ruby_source::Span;
+use ruby_source::{Side, Span};
 
 /// RuboCop's `DirectiveComment::LINT_SYNTAX_COP`: never actually disabled by any directive.
 const LINT_SYNTAX_COP: &str = "Lint/Syntax";
@@ -559,36 +559,17 @@ fn trailing_range(ctx: &Context<'_>, spans: &[(String, Span)], i: usize) -> bool
 }
 
 /// Extends `pos` rightward over whitespace bytes; stops at (and never consumes) a `\n` unless
-/// `newlines` is set, in which case it continues straight through it.
-fn swallow_right(ctx: &Context<'_>, mut pos: u32, newlines: bool) -> u32 {
-    let bytes = ctx.source().bytes();
-    while (pos as usize) < bytes.len() {
-        let byte = bytes[pos as usize];
-        if byte == b'\n' && !newlines {
-            break;
-        }
-        if !byte.is_ascii_whitespace() {
-            break;
-        }
-        pos += 1;
-    }
-    pos
+/// `newlines` is set, in which case it continues straight through it. Delegates to
+/// [`Context::with_surrounding_space`]: `newlines` here is passed as that helper's own
+/// `whitespace` flag, with its `newlines` flag fixed at `false` (RuboCop's `RangeHelp#final_pos`
+/// `side: :right` walk collapses to a single pass either way -- see that method's doc comment).
+fn swallow_right(ctx: &Context<'_>, pos: u32, newlines: bool) -> u32 {
+    ctx.with_surrounding_space(Span::new(pos, pos), Side::Right, false, newlines).end
 }
 
 /// Mirror of [`swallow_right`], extending leftward.
-fn swallow_left(ctx: &Context<'_>, mut pos: u32, newlines: bool) -> u32 {
-    let bytes = ctx.source().bytes();
-    while pos > 0 {
-        let byte = bytes[(pos - 1) as usize];
-        if byte == b'\n' && !newlines {
-            break;
-        }
-        if !byte.is_ascii_whitespace() {
-            break;
-        }
-        pos -= 1;
-    }
-    pos
+fn swallow_left(ctx: &Context<'_>, pos: u32, newlines: bool) -> u32 {
+    ctx.with_surrounding_space(Span::new(pos, pos), Side::Left, false, newlines).start
 }
 
 /// The byte range to delete for a whole-comment removal, mirroring

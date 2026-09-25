@@ -3,10 +3,11 @@
 //! mixin and `AlignmentCorrector`.
 
 use linter::{
-    Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
+    Applicability, ConfigDefault, ConfigOption, Context, Department, Fix, FixAvailability,
     OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
-use ruby_ast::{walk, LocationExt as _, Node, NodeExt as _, NodeKind, Visitor};
+use ruby_ast::ext::is_bare_access_modifier;
+use ruby_ast::{Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 /// RuboCop's `MSG`.
@@ -154,13 +155,13 @@ cops.",
                 let first_raw = body.first();
                 let base_column = Self::base_column_for_normal_style(ctx, first_raw.as_ref());
                 let items: Vec<Node<'_>> =
-                    body.iter().filter(|child| !is_bare_access_modifier(child)).collect();
+                    body.iter().filter(|child| !is_bare_access_modifier_node(child)).collect();
                 self.check_alignment(ctx, &items, base_column);
             }
             Style::IndentedInternalMethods => {
                 let mut groups: Vec<Vec<Node<'_>>> = vec![Vec::new()];
                 for child in &body {
-                    if is_bare_access_modifier(&child) {
+                    if is_bare_access_modifier_node(&child) {
                         groups.push(Vec::new());
                     } else {
                         groups.last_mut().expect("seeded with one group").push(child);
@@ -184,7 +185,7 @@ impl IndentationConsistency {
         first_raw: Option<&Node<'_>>,
     ) -> Option<u32> {
         let first = first_raw?;
-        if !is_bare_access_modifier(first) {
+        if !is_bare_access_modifier_node(first) {
             return None;
         }
         let access_modifier_indent = ctx.display_column(first.span().start);
@@ -209,7 +210,7 @@ impl IndentationConsistency {
         for item in items {
             let span = item.span();
             let line = i64::from(ctx.line_col(span.start).line);
-            if line > prev_line && begins_its_line(ctx, span) {
+            if line > prev_line && ctx.begins_its_line(span) {
                 let column_delta =
                     i64::from(base_column) - i64::from(ctx.display_column(span.start));
                 if column_delta != 0 {
@@ -239,34 +240,11 @@ impl IndentationConsistency {
     }
 }
 
-/// RuboCop's `bare_access_modifier?`: a receiver-less, argument-less call to
-/// `public`/`protected`/`private`/`module_function` (see `META.blind_spots`
-/// for the scope check this simplifies away).
-fn is_bare_access_modifier(node: &Node<'_>) -> bool {
-    let Node::CallNode { .. } = node else { return false };
-    let call = node.as_call_node().expect("kind matched");
-    if call.receiver().is_some() || call.arguments().is_some() {
-        return false;
-    }
-    matches!(call.name().as_slice(), b"public" | b"protected" | b"private" | b"module_function")
-}
-
-/// RuboCop's `Util#begins_its_line?`, character-based (matching Ruby's
-/// `String#index`/`Range#column`) so it also holds on lines with
-/// non-ASCII leading content.
-fn begins_its_line(ctx: &Context<'_>, span: Span) -> bool {
-    let line_col = ctx.line_col(span.start);
-    let line = ctx.line_text(line_col.line);
-    let Ok(text) = std::str::from_utf8(line) else { return line_col.column == 0 };
-    match text.chars().position(|ch| !is_ruby_whitespace(ch)) {
-        Some(index) => u32::try_from(index).unwrap_or(u32::MAX) == line_col.column,
-        None => false,
-    }
-}
-
-/// Ruby's `\s` character class, used by `begins_its_line?`'s regex.
-fn is_ruby_whitespace(ch: char) -> bool {
-    matches!(ch, ' ' | '\t' | '\r' | '\x0B' | '\x0C')
+/// `is_bare_access_modifier` shape-checked against a generic `Node`, for the
+/// call sites here that only have a raw AST child, not an already-narrowed
+/// `CallNode`.
+fn is_bare_access_modifier_node(node: &Node<'_>) -> bool {
+    node.as_call_node().is_some_and(|call| is_bare_access_modifier(&call))
 }
 
 /// RuboCop's `AlignmentCorrector.correct`: shifts every physical line of
@@ -275,99 +253,12 @@ fn is_ruby_whitespace(ch: char) -> bool {
 /// every line was blocked by a taboo range/whitespace mismatch).
 fn build_fix(ctx: &Context<'_>, item: &Node<'_>, column_delta: i64) -> Option<Fix> {
     let span = item.span();
-    let start_line = ctx.line_col(span.start).line;
-    let last_byte = span.end.saturating_sub(1).max(span.start);
-    let end_line = ctx.line_col(last_byte).line;
-
-    for line in start_line..=end_line {
-        if trim_start(ctx.line_text(line)).starts_with(b"=begin") {
-            return None;
-        }
-    }
-
-    let mut taboo = HeredocTaboo { ranges: Vec::new() };
-    walk(item, &mut taboo);
-
-    let mut edits = Vec::new();
-    for line in start_line..=end_line {
-        let is_first = line == start_line;
-        let anchor = if is_first { span.start } else { ctx.line_span(line).start };
-
-        if column_delta > 0 {
-            let amount = u32::try_from(column_delta).unwrap_or(0);
-            if !is_first && ctx.line_span(line).is_empty() {
-                continue;
-            }
-            if taboo.ranges.iter().any(|t| t.contains(Span::empty(anchor))) {
-                continue;
-            }
-            edits.push(Edit::insert(anchor, " ".repeat(amount as usize).into_bytes()));
-        } else {
-            let amount = u32::try_from(-column_delta).unwrap_or(0);
-            let starts_with_space =
-                ctx.source().bytes().get(anchor as usize).is_some_and(|&b| b == b' ');
-            let range = if is_first || !starts_with_space {
-                Span::new(anchor.saturating_sub(amount), anchor)
-            } else {
-                Span::new(anchor, anchor + amount)
-            };
-            if taboo.ranges.iter().any(|t| t.contains(range)) {
-                continue;
-            }
-            let text = ctx.text(range);
-            if !text.is_empty() && text.iter().all(|&b| b == b' ' || b == b'\t') {
-                edits.push(Edit::delete(range));
-            }
-        }
-    }
+    let taboo = linter::heredoc_bodies(ctx, item);
+    let delta = i32::try_from(column_delta).unwrap_or(0);
+    let edits = linter::shift_lines(ctx, span, delta, &taboo);
     if edits.is_empty() {
         None
     } else {
         Some(Fix { applicability: Applicability::Safe, edits })
-    }
-}
-
-fn trim_start(text: &[u8]) -> &[u8] {
-    let mut i = 0;
-    while i < text.len() && text[i].is_ascii_whitespace() {
-        i += 1;
-    }
-    &text[i..]
-}
-
-/// RuboCop's `AlignmentCorrector#inside_string_ranges`'s heredoc case:
-/// collects heredoc body ranges within a subtree so autocorrection never
-/// touches heredoc content (see `META.blind_spots` for the non-heredoc
-/// delimited-literal case this does not cover).
-struct HeredocTaboo {
-    ranges: Vec<Span>,
-}
-
-impl<'pr> Visitor<'pr> for HeredocTaboo {
-    fn enter(&mut self, node: &Node<'pr>) {
-        let opening_closing = match node {
-            Node::StringNode { .. } => {
-                let n = node.as_string_node().expect("kind matched");
-                n.opening_loc().zip(n.closing_loc())
-            }
-            Node::InterpolatedStringNode { .. } => {
-                let n = node.as_interpolated_string_node().expect("kind matched");
-                n.opening_loc().zip(n.closing_loc())
-            }
-            Node::XStringNode { .. } => {
-                let n = node.as_x_string_node().expect("kind matched");
-                Some((n.opening_loc(), n.closing_loc()))
-            }
-            Node::InterpolatedXStringNode { .. } => {
-                let n = node.as_interpolated_x_string_node().expect("kind matched");
-                Some((n.opening_loc(), n.closing_loc()))
-            }
-            _ => None,
-        };
-        if let Some((open, close)) = opening_closing {
-            if open.as_slice().starts_with(b"<<") {
-                self.ranges.push(Span::new(open.span().end, close.span().start));
-            }
-        }
     }
 }

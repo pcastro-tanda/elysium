@@ -40,8 +40,8 @@ use linter::{
     OptionError, OptionValue, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::node::{AssocNode, HashNode};
-use ruby_ast::{walk, LocationExt as _, Node, NodeExt as _, NodeKind, NodeList, Visitor};
-use ruby_source::Span;
+use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind, NodeList};
+use ruby_source::{char_len, is_ruby_whitespace_char, Span};
 
 /// RuboCop's `EnforcedStyle`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -382,7 +382,7 @@ impl FirstHashElementIndentation {
             let pair_span = pair.location().span();
             let key_line = ctx.line_col(pair_span.start).line;
             let right_sibling_later = items.get(i + 1).is_some_and(|sib| {
-                let last_line = last_line_of(ctx, pair_span);
+                let last_line = ctx.last_line(pair_span);
                 ctx.line_col(sib.span().start).line > last_line
             });
             let fact = ParentPairFact {
@@ -411,7 +411,7 @@ impl FirstHashElementIndentation {
             let pair_span = pair.location().span();
             let key_line = ctx.line_col(pair_span.start).line;
             let right_sibling_later = items.get(i + 1).is_some_and(|sib| {
-                let last_line = last_line_of(ctx, pair_span);
+                let last_line = ctx.last_line(pair_span);
                 ctx.line_col(sib.span().start).line > last_line
             });
             let fact = ParentPairFact {
@@ -437,7 +437,10 @@ impl FirstHashElementIndentation {
         let has_first_pair = !pairs.is_empty();
 
         if let Some(first_pair) = pairs.first() {
-            if same_line(ctx, first_pair.location().span().start, left_brace.start) {
+            if ctx.same_line(
+                Span::empty(first_pair.location().span().start),
+                Span::empty(left_brace.start),
+            ) {
                 return;
             }
             if self.separator_style(first_pair) {
@@ -476,7 +479,8 @@ impl FirstHashElementIndentation {
         parent_fact: Option<ParentPairFact>,
     ) {
         let Some(first) = pairs.first() else { return };
-        let lengths: Vec<i64> = pairs.iter().map(|p| char_len(ctx, p.key().span())).collect();
+        let lengths: Vec<i64> =
+            pairs.iter().map(|p| i64::from(char_len(ctx.text(p.key().span())))).collect();
         let Some(&max) = lengths.iter().max() else { return };
         let offset = max - lengths[0];
         self.check_first(ctx, first, left_brace, left_paren, offset, parent_fact);
@@ -504,8 +508,10 @@ impl FirstHashElementIndentation {
             return;
         }
         let msg = message(self.indentation_width, base_type.description());
-        let taboo = heredoc_taboo(&first.as_node());
-        match build_shift_fix(ctx, first_span, column_delta, &taboo) {
+        let taboo = linter::heredoc_bodies(ctx, &first.as_node());
+        let delta = i32::try_from(column_delta).unwrap_or(0);
+        let edits = linter::shift_lines(ctx, first_span, delta, &taboo);
+        match fix_from_edits(edits) {
             Some(fix) => ctx.report_with_fix(&Self::META, first_span, msg, fix),
             None => ctx.report(&Self::META, first_span, msg),
         }
@@ -534,7 +540,8 @@ impl FirstHashElementIndentation {
             return;
         }
         let msg = base_type.right_brace_message();
-        match build_shift_fix(ctx, right_brace, column_delta, &[]) {
+        let delta = i32::try_from(column_delta).unwrap_or(0);
+        match fix_from_edits(linter::shift_lines(ctx, right_brace, delta, &[])) {
             Some(fix) => ctx.report_with_fix(&Self::META, right_brace, msg, fix),
             None => ctx.report(&Self::META, right_brace, msg),
         }
@@ -574,28 +581,16 @@ impl FirstHashElementIndentation {
     }
 }
 
-/// The 1-based line of the last byte covered by `span`.
-fn last_line_of(ctx: &Context<'_>, span: Span) -> u32 {
-    ctx.line_col(span.end.saturating_sub(1).max(span.start)).line
-}
-
-fn same_line(ctx: &Context<'_>, a: u32, b: u32) -> bool {
-    ctx.line_col(a).line == ctx.line_col(b).line
-}
-
-/// Ruby's `\s` character class, used by the `=~ /\S/` checks below.
-fn is_ruby_whitespace(ch: char) -> bool {
-    matches!(ch, ' ' | '\t' | '\r' | '\x0B' | '\x0C')
-}
-
 /// RuboCop's `left_brace.source_line =~ /\S/`: the character column of the
 /// first non-whitespace character on the line, or `0` if the line is
 /// blank (never actually reached here since the line always holds at
 /// least the `{`/`}` itself).
 fn first_non_ws_column(line: &[u8]) -> u32 {
     match std::str::from_utf8(line) {
-        Ok(text) => u32::try_from(text.chars().position(|c| !is_ruby_whitespace(c)).unwrap_or(0))
-            .unwrap_or(0),
+        Ok(text) => {
+            u32::try_from(text.chars().position(|c| !is_ruby_whitespace_char(c)).unwrap_or(0))
+                .unwrap_or(0)
+        }
         Err(_) => 0,
     }
 }
@@ -603,126 +598,17 @@ fn first_non_ws_column(line: &[u8]) -> u32 {
 /// RuboCop's `right_brace.source_line[0...right_brace.column] =~ /\S/`.
 fn prefix_has_non_ws(line: &[u8], upto_col: u32) -> bool {
     match std::str::from_utf8(line) {
-        Ok(text) => text.chars().take(upto_col as usize).any(|c| !is_ruby_whitespace(c)),
+        Ok(text) => text.chars().take(upto_col as usize).any(|c| !is_ruby_whitespace_char(c)),
         Err(_) => false,
     }
 }
 
-/// Ruby's `String#length` (character count) of the source text `span`
-/// covers, for `hash_node.keys.map { |key| key.source_range.length }`.
-fn char_len(ctx: &Context<'_>, span: Span) -> i64 {
-    match std::str::from_utf8(ctx.text(span)) {
-        Ok(text) => i64::try_from(text.chars().count()).unwrap_or(0),
-        Err(_) => i64::from(span.len()),
-    }
-}
-
-/// RuboCop's `AlignmentCorrector#inside_string_ranges`'s heredoc case:
-/// collects heredoc body ranges within a subtree so autocorrection never
-/// touches heredoc content (see `META.blind_spots` for the non-heredoc
-/// delimited-literal case this does not cover).
-struct HeredocTaboo {
-    ranges: Vec<Span>,
-}
-
-impl<'pr> Visitor<'pr> for HeredocTaboo {
-    fn enter(&mut self, node: &Node<'pr>) {
-        let opening_closing = match node {
-            Node::StringNode { .. } => {
-                let n = node.as_string_node().expect("kind matched");
-                n.opening_loc().zip(n.closing_loc())
-            }
-            Node::InterpolatedStringNode { .. } => {
-                let n = node.as_interpolated_string_node().expect("kind matched");
-                n.opening_loc().zip(n.closing_loc())
-            }
-            Node::XStringNode { .. } => {
-                let n = node.as_x_string_node().expect("kind matched");
-                Some((n.opening_loc(), n.closing_loc()))
-            }
-            Node::InterpolatedXStringNode { .. } => {
-                let n = node.as_interpolated_x_string_node().expect("kind matched");
-                Some((n.opening_loc(), n.closing_loc()))
-            }
-            _ => None,
-        };
-        if let Some((open, close)) = opening_closing {
-            if open.as_slice().starts_with(b"<<") {
-                self.ranges.push(Span::new(open.span().end, close.span().start));
-            }
-        }
-    }
-}
-
-fn heredoc_taboo(node: &Node<'_>) -> Vec<Span> {
-    let mut taboo = HeredocTaboo { ranges: Vec::new() };
-    walk(node, &mut taboo);
-    taboo.ranges
-}
-
-/// RuboCop's `AlignmentCorrector.correct`: shifts every physical line of
-/// `span` by `column_delta` columns. Returns `None` when nothing could be
-/// safely edited (a `=begin`/`=end` block comment inside the range, or
-/// every line was blocked by a taboo range/whitespace mismatch).
-fn build_shift_fix(
-    ctx: &Context<'_>,
-    span: Span,
-    column_delta: i64,
-    taboo: &[Span],
-) -> Option<Fix> {
-    let start_line = ctx.line_col(span.start).line;
-    let last_byte = span.end.saturating_sub(1).max(span.start);
-    let end_line = ctx.line_col(last_byte).line;
-
-    for line in start_line..=end_line {
-        if trim_start(ctx.line_text(line)).starts_with(b"=begin") {
-            return None;
-        }
-    }
-
-    let mut edits = Vec::new();
-    for line in start_line..=end_line {
-        let is_first = line == start_line;
-        let anchor = if is_first { span.start } else { ctx.line_span(line).start };
-
-        if column_delta > 0 {
-            let amount = u32::try_from(column_delta).unwrap_or(0);
-            if !is_first && ctx.line_span(line).is_empty() {
-                continue;
-            }
-            if taboo.iter().any(|t| t.contains(Span::empty(anchor))) {
-                continue;
-            }
-            edits.push(Edit::insert(anchor, " ".repeat(amount as usize).into_bytes()));
-        } else {
-            let amount = u32::try_from(-column_delta).unwrap_or(0);
-            let starts_with_space =
-                ctx.source().bytes().get(anchor as usize).is_some_and(|&b| b == b' ');
-            let range = if is_first || !starts_with_space {
-                Span::new(anchor.saturating_sub(amount), anchor)
-            } else {
-                Span::new(anchor, anchor + amount)
-            };
-            if taboo.iter().any(|t| t.contains(range)) {
-                continue;
-            }
-            let text = ctx.text(range);
-            if !text.is_empty() && text.iter().all(|&b| b == b' ' || b == b'\t') {
-                edits.push(Edit::delete(range));
-            }
-        }
-    }
+/// Wraps a possibly-empty edit list from [`linter::shift_lines`] into the
+/// `Option<Fix>` shape this cop's call sites report with.
+fn fix_from_edits(edits: Vec<Edit>) -> Option<Fix> {
     if edits.is_empty() {
         None
     } else {
         Some(Fix { applicability: Applicability::Safe, edits })
     }
-}
-
-fn trim_start(text: &[u8]) -> &[u8] {
-    let mut i = 0;
-    while i < text.len() && text[i].is_ascii_whitespace() {
-        i += 1;
-    }
-    &text[i..]
 }

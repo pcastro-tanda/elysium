@@ -5,7 +5,8 @@ use linter::{
     Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
     OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
-use ruby_ast::{walk, LocationExt as _, Node, NodeExt as _, NodeKind, Visitor};
+use ruby_ast::ext::is_bare_access_modifier;
+use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 use std::collections::HashSet;
 
@@ -61,20 +62,6 @@ impl IndentationWidth {
         let line = String::from_utf8_lossy(line);
         self.allowed_patterns.iter().any(|re| re.is_match(&line))
     }
-}
-
-/// RuboCop's `Util#begins_its_line?`: `span` is the first non-blank token on its line.
-fn begins_its_line(ctx: &Context<'_>, span: Span) -> bool {
-    let lc = ctx.line_col(span.start);
-    let line = ctx.line_text(lc.line);
-    match line.iter().position(|&b| !b.is_ascii_whitespace()) {
-        Some(pos) => u32::try_from(pos).unwrap_or(u32::MAX) == lc.column,
-        None => false,
-    }
-}
-
-fn same_line(ctx: &Context<'_>, a: Span, b: Span) -> bool {
-    ctx.line_col(a.start).line == ctx.line_col(b.start).line
 }
 
 /// RuboCop's `effective_column`: the raw column, except on line 1 of a file starting with
@@ -151,13 +138,13 @@ impl IndentationWidth {
             return false;
         }
         let body_span = body.span();
-        if same_line(ctx, body_span, base) {
+        if ctx.same_line(body_span, base) {
             return false;
         }
         if starts_with_access_modifier(body) {
             return false;
         }
-        if !begins_its_line(ctx, body_span) {
+        if !ctx.begins_its_line(body_span) {
             return false;
         }
         true
@@ -246,7 +233,7 @@ impl IndentationWidth {
     fn on_lambda(&mut self, ctx: &mut Context<'_>, node: &Node<'_>) {
         let lambda = node.as_lambda_node().expect("kind matched");
         let end_span = lambda.closing_loc().span();
-        if !begins_its_line(ctx, end_span) {
+        if !ctx.begins_its_line(end_span) {
             return;
         }
         self.check_indentation(ctx, end_span, lambda.body(), "normal");
@@ -300,7 +287,7 @@ impl IndentationWidth {
         body: Option<Node<'_>>,
     ) {
         if let Some(b) = &body {
-            if same_line(ctx, whole, b.span()) {
+            if ctx.same_line(whole, b.span()) {
                 return;
             }
         }
@@ -364,7 +351,7 @@ impl IndentationWidth {
             (begin.begin_keyword_loc(), begin.end_keyword_loc())
         {
             let end_span = end_kw.span();
-            if begins_its_line(ctx, end_span) {
+            if ctx.begins_its_line(end_span) {
                 // RuboCop's `check_rescue?`: only the leading body (before any `rescue`) is
                 // checked here; an empty leading body is skipped entirely (the `rescue`/`else`/
                 // `ensure` clauses are each checked independently by their own node handler).
@@ -392,7 +379,7 @@ impl IndentationWidth {
     /// only when the closing parenthesis is first on its line.
     fn on_parentheses(&mut self, ctx: &mut Context<'_>, node: &Node<'_>) {
         let parens = node.as_parentheses_node().expect("kind matched");
-        if !begins_its_line(ctx, parens.closing_loc().span()) {
+        if !ctx.begins_its_line(parens.closing_loc().span()) {
             return;
         }
         let Some(body) = parens.body() else { return };
@@ -473,8 +460,10 @@ impl IndentationWidth {
             }
         });
 
-        let first_is_modifier =
-            body_list.as_ref().and_then(ruby_ast::NodeList::first).filter(is_bare_access_modifier);
+        let first_is_modifier = body_list
+            .as_ref()
+            .and_then(ruby_ast::NodeList::first)
+            .filter(is_bare_access_modifier_node);
         let select = if let Some(first) = first_is_modifier {
             if self.access_modifier_outdent {
                 None
@@ -498,7 +487,7 @@ impl IndentationWidth {
             }
         } else {
             for child in &list {
-                if is_bare_access_modifier(&child) {
+                if is_bare_access_modifier_node(&child) {
                     continue;
                 }
                 self.check_indentation(ctx, base, Some(child), "normal");
@@ -599,7 +588,7 @@ impl IndentationWidth {
             if let Node::BlockNode { .. } = &block_node {
                 let block = block_node.as_block_node().expect("kind matched");
                 let end_span = block.closing_loc().span();
-                if begins_its_line(ctx, end_span) {
+                if ctx.begins_its_line(end_span) {
                     self.check_indentation(ctx, end_span, block.body(), "normal");
                     if self.indented_internal_methods {
                         self.check_members(ctx, end_span, block.body());
@@ -615,7 +604,7 @@ fn starts_with_access_modifier(body: &Node<'_>) -> bool {
     if let Node::StatementsNode { .. } = body {
         let statements = body.as_statements_node().expect("kind matched");
         if let Some(first) = statements.body().first() {
-            return is_bare_access_modifier(&first);
+            return is_bare_access_modifier_node(&first);
         }
     }
     false
@@ -742,21 +731,11 @@ fn write_node_value<'pr>(node: &Node<'pr>) -> Option<Node<'pr>> {
     }
 }
 
-/// RuboCop's `bare_access_modifier?`/`access_modifier?`: a receiver-less, argument-less call to
-/// `private`/`protected`/`public`/`module_function`.
-fn is_bare_access_modifier(node: &Node<'_>) -> bool {
-    if let Node::CallNode { .. } = node {
-        let call = node.as_call_node().expect("kind matched");
-        if call.receiver().is_some() {
-            return false;
-        }
-        if call.arguments().is_some() {
-            return false;
-        }
-        matches!(call.name().as_slice(), b"private" | b"protected" | b"public" | b"module_function")
-    } else {
-        false
-    }
+/// `is_bare_access_modifier` shape-checked against a generic `Node`, for the
+/// call sites here that only have a raw AST child, not an already-narrowed
+/// `CallNode`.
+fn is_bare_access_modifier_node(node: &Node<'_>) -> bool {
+    node.as_call_node().is_some_and(|call| is_bare_access_modifier(&call))
 }
 
 /// RuboCop's `special_modifier?`: a bare `private`/`protected` call (not `public`/
@@ -800,121 +779,22 @@ fn offending_range(body_start: u32, indentation: i64) -> Span {
     }
 }
 
-/// Collects the byte ranges of heredoc bodies within a subtree, so autocorrection never
-/// touches lines that are really heredoc content (RuboCop's `AlignmentCorrector`
-/// `inside_string_ranges`/`inside_string_range`, heredoc case).
-struct HeredocTaboo {
-    ranges: Vec<Span>,
-}
-
-impl<'pr> Visitor<'pr> for HeredocTaboo {
-    fn enter(&mut self, node: &Node<'pr>) {
-        let opening_closing = match node {
-            Node::StringNode { .. } => {
-                let n = node.as_string_node().expect("kind matched");
-                n.opening_loc().zip(n.closing_loc())
-            }
-            Node::InterpolatedStringNode { .. } => {
-                let n = node.as_interpolated_string_node().expect("kind matched");
-                n.opening_loc().zip(n.closing_loc())
-            }
-            Node::XStringNode { .. } => {
-                let n = node.as_x_string_node().expect("kind matched");
-                Some((n.opening_loc(), n.closing_loc()))
-            }
-            Node::InterpolatedXStringNode { .. } => {
-                let n = node.as_interpolated_x_string_node().expect("kind matched");
-                Some((n.opening_loc(), n.closing_loc()))
-            }
-            _ => None,
-        };
-        if let Some((open, close)) = opening_closing {
-            if open.as_slice().starts_with(b"<<") {
-                let close_span = close.span();
-                self.ranges.push(Span::new(open.span().end, close_span.start));
-            }
-        }
-    }
-}
-
 /// Builds the edits that shift every physical line of `target` by `column_delta` columns
 /// (RuboCop's `AlignmentCorrector.correct`). Returns `None` when the whole correction must be
-/// skipped (a `=begin`/`=end` block comment inside the range).
+/// skipped (a `=begin`/`=end` block comment inside the range) or produced no edits.
 fn build_alignment_edits(
     ctx: &Context<'_>,
     target: &Node<'_>,
     column_delta: i64,
 ) -> Option<Vec<Edit>> {
-    if column_delta == 0 {
-        return None;
-    }
-    let span = target.span();
-    let start_line = ctx.line_col(span.start).line;
-    let last_byte = span.end.saturating_sub(1).max(span.start);
-    let end_line = ctx.line_col(last_byte).line;
-
-    for line in start_line..=end_line {
-        let text = ctx.line_text(line);
-        let trimmed = trim_start(text);
-        if trimmed.starts_with(b"=begin") {
-            return None;
-        }
-    }
-
-    let mut taboo = HeredocTaboo { ranges: Vec::new() };
-    walk(target, &mut taboo);
-
-    let mut edits = Vec::new();
-    for line in start_line..=end_line {
-        let line_span = ctx.line_span(line);
-        let is_first = line == start_line;
-        let anchor = if is_first { span.start } else { line_span.start };
-
-        if column_delta > 0 {
-            if !is_first && line_span.is_empty() {
-                continue;
-            }
-            if taboo.ranges.iter().any(|t| t.contains(Span::empty(anchor))) {
-                continue;
-            }
-            let width = usize::try_from(column_delta).unwrap_or(0);
-            edits.push(Edit::insert(anchor, " ".repeat(width).into_bytes()));
-        } else {
-            let n = u32::try_from(-column_delta).unwrap_or(0);
-            let starts_with_space = ctx
-                .source()
-                .bytes()
-                .get(usize::try_from(anchor).unwrap_or(usize::MAX))
-                .is_some_and(|&b| b == b' ');
-            let range = if is_first {
-                Span::new(anchor.saturating_sub(n), anchor)
-            } else if starts_with_space {
-                Span::new(anchor, anchor + n)
-            } else {
-                Span::new(anchor.saturating_sub(n), anchor)
-            };
-            if taboo.ranges.iter().any(|t| t.contains(range)) {
-                continue;
-            }
-            let text = ctx.text(range);
-            if !text.is_empty() && text.iter().all(|&b| b == b' ' || b == b'\t') {
-                edits.push(Edit::delete(range));
-            }
-        }
-    }
+    let taboo = linter::heredoc_bodies(ctx, target);
+    let delta = i32::try_from(column_delta).unwrap_or(0);
+    let edits = linter::shift_lines(ctx, target.span(), delta, &taboo);
     if edits.is_empty() {
         None
     } else {
         Some(edits)
     }
-}
-
-fn trim_start(text: &[u8]) -> &[u8] {
-    let mut i = 0;
-    while i < text.len() && text[i].is_ascii_whitespace() {
-        i += 1;
-    }
-    &text[i..]
 }
 
 impl Rule for IndentationWidth {

@@ -19,12 +19,12 @@ use std::borrow::Cow;
 use std::collections::HashSet;
 
 use linter::{
-    Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
+    Applicability, ConfigDefault, ConfigOption, Context, Department, Fix, FixAvailability,
     NodeInfo, OptionError, OptionValue, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::node::CallNode;
-use ruby_ast::{walk, LocationExt as _, Node, NodeExt as _, NodeKind, Visitor};
-use ruby_source::Span;
+use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
+use ruby_source::{is_comment_line, is_ruby_whitespace, is_ruby_whitespace_char, Span};
 
 /// RuboCop's `EnforcedStyle`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -103,13 +103,13 @@ impl FirstArgumentIndentation {
     /// single-element `items` list, so `each_bad_alignment`'s `prev_line` bookkeeping is moot).
     fn check(&mut self, ctx: &mut Context<'_>, call_span: Span, first_arg: &Node<'_>) {
         let arg_span = first_arg.span();
-        if same_line(ctx, call_span, arg_span) {
+        if ctx.same_line(call_span, arg_span) {
             return;
         }
         if self.skip_with_fixed_indentation {
             return;
         }
-        if !begins_its_line(ctx, arg_span) {
+        if !ctx.begins_its_line(arg_span) {
             return;
         }
 
@@ -199,7 +199,7 @@ impl FirstArgumentIndentation {
     /// (the only thing either call site uses the line for).
     fn previous_code_line_indent(&mut self, ctx: &Context<'_>, mut line: u32) -> u32 {
         let comment_lines = self.comment_lines.get_or_insert_with(|| {
-            ctx.comments().iter().filter(|c| begins_its_line(ctx, c.span)).map(|c| c.line).collect()
+            ctx.comments().iter().filter(|c| ctx.begins_its_line(c.span)).map(|c| c.line).collect()
         });
         loop {
             if line <= 1 {
@@ -207,7 +207,7 @@ impl FirstArgumentIndentation {
             }
             line -= 1;
             let text = ctx.line_text(line);
-            if text.iter().all(|&b| is_ruby_ws_byte(b)) || comment_lines.contains(&line) {
+            if text.iter().all(|&b| is_ruby_whitespace(b)) || comment_lines.contains(&line) {
                 continue;
             }
             return char_indent_of(text);
@@ -221,7 +221,7 @@ impl FirstArgumentIndentation {
             format!("`{}`", String::from_utf8_lossy(stripped))
         } else {
             let last_line = stripped.rsplit(|&b| b == b'\n').next().unwrap_or(stripped);
-            if is_comment_only_line(last_line) {
+            if is_comment_line(last_line) {
                 "the start of the previous line (not counting the comment)".to_string()
             } else {
                 "the start of the previous line".to_string()
@@ -289,32 +289,6 @@ fn facts_of_call(call: &CallNode<'_>) -> CallFacts {
     }
 }
 
-fn same_line(ctx: &Context<'_>, a: Span, b: Span) -> bool {
-    ctx.line_col(a.start).line == ctx.line_col(b.start).line
-}
-
-/// RuboCop's `Util#begins_its_line?`, character-based so it also holds on lines with non-ASCII
-/// leading content.
-fn begins_its_line(ctx: &Context<'_>, span: Span) -> bool {
-    let line_col = ctx.line_col(span.start);
-    let line = ctx.line_text(line_col.line);
-    let Ok(text) = std::str::from_utf8(line) else { return line_col.column == 0 };
-    match text.chars().position(|ch| !is_ruby_ws_char(ch)) {
-        Some(index) => u32::try_from(index).unwrap_or(u32::MAX) == line_col.column,
-        None => false,
-    }
-}
-
-/// Ruby's `\s` character class (used by the cop's `=~ /\S/` column search and by
-/// `comment_line?`'s `/^\s*#/`).
-fn is_ruby_ws_byte(b: u8) -> bool {
-    matches!(b, b' ' | b'\t' | b'\n' | 0x0B | 0x0C | b'\r')
-}
-
-fn is_ruby_ws_char(ch: char) -> bool {
-    ch.is_ascii() && is_ruby_ws_byte(ch as u8)
-}
-
 /// Ruby's `String#strip`: trims leading/trailing `\0`, `\t`, `\n`, `\v`, `\f`, `\r`, and space.
 fn ruby_strip(bytes: &[u8]) -> &[u8] {
     let is_ws = |b: u8| matches!(b, b' ' | b'\t' | b'\n' | 0x0B | 0x0C | b'\r' | 0);
@@ -332,54 +306,10 @@ fn ruby_strip(bytes: &[u8]) -> &[u8] {
 /// The character index of the first non-whitespace byte in `text` (RuboCop's `=~ /\S/`).
 fn char_indent_of(text: &[u8]) -> u32 {
     match std::str::from_utf8(text) {
-        Ok(s) => u32::try_from(s.chars().take_while(|&c| is_ruby_ws_char(c)).count()).unwrap_or(0),
+        Ok(s) => u32::try_from(s.chars().take_while(|&c| is_ruby_whitespace_char(c)).count())
+            .unwrap_or(0),
         Err(_) => {
-            u32::try_from(text.iter().take_while(|&b| is_ruby_ws_byte(*b)).count()).unwrap_or(0)
-        }
-    }
-}
-
-/// RuboCop's `Util#comment_line?`: `/^\s*#/`.
-fn is_comment_only_line(line: &[u8]) -> bool {
-    let mut i = 0;
-    while i < line.len() && is_ruby_ws_byte(line[i]) {
-        i += 1;
-    }
-    i < line.len() && line[i] == b'#'
-}
-
-/// Collects the byte ranges of heredoc bodies within a subtree, so autocorrection never touches
-/// lines that are really heredoc content (RuboCop's `AlignmentCorrector` `inside_string_ranges`/
-/// `inside_string_range`, heredoc case).
-struct HeredocTaboo {
-    ranges: Vec<Span>,
-}
-
-impl<'pr> Visitor<'pr> for HeredocTaboo {
-    fn enter(&mut self, node: &Node<'pr>) {
-        let opening_closing = match node {
-            Node::StringNode { .. } => {
-                let n = node.as_string_node().expect("kind matched");
-                n.opening_loc().zip(n.closing_loc())
-            }
-            Node::InterpolatedStringNode { .. } => {
-                let n = node.as_interpolated_string_node().expect("kind matched");
-                n.opening_loc().zip(n.closing_loc())
-            }
-            Node::XStringNode { .. } => {
-                let n = node.as_x_string_node().expect("kind matched");
-                Some((n.opening_loc(), n.closing_loc()))
-            }
-            Node::InterpolatedXStringNode { .. } => {
-                let n = node.as_interpolated_x_string_node().expect("kind matched");
-                Some((n.opening_loc(), n.closing_loc()))
-            }
-            _ => None,
-        };
-        if let Some((open, close)) = opening_closing {
-            if open.as_slice().starts_with(b"<<") {
-                self.ranges.push(Span::new(open.span().end, close.span().start));
-            }
+            u32::try_from(text.iter().take_while(|&b| is_ruby_whitespace(*b)).count()).unwrap_or(0)
         }
     }
 }
@@ -390,64 +320,14 @@ impl<'pr> Visitor<'pr> for HeredocTaboo {
 /// mismatch).
 fn build_shift_fix(ctx: &Context<'_>, item: &Node<'_>, column_delta: i64) -> Option<Fix> {
     let span = item.span();
-    let start_line = ctx.line_col(span.start).line;
-    let last_byte = span.end.saturating_sub(1).max(span.start);
-    let end_line = ctx.line_col(last_byte).line;
-
-    for line in start_line..=end_line {
-        if trim_start(ctx.line_text(line)).starts_with(b"=begin") {
-            return None;
-        }
-    }
-
-    let mut taboo = HeredocTaboo { ranges: Vec::new() };
-    walk(item, &mut taboo);
-
-    let mut edits = Vec::new();
-    for line in start_line..=end_line {
-        let is_first = line == start_line;
-        let anchor = if is_first { span.start } else { ctx.line_span(line).start };
-
-        if column_delta > 0 {
-            let amount = u32::try_from(column_delta).unwrap_or(0);
-            if !is_first && ctx.line_span(line).is_empty() {
-                continue;
-            }
-            if taboo.ranges.iter().any(|t| t.contains(Span::empty(anchor))) {
-                continue;
-            }
-            edits.push(Edit::insert(anchor, " ".repeat(amount as usize).into_bytes()));
-        } else {
-            let amount = u32::try_from(-column_delta).unwrap_or(0);
-            let starts_with_space =
-                ctx.source().bytes().get(anchor as usize).is_some_and(|&b| b == b' ');
-            let range = if is_first || !starts_with_space {
-                Span::new(anchor.saturating_sub(amount), anchor)
-            } else {
-                Span::new(anchor, anchor + amount)
-            };
-            if taboo.ranges.iter().any(|t| t.contains(range)) {
-                continue;
-            }
-            let text = ctx.text(range);
-            if !text.is_empty() && text.iter().all(|&b| b == b' ' || b == b'\t') {
-                edits.push(Edit::delete(range));
-            }
-        }
-    }
+    let taboo = linter::heredoc_bodies(ctx, item);
+    let delta = i32::try_from(column_delta).unwrap_or(0);
+    let edits = linter::shift_lines(ctx, span, delta, &taboo);
     if edits.is_empty() {
         None
     } else {
         Some(Fix { applicability: Applicability::Safe, edits })
     }
-}
-
-fn trim_start(text: &[u8]) -> &[u8] {
-    let mut i = 0;
-    while i < text.len() && text[i].is_ascii_whitespace() {
-        i += 1;
-    }
-    &text[i..]
 }
 
 impl Rule for FirstArgumentIndentation {

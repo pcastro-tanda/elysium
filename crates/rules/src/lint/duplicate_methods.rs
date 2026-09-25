@@ -7,7 +7,7 @@ use linter::{
     Severity, Stability,
 };
 use ruby_ast::node::{CallNode, DefNode};
-use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
+use ruby_ast::{ext, LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 /// One resolved contribution of an enclosing scope to a qualified method
@@ -470,17 +470,22 @@ fn constant_path_text(ctx: &Context<'_>, span: Span) -> String {
     text.strip_prefix("::").map_or_else(|| text.clone(), str::to_string)
 }
 
-/// A bare `Name` or top-level `::Name` constant reference.
+/// A bare `Name` or top-level `::Name` constant reference. Shape check
+/// delegated to [`ruby_ast::ext::is_bare_or_toplevel_const`]; the name
+/// comparison stays local since the shared helper only checks shape.
 fn is_bare_or_toplevel_const(node: &Node<'_>, expected: &[u8]) -> bool {
+    if !ext::is_bare_or_toplevel_const(node) {
+        return false;
+    }
     match node.kind() {
         NodeKind::ConstantReadNode => {
             node.as_constant_read_node().is_some_and(|n| n.name().as_slice() == expected)
         }
-        NodeKind::ConstantPathNode => {
-            let path = node.as_constant_path_node().expect("kind matched");
-            path.parent().is_none() && path.name().is_some_and(|id| id.as_slice() == expected)
-        }
-        _ => false,
+        NodeKind::ConstantPathNode => node
+            .as_constant_path_node()
+            .and_then(|path| path.name())
+            .is_some_and(|id| id.as_slice() == expected),
+        _ => unreachable!("ext::is_bare_or_toplevel_const already checked the shape"),
     }
 }
 

@@ -50,7 +50,7 @@ impl ElseLayout {
 
         // `node.single_line?`: the whole `if`/`unless` fits on one line,
         // deferred to `Style/OneLineConditional`.
-        if is_single_line(ctx, full_span) {
+        if ctx.is_single_line(full_span) {
             return;
         }
 
@@ -216,9 +216,4 @@ naive reading of its recursion does not double-report).",
             _ => {}
         }
     }
-}
-
-/// RuboCop's `Node#single_line?`.
-fn is_single_line(ctx: &Context<'_>, span: Span) -> bool {
-    ctx.line_col(span.start).line == ctx.line_col(span.end.saturating_sub(1)).line
 }
