@@ -8,7 +8,7 @@ Checks for redundant access modifiers.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for redundant access modifiers, including those with no code, those
 which are repeated, those which are on top-level, and leading `public`

@@ -294,7 +294,7 @@ Time.now.to_datetime.to_i
         enabled_by_default: false,
         severity: Severity::Warning,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[
             ConfigOption {

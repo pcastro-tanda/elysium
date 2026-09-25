@@ -8,7 +8,7 @@ Checks for redundant uses of `self`.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 The usage of `self` is only needed when:
 

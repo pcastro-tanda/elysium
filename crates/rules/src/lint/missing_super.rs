@@ -196,7 +196,7 @@ end
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::DefNode, NodeKind::ClassNode, NodeKind::CallNode, NodeKind::LambdaNode],
         config: &[ConfigOption {
             name: "AllowedParentClasses",

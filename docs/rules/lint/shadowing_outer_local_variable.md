@@ -8,7 +8,7 @@ Do not use the same name as outer local variable for block arguments or block lo
 | Enabled by default | false |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for the use of local variable names from an outer scope in block
 arguments or block-local variables. This mirrors the warning given by

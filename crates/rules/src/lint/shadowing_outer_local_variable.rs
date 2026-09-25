@@ -66,7 +66,7 @@ end
         enabled_by_default: false,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::ProgramNode],
         config: &[],
         blind_spots: "\

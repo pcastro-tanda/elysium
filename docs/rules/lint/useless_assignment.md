@@ -8,7 +8,7 @@ Checks for useless assignment to a local variable.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for every useless assignment to local variable in every scope.
 The basic idea for this cop was from the warning of `ruby -cw`:

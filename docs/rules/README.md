@@ -29,21 +29,21 @@
 | Cop | Fix | Stability | Summary |
 | --- | --- | --- | --- |
 | [Lint/AmbiguousBlockAssociation](lint/ambiguous_block_association.md) | safe | stable | Checks for ambiguous block association with method when param passed without parentheses. |
-| [Lint/ConstantResolution](lint/constant_resolution.md) | none | nursery | Checks that constants are fully qualified with `::`. |
+| [Lint/ConstantResolution](lint/constant_resolution.md) | none | stable | Checks that constants are fully qualified with `::`. |
 | [Lint/Debugger](lint/debugger.md) | none | stable | Checks for debugger calls. |
 | [Lint/DuplicateHashKey](lint/duplicate_hash_key.md) | none | stable | Checks for duplicated keys in hash literals. |
 | [Lint/DuplicateMethods](lint/duplicate_methods.md) | none | stable | Checks for duplicated instance (or singleton) method definitions. |
 | [Lint/ElseLayout](lint/else_layout.md) | safe | stable | Checks for odd code arrangement in an else block. |
 | [Lint/EmptyBlock](lint/empty_block.md) | none | stable | Checks for blocks without a body. |
-| [Lint/MissingSuper](lint/missing_super.md) | none | nursery | Checks for the presence of constructors and lifecycle callbacks without calls to `super`. |
-| [Lint/NumberConversion](lint/number_conversion.md) | unsafe | nursery | Warns the usage of unsafe number conversions. |
+| [Lint/MissingSuper](lint/missing_super.md) | none | stable | Checks for the presence of constructors and lifecycle callbacks without calls to `super`. |
+| [Lint/NumberConversion](lint/number_conversion.md) | unsafe | stable | Warns the usage of unsafe number conversions. |
 | [Lint/RedundantCopDisableDirective](lint/redundant_cop_disable_directive.md) | safe | nursery | Detects instances of rubocop:disable comments that can be removed. |
 | [Lint/RedundantStringCoercion](lint/redundant_string_coercion.md) | safe | stable | Checks for `Object#to_s` usage in string interpolation. |
-| [Lint/SelfAssignment](lint/self_assignment.md) | none | nursery | Checks for self-assignments. |
-| [Lint/ShadowedException](lint/shadowed_exception.md) | none | nursery | Checks for a rescued exception that get shadowed by a less specific exception being rescued before a more specific exception is rescued. |
-| [Lint/ShadowingOuterLocalVariable](lint/shadowing_outer_local_variable.md) | none | nursery | Do not use the same name as outer local variable for block arguments or block local variables. |
-| [Lint/UselessAccessModifier](lint/useless_access_modifier.md) | safe | nursery | Checks for redundant access modifiers. |
-| [Lint/UselessAssignment](lint/useless_assignment.md) | safe | nursery | Checks for useless assignment to a local variable. |
+| [Lint/SelfAssignment](lint/self_assignment.md) | none | stable | Checks for self-assignments. |
+| [Lint/ShadowedException](lint/shadowed_exception.md) | none | stable | Checks for a rescued exception that get shadowed by a less specific exception being rescued before a more specific exception is rescued. |
+| [Lint/ShadowingOuterLocalVariable](lint/shadowing_outer_local_variable.md) | none | stable | Do not use the same name as outer local variable for block arguments or block local variables. |
+| [Lint/UselessAccessModifier](lint/useless_access_modifier.md) | safe | stable | Checks for redundant access modifiers. |
+| [Lint/UselessAssignment](lint/useless_assignment.md) | safe | stable | Checks for useless assignment to a local variable. |
 
 ## Style
 
@@ -61,13 +61,13 @@
 | [Style/MutableConstant](style/mutable_constant.md) | unsafe | stable | Do not assign mutable objects to constants. |
 | [Style/NumericLiteralPrefix](style/numeric_literal_prefix.md) | safe | stable | Use smallcase prefixes for numeric literals. |
 | [Style/NumericLiterals](style/numeric_literals.md) | safe | stable | Checks for big numeric literals without `_` between groups of digits in them. |
-| [Style/OptionalBooleanParameter](style/optional_boolean_parameter.md) | none | nursery | Checks for places where keyword arguments can be used instead of boolean arguments when defining methods. |
+| [Style/OptionalBooleanParameter](style/optional_boolean_parameter.md) | none | stable | Checks for places where keyword arguments can be used instead of boolean arguments when defining methods. |
 | [Style/RedundantCondition](style/redundant_condition.md) | safe | stable | Checks for unnecessary conditional expressions. |
 | [Style/RedundantParentheses](style/redundant_parentheses.md) | safe | stable | Checks for parentheses that seem not to serve any purpose. |
 | [Style/RedundantRegexpCharacterClass](style/redundant_regexp_character_class.md) | safe | stable | Checks for unnecessary single-element `Regexp` character classes. |
 | [Style/RedundantRegexpEscape](style/redundant_regexp_escape.md) | safe | stable | Checks for redundant escapes inside `Regexp` literals. |
 | [Style/RedundantReturn](style/redundant_return.md) | safe | stable | Don't use return where it's not required. |
-| [Style/RedundantSelf](style/redundant_self.md) | safe | nursery | Checks for redundant uses of `self`. |
+| [Style/RedundantSelf](style/redundant_self.md) | safe | stable | Checks for redundant uses of `self`. |
 | [Style/SoleNestedConditional](style/sole_nested_conditional.md) | safe | stable | Finds sole nested conditional nodes which can be merged into outer conditional node. |
 | [Style/StringConcatenation](style/string_concatenation.md) | unsafe | stable | Checks for places where string concatenation can be replaced with string interpolation. |
 | [Style/StringLiterals](style/string_literals.md) | safe | stable | Checks if uses of quotes match the configured preference. |

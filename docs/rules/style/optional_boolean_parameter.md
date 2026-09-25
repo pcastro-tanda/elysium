@@ -8,7 +8,7 @@ Checks for places where keyword arguments can be used instead of boolean argumen
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 `respond_to_missing?` method is allowed by default. These are customizable
 with `AllowedMethods` option.

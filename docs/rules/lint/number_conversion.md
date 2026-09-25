@@ -8,7 +8,7 @@ Warns the usage of unsafe number conversions.
 | Enabled by default | false |
 | Default severity | warning |
 | Fix | unsafe |
-| Stability | nursery |
+| Stability | stable |
 
 Warns the usage of unsafe number conversions. Unsafe number conversion can
 cause unexpected error if auto type conversion fails. This cop prefers

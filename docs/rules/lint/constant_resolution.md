@@ -8,7 +8,7 @@ Checks that constants are fully qualified with `::`.
 | Enabled by default | false |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 This is not enabled by default because it would mark a lot of offenses
 unnecessarily.

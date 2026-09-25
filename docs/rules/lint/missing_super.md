@@ -8,7 +8,7 @@ Checks for the presence of constructors and lifecycle callbacks without calls to
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 This cop does not consider `method_missing` (and `respond_to_missing?`)
 because in some cases it makes sense to overtake what is considered a

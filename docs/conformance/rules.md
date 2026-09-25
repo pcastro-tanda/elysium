@@ -84,6 +84,7 @@ text differs (RuboCop versions word some messages differently).
 | Lint/EmptyBlock | forem | 1.63.4 | 4 | 4 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/EmptyBlock | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/MissingSuper | discourse | 1.91.0 | 113 | 113 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
+| Lint/MissingSuper | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/MissingSuper | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/NumberConversion | discourse | 1.91.0 | 3150 | 3150 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/NumberConversion | mastodon | 1.91.0 | 204 | 204 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
@@ -93,16 +94,22 @@ text differs (RuboCop versions word some messages differently).
 | Lint/RedundantStringCoercion | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/RedundantStringCoercion | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/RedundantStringCoercion | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/SelfAssignment | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/SelfAssignment | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/SelfAssignment | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/SelfAssignment | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/ShadowedException | discourse | 1.91.0 | 6 | 6 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
+| Lint/ShadowedException | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/ShadowedException | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
+| Lint/ShadowingOuterLocalVariable | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/ShadowingOuterLocalVariable | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
+| Lint/ShadowingOuterLocalVariable | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/ShadowingOuterLocalVariable | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/UselessAccessModifier | discourse | 1.91.0 | 77 | 77 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
+| Lint/UselessAccessModifier | mastodon (defaults) | 1.91.0 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/UselessAccessModifier | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/UselessAssignment | discourse | 1.91.0 | 551 | 551 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
+| Lint/UselessAssignment | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/UselessAssignment | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Style/AccessorGrouping | discourse | 1.91.0 | 166 | 166 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/AccessorGrouping | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
@@ -141,6 +148,7 @@ text differs (RuboCop versions word some messages differently).
 | Style/NumericLiterals | forem | 1.63.4 | 23 | 23 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/NumericLiterals | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/OptionalBooleanParameter | discourse | 1.91.0 | 63 | 63 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
+| Style/OptionalBooleanParameter | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Style/OptionalBooleanParameter | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Style/RedundantCondition | discourse | 1.91.0 | 28 | 28 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/RedundantCondition | forem | 1.63.4 | 0 | 2 | 0 | 2 | 0 | 0.0% | 2026-09-24 | [^skew-condition] |
@@ -157,6 +165,7 @@ text differs (RuboCop versions word some messages differently).
 | Style/RedundantReturn | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/RedundantReturn | forem | 1.63.4 | 14 | 14 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/RedundantReturn | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/RedundantSelf | discourse (defaults) | 1.91.0 | 2 | 2 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Style/RedundantSelf | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Style/RedundantSelf | mastodon (defaults) | 1.91.0 | 5 | 5 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Style/RedundantSelf | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |

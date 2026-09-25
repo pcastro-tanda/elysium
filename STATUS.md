@@ -30,7 +30,14 @@ semantic cops (60 rules total).
   `Lint/UselessAccessModifier`, `Lint/MissingSuper`,
   `Lint/ConstantResolution`, `Lint/NumberConversion`,
   `Lint/SelfAssignment`, `Style/OptionalBooleanParameter`) are syntactic.
-  All ten are `nursery` until corpus conformance is measured.
+  All ten are `stable`: 100% agreement with RuboCop 1.91 on discourse and
+  mastodon (`docs/conformance/rules.md`). Conformance surfaced four port
+  bugs and three upstream-version skews, all fixed by following the later
+  RuboCop: `||=`/`&&=`/`op=` branches (1.84, #14796) in `ruby_semantic`,
+  `Lint/NumberConversion`'s safe-navigation message/no-fix and
+  `AllowedClasses` (1.88, #15252/#15194; fixtures regenerated from the
+  1.91.0 spec), and a `Lint/ShadowedException` hierarchy table generated
+  from a process with `rubocop` loaded rather than bare `ruby`.
 - Fixtures: extracted from RuboCop's own specs by `tools/port_spec.rb`
   (instrumented `expect_offense`/`expect_correction`), checked for offenses,
   corrections, and fix idempotence by `crates/rules/tests/fixtures.rs`. A
@@ -145,16 +152,14 @@ semantic cops (60 rules total).
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 49 | 0 | 11 |
+| 59 | 0 | 1 |
 
 Promotion to `stable` requires >99% corpus conformance on `discourse` and
-`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 49 of 60 rules meet
+`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 59 of 60 rules meet
 it. At `nursery`:
 
 - `Lint/RedundantCopDisableDirective` — held back per policy regardless of
   measured agreement (see above).
-- The ten Phase 4 cops — fixture-complete against RuboCop 1.82.1's specs,
-  corpus conformance not yet run.
 
 `Lint/Syntax` is built into the engine and is not counted.
 
@@ -242,11 +247,10 @@ earlier roadmap jumped to extension-gem cops with 85% of core defaults
 unported. Inventory, bucketed by department and by the infrastructure each
 cop needs: `docs/planning/default-parity.md`.
 
-1. Phase 4 conformance: run `cargo xtask conformance --app
-   <discourse|mastodon> --rule Cop` for each of the ten new cops, resolve
-   diffs, promote. The known modelling deviation to watch for is documented
-   in `docs/planning/phase4-semantic.md` (`Branch.of` past a twisted block
-   call).
+1. ~~Phase 4 conformance~~ — done; all ten cops `stable`. Remaining
+   caveat: mastodon is RuboCop-clean, so for `Lint/SelfAssignment` and
+   `Lint/ShadowingOuterLocalVariable` both apps agree on zero offenses
+   (fixtures are the only positive evidence).
 2. Phase 5: **default-cop parity**, in batches from
    `docs/planning/default-parity.md`. Order by infrastructure: the 45
    `pure-ast` cops first (no new engine work; Security/*, Lint duplicates,

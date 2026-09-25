@@ -8,7 +8,7 @@ Checks for a rescued exception that get shadowed by a less specific exception be
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 An exception is considered shadowed if it is rescued after its
 ancestor is, or if it and its ancestor are both rescued in the
