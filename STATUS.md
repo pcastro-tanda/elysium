@@ -143,6 +143,22 @@ it. The one remaining at `nursery`:
 
 ## Benchmarks
 
+### vs RuboCop (Phase 3, 49 shared cops)
+
+Median of 3 runs each, three real Rails apps, RuboCop's own best case
+(warm/cached) vs elysium's cold-every-time numbers. Full tables, exact
+commands, rule list, and per-app CPU/RSS/offense breakdowns:
+[`docs/benchmarks/phase3-vs-rubocop.md`](docs/benchmarks/phase3-vs-rubocop.md).
+
+| app (files) | RuboCop cold `--parallel` | RuboCop warm `--parallel` | elysium (10 threads) | speedup vs cold | speedup vs warm |
+|---|---:|---:|---:|---:|---:|
+| discourse (12,120) | 104.72 s | 24.09 s | 2.18 s | 48.0x | 11.1x |
+| mastodon (3,277) | 13.72 s | 5.36 s | 0.19 s | 72.2x | 28.2x |
+| forem (2,987, RuboCop 1.63.4) | 27.48 s | 34.42 s | 0.29 s | 94.8x | 118.7x |
+
+elysium has no result cache; RuboCop's warm column is its cache-primed best
+case, and elysium still wins every row while re-parsing from scratch.
+
 Host: Apple M4 (10 cores), macOS, release build (`lto = "fat"`).
 Corpus: gitlab-foss `master`, 32,237 target files, 108.6 MB, 11.3M nodes.
 
