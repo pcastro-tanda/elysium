@@ -19,7 +19,7 @@
 
 use linter::{
     Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
-    OptionError, OptionValue, Rule, RuleMeta, RuleOptions, Severity, Stability,
+    NodeInfo, OptionError, OptionValue, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::node::{CallNode, DefNode};
 use ruby_ast::{ext, LocationExt as _, Node, NodeExt as _, NodeKind};
@@ -155,7 +155,19 @@ impl UselessAccessModifier {
         let frame = self.scopes.last_mut().expect("top-level frame always present");
         match frame.kind {
             ScopeKind::TopLevel => {
-                if bare || call.arguments().is_none() {
+                // RuboCop's `on_begin` returns unless the `begin` is the
+                // root and inspects only its direct children, so a
+                // modifier nested in any non-tracked construct at top level
+                // (`RSpec.describe do private end`, `if x then private end`)
+                // is never reported; nor is a file whose whole body is the
+                // one modifier (whitequark emits no `begin` for a single
+                // statement, so `on_begin` never fires).
+                let direct_child_of_root = matches!(
+                    ctx.ancestors(),
+                    [NodeInfo { kind: NodeKind::ProgramNode, .. }, NodeInfo { kind: NodeKind::StatementsNode, span: body }]
+                        if *body != call.as_node().span()
+                );
+                if direct_child_of_root && (bare || call.arguments().is_none()) {
                     Self::report(ctx, span, name);
                 }
             }

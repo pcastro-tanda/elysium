@@ -60,7 +60,8 @@ With `AllowedPatterns: ['min*']` (default: `[]`):
 10.minutes.to_i
 ```
 
-With `IgnoredClasses: [Time, DateTime]` (the default):
+With `AllowedClasses: [Time, DateTime]` (the default; `IgnoredClasses` is the
+pre-1.88 spelling and is still honoured):
 
 ```ruby
 # good
@@ -73,7 +74,8 @@ Time.now.to_datetime.to_i
 | --- | --- | --- | --- |
 | AllowedMethods | `[]` |  | Method names on a `to_i`/etc. receiver that are always allowed. |
 | AllowedPatterns | `[]` |  | Method name regex patterns on a `to_i`/etc. receiver that are always allowed. |
-| IgnoredClasses | `Time`, `DateTime` |  | Top-level constant receivers never flagged. |
+| AllowedClasses | `Time`, `DateTime` |  | Top-level constant receivers never flagged. |
+| IgnoredClasses | `[]` |  | Deprecated pre-1.88 spelling of `AllowedClasses`; both lists apply. |
 
 ## Blind spots
 

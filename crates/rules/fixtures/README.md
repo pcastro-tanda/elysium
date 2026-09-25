@@ -6,6 +6,13 @@ README for the format. Regenerate a directory with:
     ruby tools/port_spec.rb --cop Style/WordArray \
         --rubocop-src /path/to/rubocop-1.82.1 --out crates/rules/fixtures
 
+Fixtures follow RuboCop 1.82.1 except where a later upstream bug fix was
+adopted for corpus conformance; those directories are regenerated from that
+later tag's checkout instead:
+
+- `lint/number_conversion`: RuboCop 1.91.0 (1.88's #15252 safe-navigation
+  message/no-autocorrect and #15194 `IgnoredClasses` -> `AllowedClasses`).
+
 ## Deliberately removed cases
 
 Cases that depend on Ruby process state elysium does not model are deleted

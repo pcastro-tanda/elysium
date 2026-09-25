@@ -78,15 +78,7 @@ Login
 
 ## Blind spots
 
-`node.parent&.defined_module` is narrowed to `ctx.parent()` being a
-`ClassNode`/`ModuleNode`: upstream's `defined_module0` pattern also matches a
-`(casgn ... (send Class/Module :new ...))` constant assignment, but only
-when the assigned name is itself written as a compound path
-(`A::B = Class.new`); a simple `Foo = Class.new` never produces a
-`ConstantReadNode` for `Foo` in Prism to begin with (its name is a bare
-field, not a child node), so the only gap is that rare compound-path form,
-left unhandled here (never reported in RuboCop's own spec either). Per
-upstream's own pattern shape, a `class Foo < Bar` superclass reference is
+Per upstream's own pattern shape, a `class Foo < Bar` superclass reference is
 exempted exactly like the class's own name -- both are direct children of
 the same `ClassNode` -- which this port reproduces rather than special-casing
 away.

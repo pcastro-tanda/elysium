@@ -351,6 +351,9 @@ impl<'pr> Builder<'pr> {
     /// RuboCop's `Branch.of`, unrolled: the whole chain from `node` up to the
     /// enclosing scope, innermost first, skipping the alternatives that
     /// always run.
+    // One arm per control-structure node kind; splitting would only hide
+    // the dispatch.
+    #[allow(clippy::too_many_lines)]
     fn collect_branch_specs(&self, node: &Node<'pr>, out: &mut Vec<RawBranch<'pr>>) {
         let scope = node_id(&self.sem.scopes[self.current_scope().index()].node);
         let last = self.ancestors.len();
@@ -425,6 +428,40 @@ impl<'pr> Builder<'pr> {
                     let control = parent.as_or_node().expect("kind matched");
                     if !same(&control.left(), &child) {
                         out.push(simple(parent, child, BranchKind::LogicalOperator));
+                    }
+                    index -= 1;
+                }
+                NodeKind::LocalVariableOrWriteNode
+                | NodeKind::LocalVariableAndWriteNode
+                | NodeKind::LocalVariableOperatorWriteNode
+                | NodeKind::InstanceVariableOrWriteNode
+                | NodeKind::InstanceVariableAndWriteNode
+                | NodeKind::InstanceVariableOperatorWriteNode
+                | NodeKind::ClassVariableOrWriteNode
+                | NodeKind::ClassVariableAndWriteNode
+                | NodeKind::ClassVariableOperatorWriteNode
+                | NodeKind::GlobalVariableOrWriteNode
+                | NodeKind::GlobalVariableAndWriteNode
+                | NodeKind::GlobalVariableOperatorWriteNode
+                | NodeKind::ConstantOrWriteNode
+                | NodeKind::ConstantAndWriteNode
+                | NodeKind::ConstantOperatorWriteNode
+                | NodeKind::ConstantPathOrWriteNode
+                | NodeKind::ConstantPathAndWriteNode
+                | NodeKind::ConstantPathOperatorWriteNode
+                | NodeKind::IndexOrWriteNode
+                | NodeKind::IndexAndWriteNode
+                | NodeKind::IndexOperatorWriteNode
+                | NodeKind::CallOrWriteNode
+                | NodeKind::CallAndWriteNode
+                | NodeKind::CallOperatorWriteNode => {
+                    // RuboCop ≥ 1.84 (#14796): `lhs op= rhs` is a branch
+                    // whose left body always runs and whose right body is
+                    // conditional. Parser's child 0 is the whole assignable
+                    // (receiver, index arguments, constant path); every
+                    // Prism child other than `value` belongs to it.
+                    if same(&operator_write_value(&parent), &child) {
+                        out.push(simple(parent, child, BranchKind::OperatorAssignment));
                     }
                     index -= 1;
                 }
@@ -1012,6 +1049,44 @@ fn operator_span(node: &Node<'_>, meta: Option<&Meta<'_>>) -> Option<Span> {
 
 fn simple<'pr>(control: Node<'pr>, child: Node<'pr>, kind: BranchKind) -> RawBranch<'pr> {
     RawBranch { control, child, kind, may_jump: false, may_run_incompletely: false }
+}
+
+/// The `value` child of any of Prism's `*OrWriteNode`/`*AndWriteNode`/
+/// `*OperatorWriteNode` variants (parser's `or_asgn`/`and_asgn`/`op_asgn`
+/// right-hand side).
+fn operator_write_value<'pr>(node: &Node<'pr>) -> Node<'pr> {
+    macro_rules! value {
+        ($($as:ident),*) => {
+            $(if let Some(n) = node.$as() { return n.value(); })*
+        };
+    }
+    value!(
+        as_local_variable_or_write_node,
+        as_local_variable_and_write_node,
+        as_local_variable_operator_write_node,
+        as_instance_variable_or_write_node,
+        as_instance_variable_and_write_node,
+        as_instance_variable_operator_write_node,
+        as_class_variable_or_write_node,
+        as_class_variable_and_write_node,
+        as_class_variable_operator_write_node,
+        as_global_variable_or_write_node,
+        as_global_variable_and_write_node,
+        as_global_variable_operator_write_node,
+        as_constant_or_write_node,
+        as_constant_and_write_node,
+        as_constant_operator_write_node,
+        as_constant_path_or_write_node,
+        as_constant_path_and_write_node,
+        as_constant_path_operator_write_node,
+        as_index_or_write_node,
+        as_index_and_write_node,
+        as_index_operator_write_node,
+        as_call_or_write_node,
+        as_call_and_write_node,
+        as_call_operator_write_node
+    );
+    unreachable!("caller matched an operator-write kind")
 }
 
 /// The `Rescue`/`Ensure` branches of a `BeginNode`, mirroring parser's

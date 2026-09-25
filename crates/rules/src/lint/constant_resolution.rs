@@ -20,6 +20,7 @@ use linter::{
     RuleOptions, Severity, Stability,
 };
 use ruby_ast::{Node, NodeExt as _, NodeKind};
+use ruby_source::Span;
 
 /// RuboCop's `MSG`.
 const MSG: &str = "Fully qualify this constant to avoid possibly ambiguous resolution.";
@@ -29,6 +30,24 @@ const MSG: &str = "Fully qualify this constant to avoid possibly ambiguous resol
 pub struct ConstantResolution {
     only: Vec<String>,
     ignore: Vec<String>,
+    /// Span of the namespace `ConstantReadNode` of a `A::B = Class.new`
+    /// / `Module.new` assignment just entered, which RuboCop's
+    /// `defined_module` exempts exactly like a `class A::B` name. Set on
+    /// the `ConstantPathWriteNode`, consumed by the next
+    /// `ConstantReadNode` (its `target.parent`, visited immediately after).
+    defined_module_namespace: Option<Span>,
+}
+
+/// rubocop-ast's `defined_module0` `casgn` branch: the assigned value is a
+/// `Class.new`/`Module.new` call on the bare constant, with or without a
+/// block (`Struct.new` and `::Class.new` are not included upstream).
+fn is_class_or_module_new(value: &Node<'_>) -> bool {
+    let Some(call) = value.as_call_node() else { return false };
+    call.name().as_slice() == b"new"
+        && call.receiver().is_some_and(|r| {
+            r.as_constant_read_node()
+                .is_some_and(|c| matches!(c.name().as_slice(), b"Class" | b"Module"))
+        })
 }
 
 impl ConstantResolution {
@@ -108,7 +127,7 @@ Login
         severity: Severity::Warning,
         fix: FixAvailability::None,
         stability: Stability::Nursery,
-        kinds: &[NodeKind::ConstantReadNode],
+        kinds: &[NodeKind::ConstantReadNode, NodeKind::ConstantPathWriteNode],
         config: &[
             ConfigOption {
                 name: "Only",
@@ -124,26 +143,32 @@ Login
             },
         ],
         blind_spots: "\
-`node.parent&.defined_module` is narrowed to `ctx.parent()` being a
-`ClassNode`/`ModuleNode`: upstream's `defined_module0` pattern also matches a
-`(casgn ... (send Class/Module :new ...))` constant assignment, but only
-when the assigned name is itself written as a compound path
-(`A::B = Class.new`); a simple `Foo = Class.new` never produces a
-`ConstantReadNode` for `Foo` in Prism to begin with (its name is a bare
-field, not a child node), so the only gap is that rare compound-path form,
-left unhandled here (never reported in RuboCop's own spec either). Per
-upstream's own pattern shape, a `class Foo < Bar` superclass reference is
+Per upstream's own pattern shape, a `class Foo < Bar` superclass reference is
 exempted exactly like the class's own name -- both are direct children of
 the same `ClassNode` -- which this port reproduces rather than special-casing
 away.",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
-        Ok(Self { only: options.str_list("Only"), ignore: options.str_list("Ignore") })
+        Ok(Self {
+            only: options.str_list("Only"),
+            ignore: options.str_list("Ignore"),
+            defined_module_namespace: None,
+        })
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
+        if let Some(write) = node.as_constant_path_write_node() {
+            if is_class_or_module_new(&write.value()) {
+                self.defined_module_namespace =
+                    write.target().parent().map(|namespace| namespace.span());
+            }
+            return;
+        }
         let c = node.as_constant_read_node().expect("kind matched");
+        if self.defined_module_namespace.take() == Some(node.span()) {
+            return;
+        }
         if !self.name_selected(c.name().as_slice()) {
             return;
         }

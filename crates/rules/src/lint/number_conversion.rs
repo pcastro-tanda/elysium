@@ -85,10 +85,11 @@ fn is_numeric_literal(kind: NodeKind) -> bool {
 /// Warns the usage of unsafe number conversions.
 #[derive(Debug, Clone)]
 pub struct NumberConversion {
-    /// `IgnoredClasses`: receivers whose top-level constant receiver (`Time`,
-    /// `DateTime`, ...) is never flagged, however many method calls sit
-    /// between it and the `to_i`/etc. call.
-    ignored_classes: Vec<String>,
+    /// `AllowedClasses` (plus its pre-1.88 spelling `IgnoredClasses`):
+    /// receivers whose top-level constant receiver (`Time`, `DateTime`, ...)
+    /// is never flagged, however many method calls sit between it and the
+    /// `to_i`/etc. call.
+    allowed_classes: Vec<String>,
     /// `AllowedMethods`.
     allowed_methods: Vec<String>,
     /// `AllowedPatterns`.
@@ -111,19 +112,19 @@ impl NumberConversion {
         if is_numeric_literal(receiver.kind()) {
             return true;
         }
+        // RuboCop >= 1.88: `receiver.call_type?`, so a `&.` receiver call
+        // qualifies too (`10&.minutes.to_i` with `AllowedMethods: [minutes]`).
         if let Some(call) = receiver.as_call_node() {
-            if !call.is_safe_navigation() {
-                let name = call.name();
-                let bytes = name.as_slice();
-                if is_conversion_method(bytes) || self.allowed_method_name(bytes) {
-                    return true;
-                }
+            let name = call.name();
+            let bytes = name.as_slice();
+            if is_conversion_method(bytes) || self.allowed_method_name(bytes) {
+                return true;
             }
         }
         let top = ext::top_receiver(*receiver);
         match top.kind() {
             NodeKind::ConstantReadNode | NodeKind::ConstantPathNode => {
-                ext::const_name(&top).is_some_and(|name| self.ignored_classes.contains(&name))
+                ext::const_name(&top).is_some_and(|name| self.allowed_classes.contains(&name))
             }
             _ => false,
         }
@@ -155,12 +156,25 @@ impl NumberConversion {
         let receiver_src = String::from_utf8_lossy(ctx.text(receiver.span())).into_owned();
         let method_str = String::from_utf8_lossy(method_bytes).into_owned();
         let corrected = replacement(method_bytes, &receiver_src).expect("matched above");
+        // RuboCop >= 1.88 (#15252): the message spells the call's own
+        // safe-navigation operator, and nothing whose receiver chain contains
+        // a `&.` anywhere (`safe_navigation?`: the node or any descendant) is
+        // autocorrected, because `Integer(x, 10)` would raise where `x&.to_i`
+        // returned nil.
+        let own_safe_navigation = call.is_safe_navigation();
+        let mut chain_safe_navigation =
+            receiver.as_call_node().is_some_and(|c| c.is_safe_navigation());
+        ruby_ast::each_descendant(&receiver, &mut |n| {
+            chain_safe_navigation |= n.as_call_node().is_some_and(|c| c.is_safe_navigation());
+        });
+        let safe_navigation = own_safe_navigation || chain_safe_navigation;
+        let operator = if own_safe_navigation { "&." } else { "." };
         let message = format!(
             "Replace unsafe number conversion with number class parsing, instead of using \
-             `{receiver_src}.{method_str}`, use stricter `{corrected}`."
+             `{receiver_src}{operator}{method_str}`, use stricter `{corrected}`."
         );
         let span = call.as_node().span();
-        if self.part_of_corrected(span) {
+        if safe_navigation || self.part_of_corrected(span) {
             ctx.report(&Self::META, span, message);
             return;
         }
@@ -270,7 +284,8 @@ With `AllowedPatterns: ['min*']` (default: `[]`):
 10.minutes.to_i
 ```
 
-With `IgnoredClasses: [Time, DateTime]` (the default):
+With `AllowedClasses: [Time, DateTime]` (the default; `IgnoredClasses` is the
+pre-1.88 spelling and is still honoured):
 
 ```ruby
 # good
@@ -296,10 +311,16 @@ Time.now.to_datetime.to_i
                       allowed.",
             },
             ConfigOption {
-                name: "IgnoredClasses",
+                name: "AllowedClasses",
                 default: ConfigDefault::StrList(&["Time", "DateTime"]),
                 allowed: &[],
                 doc: "Top-level constant receivers never flagged.",
+            },
+            ConfigOption {
+                name: "IgnoredClasses",
+                default: ConfigDefault::StrList(&[]),
+                allowed: &[],
+                doc: "Deprecated pre-1.88 spelling of `AllowedClasses`; both lists apply.",
             },
         ],
         blind_spots: "\
@@ -312,14 +333,15 @@ receiver call's own method name, not its full source text.",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
-        let ignored_classes = options.str_list("IgnoredClasses");
+        let mut allowed_classes = options.str_list("AllowedClasses");
+        allowed_classes.extend(options.str_list("IgnoredClasses"));
         let allowed_methods = options.str_list("AllowedMethods");
         let allowed_patterns = options
             .str_list("AllowedPatterns")
             .iter()
             .filter_map(|pattern| Regex::new(pattern).ok())
             .collect();
-        Ok(Self { ignored_classes, allowed_methods, allowed_patterns, corrected_spans: Vec::new() })
+        Ok(Self { allowed_classes, allowed_methods, allowed_patterns, corrected_spans: Vec::new() })
     }
 
     fn file_start(&mut self, _ctx: &mut Context<'_>) {

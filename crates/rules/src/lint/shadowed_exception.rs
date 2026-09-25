@@ -59,23 +59,28 @@ use std::cmp::Ordering;
 /// RuboCop's `MSG`.
 const MSG: &str = "Do not shadow rescued Exceptions.";
 
-/// Every built-in class `c` such that `c < Exception`, as `(c.to_s,
-/// c.superclass.to_s)`, generated on Ruby 3.4.2 by:
+/// Every class `c` such that `c < Exception` visible to a real RuboCop
+/// process, as `(c.to_s, c.superclass.to_s)`, generated on Ruby 3.4.2 by:
 ///
 /// ```sh
-/// ruby -e 'ObjectSpace.each_object(Class).select{|c| c < Exception}.each{|c| puts "#{c} < #{c.superclass}"}'
+/// bundle exec ruby -rrubocop -e 'ObjectSpace.each_object(Class).select { |c| c < Exception }.each { |c| puts "#{c} < #{c.superclass}" }'
 /// ```
 ///
-/// (`RubyGems`, `error_highlight`, and the other default gems it pulls in
-/// are always loaded by a real `ruby` process the way RuboCop itself runs,
-/// so their exception classes are included too -- `Kernel.const_get` would
-/// resolve them in the real cop just as readily as `StandardError`.) Sorted
-/// alphabetically by class name; order is otherwise irrelevant, lookups are
-/// linear scans over a small, `const`-evaluable table.
+/// with RuboCop's, Parser's, Prism's, Bundler's and the other tooling gems'
+/// own exception classes dropped. `Kernel.const_get` in the real cop
+/// resolves whatever `rubocop` itself has loaded -- `ipaddr`, `net/http`,
+/// `openssl`, `date`, `json`, `uri`, `zlib`, `psych`, `RubyGems`... -- so a
+/// bare-`ruby` table (199 classes) misses real hierarchies such as
+/// `IPAddr::InvalidAddressError < ArgumentError` and
+/// `OpenSSL::PKey::RSAError < OpenSSL::PKey::PKeyError`. Plugin gems an app
+/// `require`s (rubocop-rails pulls in `ActiveSupport`) add a handful more;
+/// those are not modelled. Sorted alphabetically by class name; lookups are
+/// linear scans over a `const`-evaluable table.
 #[rustfmt::skip]
 const EXCEPTION_HIERARCHY: &[(&str, &str)] = &[
     ("ArgumentError", "StandardError"),
     ("ClosedQueueError", "StopIteration"),
+    ("Date::Error", "ArgumentError"),
     ("EOFError", "IOError"),
     ("Encoding::CompatibilityError", "EncodingError"),
     ("Encoding::ConverterNotFoundError", "EncodingError"),
@@ -211,6 +216,10 @@ const EXCEPTION_HIERARCHY: &[(&str, &str)] = &[
     ("Gem::LoadError", "LoadError"),
     ("Gem::MissingSpecError", "Gem::LoadError"),
     ("Gem::MissingSpecVersionError", "Gem::MissingSpecError"),
+    ("Gem::Molinillo::CircularDependencyError", "Gem::Molinillo::ResolverError"),
+    ("Gem::Molinillo::NoSuchDependencyError", "Gem::Molinillo::ResolverError"),
+    ("Gem::Molinillo::ResolverError", "StandardError"),
+    ("Gem::Molinillo::VersionConflict", "Gem::Molinillo::ResolverError"),
     ("Gem::OperationNotSupportedError", "Gem::Exception"),
     ("Gem::RemoteError", "Gem::Exception"),
     ("Gem::RemoteInstallationCancelled", "Gem::Exception"),
@@ -221,6 +230,11 @@ const EXCEPTION_HIERARCHY: &[(&str, &str)] = &[
     ("Gem::RuntimeRequirementNotMetError", "Gem::InstallError"),
     ("Gem::SpecificGemNotFoundException", "Gem::GemNotFoundException"),
     ("Gem::SystemExitException", "SystemExit"),
+    ("Gem::TSort::Cyclic", "StandardError"),
+    ("Gem::URI::BadURIError", "Gem::URI::Error"),
+    ("Gem::URI::Error", "StandardError"),
+    ("Gem::URI::InvalidComponentError", "Gem::URI::Error"),
+    ("Gem::URI::InvalidURIError", "Gem::URI::Error"),
     ("Gem::UninstallError", "Gem::Exception"),
     ("Gem::UnknownCommandError", "Gem::Exception"),
     ("Gem::UnsatisfiableDependencyError", "Gem::DependencyError"),
@@ -237,18 +251,90 @@ const EXCEPTION_HIERARCHY: &[(&str, &str)] = &[
     ("IO::EINPROGRESSWaitWritable", "Errno::EINPROGRESS"),
     ("IO::TimeoutError", "IOError"),
     ("IOError", "StandardError"),
+    ("IPAddr::AddressFamilyError", "IPAddr::Error"),
+    ("IPAddr::Error", "ArgumentError"),
+    ("IPAddr::InvalidAddressError", "IPAddr::Error"),
+    ("IPAddr::InvalidPrefixError", "IPAddr::InvalidAddressError"),
     ("IndexError", "StandardError"),
     ("Interrupt", "SignalException"),
+    ("JSON::GeneratorError", "JSON::JSONError"),
+    ("JSON::JSONError", "StandardError"),
+    ("JSON::NestingError", "JSON::ParserError"),
+    ("JSON::ParserError", "JSON::JSONError"),
     ("KeyError", "IndexError"),
     ("LoadError", "ScriptError"),
     ("LocalJumpError", "StandardError"),
     ("Math::DomainError", "StandardError"),
     ("NameError", "StandardError"),
+    ("Net::HTTPBadResponse", "StandardError"),
+    ("Net::HTTPClientException", "Net::ProtoServerError"),
+    ("Net::HTTPError", "Net::ProtocolError"),
+    ("Net::HTTPFatalError", "Net::ProtoFatalError"),
+    ("Net::HTTPHeaderSyntaxError", "StandardError"),
+    ("Net::HTTPRetriableError", "Net::ProtoRetriableError"),
+    ("Net::OpenTimeout", "Timeout::Error"),
+    ("Net::ProtoAuthError", "Net::ProtocolError"),
+    ("Net::ProtoCommandError", "Net::ProtocolError"),
+    ("Net::ProtoFatalError", "Net::ProtocolError"),
+    ("Net::ProtoRetriableError", "Net::ProtocolError"),
+    ("Net::ProtoServerError", "Net::ProtocolError"),
+    ("Net::ProtoSyntaxError", "Net::ProtocolError"),
+    ("Net::ProtoUnknownError", "Net::ProtocolError"),
+    ("Net::ProtocolError", "StandardError"),
+    ("Net::ReadTimeout", "Timeout::Error"),
+    ("Net::WriteTimeout", "Timeout::Error"),
     ("NoMatchingPatternError", "StandardError"),
     ("NoMatchingPatternKeyError", "NoMatchingPatternError"),
     ("NoMemoryError", "Exception"),
     ("NoMethodError", "NameError"),
     ("NotImplementedError", "ScriptError"),
+    ("OpenSSL::ASN1::ASN1Error", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::BNError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::Cipher::CipherError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::ConfigError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::Digest::DigestError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::HMACError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::KDF::KDFError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::Netscape::SPKIError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::OCSP::OCSPError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::OpenSSLError", "StandardError"),
+    ("OpenSSL::PKCS12::PKCS12Error", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::PKCS7::PKCS7Error", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::PKey::DHError", "OpenSSL::PKey::PKeyError"),
+    ("OpenSSL::PKey::DSAError", "OpenSSL::PKey::PKeyError"),
+    ("OpenSSL::PKey::EC::Group::Error", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::PKey::EC::Point::Error", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::PKey::ECError", "OpenSSL::PKey::PKeyError"),
+    ("OpenSSL::PKey::PKeyError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::PKey::RSAError", "OpenSSL::PKey::PKeyError"),
+    ("OpenSSL::Provider::ProviderError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::Random::RandomError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::SSL::SSLError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::SSL::SSLErrorWaitReadable", "OpenSSL::SSL::SSLError"),
+    ("OpenSSL::SSL::SSLErrorWaitWritable", "OpenSSL::SSL::SSLError"),
+    ("OpenSSL::SSL::Session::SessionError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::Timestamp::TimestampError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::X509::AttributeError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::X509::CRLError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::X509::CertificateError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::X509::ExtensionError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::X509::NameError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::X509::RequestError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::X509::RevokedError", "OpenSSL::OpenSSLError"),
+    ("OpenSSL::X509::StoreError", "OpenSSL::OpenSSLError"),
+    ("OptionParser::AmbiguousArgument", "OptionParser::InvalidArgument"),
+    ("OptionParser::AmbiguousOption", "OptionParser::ParseError"),
+    ("OptionParser::InvalidArgument", "OptionParser::ParseError"),
+    ("OptionParser::InvalidOption", "OptionParser::ParseError"),
+    ("OptionParser::MissingArgument", "OptionParser::ParseError"),
+    ("OptionParser::NeedlessArgument", "OptionParser::ParseError"),
+    ("OptionParser::ParseError", "RuntimeError"),
+    ("Psych::AliasesNotEnabled", "Psych::BadAlias"),
+    ("Psych::AnchorNotDefined", "Psych::BadAlias"),
+    ("Psych::BadAlias", "Psych::Exception"),
+    ("Psych::DisallowedClass", "Psych::Exception"),
+    ("Psych::Exception", "RuntimeError"),
+    ("Psych::SyntaxError", "Psych::Exception"),
     ("Ractor::ClosedError", "StopIteration"),
     ("Ractor::Error", "RuntimeError"),
     ("Ractor::IsolationError", "Ractor::Error"),
@@ -256,23 +342,78 @@ const EXCEPTION_HIERARCHY: &[(&str, &str)] = &[
     ("Ractor::RemoteError", "Ractor::Error"),
     ("Ractor::UnsafeError", "Ractor::Error"),
     ("RangeError", "StandardError"),
+    ("Regexp::Expression::Conditional::TooManyBranches", "Regexp::Parser::Error"),
+    ("Regexp::Scanner::InvalidBackrefError", "Regexp::Scanner::ValidationError"),
+    ("Regexp::Scanner::InvalidGroupError", "Regexp::Scanner::ValidationError"),
+    ("Regexp::Scanner::InvalidGroupOption", "Regexp::Scanner::ValidationError"),
+    ("Regexp::Scanner::InvalidSequenceError", "Regexp::Scanner::ValidationError"),
+    ("Regexp::Scanner::PrematureEndError", "Regexp::Scanner::ScannerError"),
+    ("Regexp::Scanner::ScannerError", "Regexp::Parser::Error"),
+    ("Regexp::Scanner::UnknownPosixClassError", "Regexp::Scanner::ValidationError"),
+    ("Regexp::Scanner::UnknownUnicodePropertyError", "Regexp::Scanner::ValidationError"),
+    ("Regexp::Scanner::ValidationError", "Regexp::Scanner::ScannerError"),
+    ("Regexp::Syntax::InvalidVersionNameError", "Regexp::Syntax::SyntaxError"),
+    ("Regexp::Syntax::NotImplementedError", "Regexp::Syntax::SyntaxError"),
+    ("Regexp::Syntax::SyntaxError", "Regexp::Parser::Error"),
+    ("Regexp::Syntax::UnknownSyntaxNameError", "Regexp::Syntax::SyntaxError"),
     ("Regexp::TimeoutError", "RegexpError"),
     ("RegexpError", "StandardError"),
+    ("Resolv::DNS::Config::NXDomain", "Resolv::ResolvError"),
+    ("Resolv::DNS::Config::OtherResolvError", "Resolv::ResolvError"),
+    ("Resolv::DNS::DecodeError", "StandardError"),
+    ("Resolv::DNS::EncodeError", "StandardError"),
+    ("Resolv::DNS::Requester::RequestError", "StandardError"),
+    ("Resolv::ResolvError", "StandardError"),
+    ("Resolv::ResolvTimeout", "Timeout::Error"),
     ("RuntimeError", "StandardError"),
     ("ScriptError", "Exception"),
     ("SecurityError", "Exception"),
     ("SignalException", "Exception"),
+    ("Socket::ResolutionError", "SocketError"),
+    ("SocketError", "StandardError"),
     ("StandardError", "Exception"),
     ("StopIteration", "IndexError"),
+    ("StringScanner::Error", "StandardError"),
     ("SyntaxError", "ScriptError"),
     ("SystemCallError", "StandardError"),
     ("SystemExit", "Exception"),
     ("SystemStackError", "Exception"),
     ("ThreadError", "StandardError"),
+    ("Timeout::Error", "RuntimeError"),
+    ("Timeout::ExitException", "Exception"),
     ("TypeError", "StandardError"),
+    ("URI::BadURIError", "URI::Error"),
+    ("URI::Error", "StandardError"),
+    ("URI::InvalidComponentError", "URI::Error"),
+    ("URI::InvalidURIError", "URI::Error"),
     ("UncaughtThrowError", "ArgumentError"),
     ("ZeroDivisionError", "StandardError"),
+    ("Zlib::BufError", "Zlib::Error"),
+    ("Zlib::DataError", "Zlib::Error"),
+    ("Zlib::Error", "StandardError"),
+    ("Zlib::GzipFile::CRCError", "Zlib::GzipFile::Error"),
+    ("Zlib::GzipFile::Error", "Zlib::Error"),
+    ("Zlib::GzipFile::LengthError", "Zlib::GzipFile::Error"),
+    ("Zlib::GzipFile::NoFooter", "Zlib::GzipFile::Error"),
+    ("Zlib::InProgressError", "Zlib::Error"),
+    ("Zlib::MemError", "Zlib::Error"),
+    ("Zlib::NeedDict", "Zlib::Error"),
+    ("Zlib::StreamEnd", "Zlib::Error"),
+    ("Zlib::StreamError", "Zlib::Error"),
+    ("Zlib::VersionError", "Zlib::Error"),
     ("fatal", "Exception"),
+];
+
+/// Constant aliases for classes above, which `ObjectSpace` cannot list but
+/// `Kernel.const_get` resolves to the very same class (so `rescue
+/// Net::HTTPServerException, Net::HTTPClientException` shadows). Only the
+/// platform-independent ones: macOS additionally aliases every errno it
+/// lacks to `Errno::NOERROR`, which Linux does not.
+const EXCEPTION_ALIASES: &[(&str, &str)] = &[
+    ("Errno::EWOULDBLOCK", "Errno::EAGAIN"),
+    ("Net::HTTPServerException", "Net::HTTPClientException"),
+    ("Net::ProtocRetryError", "Net::ProtoRetriableError"),
+    ("ScanError", "StringScanner::Error"),
 ];
 
 /// `Kernel.const_get(exception.source)`, over [`EXCEPTION_HIERARCHY`] plus
@@ -285,6 +426,10 @@ fn resolve(text: &[u8]) -> Option<&'static str> {
     if text == "Exception" {
         return Some("Exception");
     }
+    let text = EXCEPTION_ALIASES
+        .iter()
+        .find_map(|&(alias, target)| (alias == text).then_some(target))
+        .unwrap_or(text);
     EXCEPTION_HIERARCHY.iter().find(|(name, _)| *name == text).map(|&(name, _)| name)
 }
 

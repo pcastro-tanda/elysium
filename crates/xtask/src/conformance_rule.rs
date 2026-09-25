@@ -342,10 +342,20 @@ fn rubocop_once(
     Ok(stdout[start..].to_string())
 }
 
+/// Runs elysium under the same `BUNDLE_GEMFILE` the RuboCop side uses when a
+/// side Gemfile exists, so both resolve `plugins:`/`require:` gem versions
+/// (and thereby the gems' shipped `config/default.yml` layers) from the same
+/// lockfile. Without it elysium reads the app's own `Gemfile.lock`, whose
+/// plugin versions are typically not installed here, and silently lints
+/// with the plugin defaults missing (mastodon: rubocop-rails 2.38.0 locked
+/// vs 2.37.0 installed dropped `Lint/NumberConversion`'s `AllowedMethods`).
 fn run_elysium(workspace: &Path, app: &Path, rule: &str, defaults: bool) -> Result<String> {
     let binary = workspace.join("target/release/elysium");
     let mut command = Command::new(&binary);
     command.args(["check", "--only", rule, "-f", "json"]).current_dir(app);
+    if let Some(gemfile) = side_gemfile(app) {
+        command.env("BUNDLE_GEMFILE", gemfile);
+    }
     if defaults {
         command.arg("--no-config");
     }

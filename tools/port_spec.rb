@@ -88,10 +88,13 @@ puts "fixtures:   #{out_dir}"
 
 work = Dir.mktmpdir('port_spec_')
 begin
+  # RuboCop >= 1.91's spec/support loads its MCP server, which needs the
+  # `mcp` gem; harmless for older sources.
   File.write(File.join(work, 'Gemfile'), <<~GEMFILE)
     source 'https://rubygems.org'
     gem 'rubocop', '#{rubocop_version}'
     gem 'rspec'
+    gem 'mcp', '~> 0.6'
   GEMFILE
 
   lock_out = IO.popen(['bundle', 'lock', '--local'], chdir: work, err: [:child, :out], &:read)

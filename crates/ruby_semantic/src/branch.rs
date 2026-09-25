@@ -41,6 +41,9 @@ pub enum BranchKind {
     For,
     /// `&&`/`||`.
     LogicalOperator,
+    /// `||=`/`&&=`/`op=` (RuboCop ≥ 1.84, #14796): the right-hand side
+    /// only runs conditionally.
+    OperatorAssignment,
     /// The `begin`/`rescue`/`else` part of a `BeginNode`.
     Rescue,
     /// The `begin`/`ensure` part of a `BeginNode`.
