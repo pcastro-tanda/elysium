@@ -7,6 +7,14 @@
 # is excluded: RuboCop's CLI hard-rejects `--only Lint/RedundantCopDisableDirective`
 # (exit 2) because that cop depends on every other cop's reported offenses and
 # can't run in isolation under `--only`.
+#
+# Corpus apps compared over these cops (ci/corpus/*/): discourse and
+# mastodon, both pinned to RuboCop 1.91.0. forem is deliberately not a
+# corpus app: it pins RuboCop 1.63.4, and docs/conformance/rules.md's
+# per-app breakdown (rows annotated `[^skew-*]`) shows several of these
+# cops behave differently under 1.63 than under the 1.82+ semantics
+# elysium implements, so a forem mismatch would often mean "RuboCop
+# changed" rather than "elysium is wrong".
 Layout/ArgumentAlignment
 Layout/EmptyLineBetweenDefs
 Layout/EmptyLines

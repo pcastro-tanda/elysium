@@ -40,7 +40,7 @@ impl GemSearch {
         if gem == "rubocop" {
             return Err(ConfigError::InheritFromRubocopGem);
         }
-        let version = locked_version(project_root, gem);
+        let version = locked_version(project_root, gem, self.bundle_gemfile_lockfile().as_deref());
         let roots = self.gem_roots(project_root);
         let mut best: Option<(Vec<u64>, PathBuf)> = None;
         for root in &roots {
@@ -143,6 +143,25 @@ impl GemSearch {
         }
         roots
     }
+
+    /// The lockfile Bundler would resolve gem versions against instead of
+    /// searching upward from the linted project: `Bundler.default_gemfile`
+    /// prefers `$BUNDLE_GEMFILE` over discovering a `Gemfile` from the
+    /// working directory, and `rubocop`/`Bundler.load.specs` then resolve
+    /// gem versions from *that* Gemfile's lockfile. A linted project can
+    /// ship its own unrelated `Gemfile.lock` (e.g. an app that itself
+    /// depends on `rubocop-rails` at one version, linted under a harness
+    /// that installs the plugin gems from a separate `BUNDLE_GEMFILE` at
+    /// another) that must not shadow the lockfile actually governing the
+    /// installed gems. Consulted only when `use_environment` is set, so
+    /// tests stay hermetic.
+    fn bundle_gemfile_lockfile(&self) -> Option<PathBuf> {
+        if !self.use_environment {
+            return None;
+        }
+        let gemfile = std::env::var_os("BUNDLE_GEMFILE").map(PathBuf::from)?;
+        gemfile.is_file().then(|| bundle_lockfile_path(&gemfile))
+    }
 }
 
 /// Expands `*` path components by reading directories; no other glob syntax is
@@ -181,9 +200,26 @@ fn expand_star(pattern: &Path) -> Vec<PathBuf> {
     current
 }
 
-/// Reads `<gem> (<version>)` from the nearest `Gemfile.lock`/`gems.locked`.
-pub(crate) fn locked_version(project_root: &Path, gem: &str) -> Option<String> {
-    let lockfile = find_lockfile(project_root)?;
+/// Reads `<gem> (<version>)`, preferring `preferred_lockfile` (Bundler's
+/// resolved lockfile for `$BUNDLE_GEMFILE`, when the caller has one) over
+/// searching upward from `project_root`, the way `Bundler.load.specs`
+/// resolves gem versions from whichever Gemfile governs the running
+/// process rather than the directory being inspected. A `preferred_lockfile`
+/// that exists but doesn't mention `gem` is authoritative and is not a
+/// reason to fall back: that mirrors a real `bundle exec rubocop` raising
+/// rather than silently consulting an unrelated lockfile.
+pub(crate) fn locked_version(
+    project_root: &Path,
+    gem: &str,
+    preferred_lockfile: Option<&Path>,
+) -> Option<String> {
+    match preferred_lockfile {
+        Some(path) if path.is_file() => read_locked_version(path, gem),
+        _ => read_locked_version(&find_lockfile(project_root)?, gem),
+    }
+}
+
+fn read_locked_version(lockfile: &Path, gem: &str) -> Option<String> {
     let contents = std::fs::read_to_string(lockfile).ok()?;
     let needle = format!("{gem} (");
     for line in contents.lines() {
@@ -215,6 +251,19 @@ pub(crate) fn find_lockfile(dir: &Path) -> Option<PathBuf> {
         current = d.parent();
     }
     None
+}
+
+/// `Bundler::SharedHelpers.default_lockfile`: a `gems.rb` Gemfile locks to
+/// `gems.locked` alongside it; anything else (almost always `Gemfile`)
+/// locks to `<name>.lock`.
+fn bundle_lockfile_path(gemfile: &Path) -> PathBuf {
+    if gemfile.file_name() == Some(OsStr::new("gems.rb")) {
+        gemfile.with_file_name("gems.locked")
+    } else {
+        let mut with_suffix = gemfile.as_os_str().to_os_string();
+        with_suffix.push(".lock");
+        PathBuf::from(with_suffix)
+    }
 }
 
 /// Numeric segments of a gem version, for "newest wins" comparisons.
@@ -259,6 +308,44 @@ mod tests {
             GemSearch { extra_roots: vec![dir.path().to_path_buf()], ..Default::default() };
         let path = search.config_path(dir.path(), "styles", "config/default.yml").unwrap();
         assert_eq!(path, gems.join("styles-1.2.0/config/default.yml"));
+    }
+
+    #[test]
+    fn preferred_lockfile_overrides_the_projects_own_lockfile() {
+        // A harness that installs plugin gems from a separate
+        // `BUNDLE_GEMFILE` must resolve versions against *that* lockfile,
+        // not a same-named `Gemfile.lock` the linted project happens to
+        // ship for its own unrelated purposes (e.g. an app that also
+        // depends on `styles` itself, at another version).
+        let dir = tempfile::tempdir().unwrap();
+        let gems = dir.path().join("gems");
+        for name in ["styles-1.2.0", "styles-1.10.0"] {
+            std::fs::create_dir_all(gems.join(name)).unwrap();
+        }
+        std::fs::write(
+            dir.path().join("Gemfile.lock"),
+            "GEM\n  specs:\n    styles (1.2.0)\n\nDEPENDENCIES\n  styles\n",
+        )
+        .unwrap();
+        let bundle_dir = tempfile::tempdir().unwrap();
+        let bundle_lockfile = bundle_dir.path().join("Gemfile.lock");
+        std::fs::write(
+            &bundle_lockfile,
+            "GEM\n  specs:\n    styles (1.10.0)\n\nDEPENDENCIES\n  styles\n",
+        )
+        .unwrap();
+        let version = locked_version(dir.path(), "styles", Some(&bundle_lockfile));
+        assert_eq!(version.as_deref(), Some("1.10.0"));
+    }
+
+    #[test]
+    fn bundle_lockfile_path_follows_bundler_naming() {
+        assert_eq!(bundle_lockfile_path(Path::new("/app/Gemfile")), Path::new("/app/Gemfile.lock"));
+        assert_eq!(
+            bundle_lockfile_path(Path::new("/app/ci/rubocop.gemfile")),
+            Path::new("/app/ci/rubocop.gemfile.lock")
+        );
+        assert_eq!(bundle_lockfile_path(Path::new("/app/gems.rb")), Path::new("/app/gems.locked"));
     }
 
     #[test]

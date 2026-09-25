@@ -90,9 +90,17 @@ gem_path="$(
   cd "$work"
   BUNDLE_GEMFILE="$app_dir/Gemfile" bundle exec ruby -e 'print Gem.path.join(":")'
 )"
+echo "gem_path=$gem_path" >&2
 (
   cd "$work"
-  GEM_PATH="$gem_path" "$elysium_bin" check --only "$rules" -f json . > "$elysium_json"
+  # $work (the app checkout) commonly ships its own Gemfile.lock that also
+  # happens to list the same plugin gems (e.g. rubocop-rails) at a version
+  # unrelated to the one actually installed under $gem_path -- elysium
+  # resolves gem versions against $BUNDLE_GEMFILE's own lockfile in
+  # preference to that unrelated one when the variable is set, so export it
+  # here too, not just for the `bundle exec` calls above.
+  BUNDLE_GEMFILE="$app_dir/Gemfile" GEM_PATH="$gem_path" \
+    "$elysium_bin" check --only "$rules" -f json . > "$elysium_json"
 ) && el_exit=0 || el_exit=$?
 el_wall=$SECONDS
 # Same convention as RuboCop: exit 1 = offenses found, not a failure.

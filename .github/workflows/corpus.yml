@@ -37,7 +37,13 @@ jobs:
     strategy:
       fail-fast: false
       matrix:
-        app: [discourse, mastodon, forem]
+        # forem is intentionally excluded: it pins RuboCop 1.63.4 (see
+        # docs/conformance/rules.md's per-app `rubocop` column), whose cop
+        # behaviour differs from the 1.82+ semantics elysium implements
+        # (version-skew rows there are annotated `[^skew-*]`). Comparing
+        # against it would report elysium bugs that are really just
+        # RuboCop-itself-changed-since-1.63 differences.
+        app: [discourse, mastodon]
     # ruby/setup-ruby's bundler-cache reads $BUNDLE_GEMFILE for every step in
     # this job, so it must be set at the job level (not just for one step)
     # to point bundler at this app's side Gemfile instead of the repo root.
@@ -59,9 +65,7 @@ jobs:
           key: corpus-${{ matrix.app }}-${{ steps.app-meta.outputs.commit }}
 
       # Ruby >= 3.2 for rubocop-discourse/rubocop-discourse-base (discourse
-      # and mastodon's plugins); forem's older 1.63.4 lock resolves fine
-      # under 3.4 too (verified locally under rbenv 3.4.2), so one version
-      # covers all three apps.
+      # and mastodon's plugins).
       - uses: ruby/setup-ruby@v1
         with:
           ruby-version: '3.4'
