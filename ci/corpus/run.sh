@@ -79,9 +79,20 @@ fi
 
 echo "== running elysium over $app ==" >&2
 SECONDS=0
+# elysium's `inherit_gem`/plugin-default lookup walks `vendor/bundle/**` under
+# the directory it lints (here, $work -- the app checkout) plus GEM_HOME,
+# GEM_PATH, and BUNDLE_PATH from its environment. `bundle install`'s cache
+# path is resolved by ruby/setup-ruby relative to $GITHUB_WORKSPACE (this
+# repo checkout), not $work, and elysium has no other way to learn where
+# that is -- so surface it explicitly via GEM_PATH, the same directories
+# RubyGems itself would search inside this Gemfile's bundle context.
+gem_path="$(
+  cd "$work"
+  BUNDLE_GEMFILE="$app_dir/Gemfile" bundle exec ruby -e 'print Gem.path.join(":")'
+)"
 (
   cd "$work"
-  "$elysium_bin" check --only "$rules" -f json . > "$elysium_json"
+  GEM_PATH="$gem_path" "$elysium_bin" check --only "$rules" -f json . > "$elysium_json"
 ) && el_exit=0 || el_exit=$?
 el_wall=$SECONDS
 # Same convention as RuboCop: exit 1 = offenses found, not a failure.
