@@ -1,0 +1,1 @@
+a = self.a if foo(self.a)

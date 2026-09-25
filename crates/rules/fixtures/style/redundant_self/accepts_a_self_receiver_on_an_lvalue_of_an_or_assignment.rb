@@ -1,0 +1,1 @@
+self.logger ||= Rails.logger

@@ -1,0 +1,1 @@
+a, b = do_something(self.a)

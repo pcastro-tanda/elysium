@@ -221,7 +221,7 @@ fn chained_method_name(call: &CallNode<'_>) -> String {
                 receiver = inner.receiver();
             }
             NodeKind::ConstantReadNode | NodeKind::ConstantPathNode => {
-                if let Some(name) = const_name(&node) {
+                if let Some(name) = ext::const_name(&node) {
                     parts.push(name);
                 }
                 receiver = None;
@@ -231,28 +231,6 @@ fn chained_method_name(call: &CallNode<'_>) -> String {
     }
     parts.reverse();
     parts.join(".")
-}
-
-/// RuboCop-AST's `Node#const_name`: the whole qualified name of a constant
-/// (path) node, e.g. `Foo::Bar::Baz`; a leading `::` (a `ConstantPathNode`
-/// with no `parent`) contributes nothing extra, matching upstream's
-/// `cbase_type?` special case.
-fn const_name(node: &Node<'_>) -> Option<String> {
-    match node.kind() {
-        NodeKind::ConstantReadNode => {
-            let c = node.as_constant_read_node()?;
-            Some(String::from_utf8_lossy(c.name().as_slice()).into_owned())
-        }
-        NodeKind::ConstantPathNode => {
-            let path = node.as_constant_path_node()?;
-            let short = String::from_utf8_lossy(path.name()?.as_slice()).into_owned();
-            match path.parent() {
-                Some(parent) => Some(format!("{}::{short}", const_name(&parent)?)),
-                None => Some(short),
-            }
-        }
-        _ => None,
-    }
 }
 
 /// RuboCop's `assumed_usage_context?`: a call with no arguments, nested

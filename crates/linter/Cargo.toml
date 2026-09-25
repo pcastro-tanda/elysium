@@ -9,6 +9,7 @@ description = "Rule contract, traversal engine, diagnostics, fix engine"
 [dependencies]
 ruby_source.workspace = true
 ruby_ast.workspace = true
+ruby_semantic.workspace = true
 ruby_directives.workspace = true
 parking_lot.workspace = true
 

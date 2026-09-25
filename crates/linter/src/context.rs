@@ -3,6 +3,7 @@ use std::cell::OnceCell;
 
 use ruby_ast::{LocationExt as _, NodeKind, Parsed};
 use ruby_directives::Directives;
+use ruby_semantic::Semantics;
 use ruby_source::{LineCol, Side, SourceFile, Span};
 
 use crate::diagnostic::{Diagnostic, Fix};
@@ -36,6 +37,7 @@ pub struct Context<'a> {
     directives: Directives,
     diagnostics: Vec<Diagnostic>,
     comments: OnceCell<Vec<CommentInfo>>,
+    semantics: OnceCell<Semantics<'a>>,
     ancestors: Vec<NodeInfo>,
 }
 
@@ -51,6 +53,7 @@ impl<'a> Context<'a> {
             directives,
             diagnostics: Vec::new(),
             comments: OnceCell::new(),
+            semantics: OnceCell::new(),
             ancestors: Vec::with_capacity(64),
         }
     }
@@ -209,6 +212,13 @@ impl<'a> Context<'a> {
                 })
                 .collect()
         })
+    }
+
+    /// Scopes, local variables, assignments and branches for this file,
+    /// built on first use by a second traversal of the tree (ADR 0007).
+    /// A file whose enabled rules never ask for it pays nothing.
+    pub fn semantics(&self) -> &Semantics<'a> {
+        self.semantics.get_or_init(|| Semantics::build(&self.parsed.root()))
     }
 
     /// Reports an offense at `span` with the rule's default severity.

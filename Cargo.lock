@@ -525,6 +525,7 @@ dependencies = [
  "parking_lot",
  "ruby_ast",
  "ruby_directives",
+ "ruby_semantic",
  "ruby_source",
 ]
 
@@ -800,6 +801,10 @@ dependencies = [
 [[package]]
 name = "ruby_semantic"
 version = "0.1.0"
+dependencies = [
+ "ruby_ast",
+ "ruby_source",
+]
 
 [[package]]
 name = "ruby_source"
@@ -817,6 +822,7 @@ dependencies = [
  "regex",
  "ruby_ast",
  "ruby_directives",
+ "ruby_semantic",
  "ruby_source",
 ]
 

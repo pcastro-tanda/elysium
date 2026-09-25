@@ -18,6 +18,8 @@ pub mod layout;
 pub mod lint;
 pub mod style;
 
+mod name_similarity;
+
 /// Registers every rule in one place.
 ///
 /// Expands to the private slot-list type [`RuleSet`] stores its configured
@@ -88,6 +90,16 @@ rule_set! {
     style::trailing_comma_in_array_literal::TrailingCommaInArrayLiteral,
     style::accessor_grouping::AccessorGrouping,
     layout::trailing_whitespace::TrailingWhitespace,
+    style::optional_boolean_parameter::OptionalBooleanParameter,
+    lint::shadowed_exception::ShadowedException,
+    lint::missing_super::MissingSuper,
+    lint::constant_resolution::ConstantResolution,
+    lint::useless_access_modifier::UselessAccessModifier,
+    style::redundant_self::RedundantSelf,
+    lint::number_conversion::NumberConversion,
+    lint::self_assignment::SelfAssignment,
+    lint::useless_assignment::UselessAssignment,
+    lint::shadowing_outer_local_variable::ShadowingOuterLocalVariable,
 }
 
 /// Per-rule constants derived from [`Rule::META`] at compile time.

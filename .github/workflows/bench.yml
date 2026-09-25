@@ -24,15 +24,20 @@ jobs:
       - name: clone gitlab-foss corpus
         run: git clone --depth 1 --filter=blob:none https://gitlab.com/gitlab-org/gitlab-foss.git corpus/gitlab
 
-      # NOTE: the medians recorded in benchmarks/results.json were captured
-      # on an Apple M4 laptop, not on a GitHub-hosted runner. CI runners are
-      # slower and noisier, so a fresh run here will very likely exceed the
-      # recorded medians by more than the 5% threshold even with no
-      # regression. This step is wired up so the corpus/pipeline exercise
-      # the full binary in CI, but the gate is not meaningful until CI
-      # records its own baseline (`cargo xtask bench --record` run on a
-      # GitHub-hosted runner and committed). TODO: once a CI-recorded
-      # baseline exists in benchmarks/results.json, drop continue-on-error.
+      # The medians in benchmarks/results.json were recorded on an Apple M4
+      # laptop; a GitHub-hosted runner is slower and noisier, so a >5%
+      # "regression" here is expected and only warned about (exit code 3).
+      # Any other non-zero exit is a harness failure (crash, unparsable
+      # stats, missing corpus) and fails the job. TODO: once a CI-recorded
+      # baseline exists in benchmarks/results.json, fail on exit code 3 too.
       - name: cargo xtask bench --check
-        continue-on-error: true
-        run: cargo xtask bench --check --runs 3 --corpus $GITHUB_WORKSPACE/corpus/gitlab
+        run: |
+          set +e
+          cargo xtask bench --check --runs 3 --corpus "$GITHUB_WORKSPACE/corpus/gitlab"
+          rc=$?
+          set -e
+          if [ "$rc" -eq 3 ]; then
+            echo "::warning::benchmark regression against the laptop-recorded baseline (not gated on CI runners)"
+            exit 0
+          fi
+          exit "$rc"

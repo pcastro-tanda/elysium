@@ -26,10 +26,16 @@ the same struct: `version` (for `TargetRubyVersion`), `encoding_locked`,
   parser can never disagree on the node list.
 - `ruby_ast::ParseOptions::default()` is `partial_script: true`, matching
   RuboCop.
+- Second additive change (Phase 4): `build.rs` emits `#[derive(Clone, Copy)]`
+  on `Node` and every generated node struct. Each is a `(parser, pointer,
+  PhantomData)` triple that Prism's own `as_node()`/`as_*_node()` accessors
+  already duplicate freely; the derive only lets `ruby_semantic` store nodes
+  in its arenas without round-tripping through those accessors.
 
 ## Consequences
 
-- Upgrading Prism means re-copying the crate and re-applying one function.
-  Offer the function upstream so the vendored copy can eventually go away.
+- Upgrading Prism means re-copying the crate and re-applying one function
+  and two `build.rs` lines. Offer the function upstream so the vendored copy
+  can eventually go away.
 - `unsafe_code = "deny"` remains for every workspace crate; the vendored
   crate is the only place `unsafe` exists.

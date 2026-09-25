@@ -1,0 +1,2 @@
+Lint/ConstantResolution:
+  Only: [MY_CONST]

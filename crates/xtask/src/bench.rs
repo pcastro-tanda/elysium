@@ -25,6 +25,12 @@ const RESULTS_PATH: &str = "benchmarks/results.json";
 /// the recorded median by more than this fraction.
 const REGRESSION_THRESHOLD: f64 = 0.05;
 
+/// Exit code for `--check` when the harness ran fine but a benchmark
+/// regressed. Distinct from `ExitCode::FAILURE` (harness error) so CI can
+/// tolerate the former against a laptop-recorded baseline without hiding
+/// the latter.
+pub(crate) const REGRESSION_EXIT_CODE: u8 = 3;
+
 /// `cargo xtask bench` arguments.
 #[derive(Debug, Args)]
 pub(crate) struct BenchArgs {
@@ -115,7 +121,7 @@ pub(crate) fn run(args: &BenchArgs) -> Result<ExitCode> {
                 "benchmark regression exceeds {:.0}% threshold",
                 REGRESSION_THRESHOLD * 100.0
             );
-            return Ok(ExitCode::FAILURE);
+            return Ok(ExitCode::from(REGRESSION_EXIT_CODE));
         }
         return Ok(ExitCode::SUCCESS);
     }
@@ -203,12 +209,15 @@ fn run_benchmarks(binary: &Path, corpus: &Path, runs: usize) -> Result<FreshResu
     Ok(results)
 }
 
-/// Runs `elysium check --stats <corpus>` once with `cwd` set to `corpus`
-/// and parses the resulting stats line from stderr.
+/// Runs `elysium check --stats --no-config <corpus>` once with `cwd` set to
+/// `corpus` and parses the resulting stats line from stderr. `--no-config`
+/// keeps the measurement independent of the corpus's own `.rubocop.yml`
+/// (gitlab-foss's uses ERB, which we reject; see ADR 0005).
 fn run_once(binary: &Path, corpus: &Path) -> Result<stats::RunStats> {
     let output = Command::new(binary)
         .arg("check")
         .arg("--stats")
+        .arg("--no-config")
         .arg(corpus)
         .current_dir(corpus)
         .output()
@@ -216,7 +225,10 @@ fn run_once(binary: &Path, corpus: &Path) -> Result<stats::RunStats> {
 
     match output.status.code() {
         Some(0 | 1) => {}
-        other => bail!("elysium exited with unexpected status {other:?}"),
+        other => bail!(
+            "elysium exited with unexpected status {other:?}:\n{}",
+            String::from_utf8_lossy(&output.stderr).trim_end()
+        ),
     }
 
     let stderr = String::from_utf8_lossy(&output.stderr);

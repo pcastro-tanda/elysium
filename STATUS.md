@@ -1,6 +1,7 @@
 # Status
 
-Last updated: 2026-09-24. Phase 3 complete: all 50 rules landed.
+Last updated: 2026-09-25. Phase 4 landed: semantic layer plus the ten
+semantic cops (60 rules total).
 
 ## What works
 
@@ -10,12 +11,26 @@ Last updated: 2026-09-24. Phase 3 complete: all 50 rules landed.
   with RuboCop-identical message text, line, and column (verified against
   `rubocop --format json` with `ParserEngine: parser_prism`, including
   multi-byte columns and same-range deduplication).
-- Rules: 50 Style/Layout/Lint cops (see `docs/rules/`), each registered
+- Rules: 60 Style/Layout/Lint cops (see `docs/rules/`), each registered
   through `rule_set!` with a compile-time node-kind subscription table and
   configured from RuboCop option names (`RuleOptions`, incl. peer-cop and
   `AllCops` reads). `elysium fix [--unsafe] [--diff]` applies byte-range
   fixes and reparses to convergence; `check --only/--except` mirror RuboCop
   (`--only` force-enables a config-disabled cop).
+- Semantic layer (Phase 4, `docs/planning/phase4-semantic.md`, ADR 0007):
+  `ruby_semantic` ports RuboCop's `VariableForce` (scopes, local-variable
+  declarations/assignments/references, block capture, the `Branch`
+  exclusivity model, loop re-reference marking) onto Prism nodes.
+  `Context::semantics()` builds it lazily by a second traversal, so files
+  with no semantic cop enabled pay nothing. `Lint/UselessAssignment`
+  (144/144 spec cases) and `Lint/ShadowingOuterLocalVariable` (31/31) sit
+  on it; `Style/RedundantSelf` ports RuboCop's own traversal-order
+  heuristic instead (62/62). The other seven Phase 4 cops
+  (`Lint/ShadowedException` with a Ruby 3.4 exception hierarchy table,
+  `Lint/UselessAccessModifier`, `Lint/MissingSuper`,
+  `Lint/ConstantResolution`, `Lint/NumberConversion`,
+  `Lint/SelfAssignment`, `Style/OptionalBooleanParameter`) are syntactic.
+  All ten are `nursery` until corpus conformance is measured.
 - Fixtures: extracted from RuboCop's own specs by `tools/port_spec.rb`
   (instrumented `expect_offense`/`expect_correction`), checked for offenses,
   corrections, and fix idempotence by `crates/rules/tests/fixtures.rs`. A
@@ -130,14 +145,16 @@ Last updated: 2026-09-24. Phase 3 complete: all 50 rules landed.
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 49 | 0 | 1 |
+| 49 | 0 | 11 |
 
 Promotion to `stable` requires >99% corpus conformance on `discourse` and
-`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 49 of 50 rules meet
-it. The one remaining at `nursery`:
+`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 49 of 60 rules meet
+it. At `nursery`:
 
 - `Lint/RedundantCopDisableDirective` — held back per policy regardless of
   measured agreement (see above).
+- The ten Phase 4 cops — fixture-complete against RuboCop 1.82.1's specs,
+  corpus conformance not yet run.
 
 `Lint/Syntax` is built into the engine and is not counted.
 
@@ -183,12 +200,13 @@ extensionless scripts with a `ruby`/`rake` shebang under `vendor/gems/**`
 (`vendor/gems/omniauth-salesforce/Rakefile`,
 `vendor/gems/omniauth_crowd/Rakefile`, and four `vendor/gems/sidekiq/bin/*`
 executables), which `AllCops/Exclude: vendor/**/*` drops for both tools.
-elysium's shebang-detection fallback
-(`crates/cli/src/discover.rs::ruby_shebang`) is only gated on the file
-extension and never consulted through the `Exclude` matcher, so it adds
-these 6 files back in; RuboCop's own shebang detection correctly honours
-`Exclude`. This is a real elysium discovery bug (shebang detection should
-run after, not instead of, the exclude check), not a benchmark artifact.
+At the time of the recording elysium's shebang fallback
+(`crates/cli/src/discover.rs::ruby_shebang`) bypassed the `Exclude`
+matcher and added them back; that was fixed the same day (the walk now
+applies `is_excluded` to every candidate, covered by
+`parallel_walk_reports_every_file`), so a fresh `cargo xtask bench
+--record` will report 32,231 and the count in `benchmarks/results.json` is
+simply stale.
 
 Phase 1 exit criterion (under 2 s cold on a 20k-file repository): met with
 margin on a 32k-file repository. First run after a reboot-equivalent cold
@@ -217,14 +235,11 @@ CI needs its own recorded baseline before `--check` is a hard gate
 
 ## Next three milestones
 
-1. Phase 4: semantic layer (`ruby_semantic`: scopes and local variables) and
-   the ten cops excluded from Phase 3 for needing it (`Style/RedundantSelf`,
-   `Lint/UselessAssignment`, `Lint/ShadowedException`,
-   `Lint/UselessAccessModifier`, `Lint/MissingSuper`,
-   `Lint/ConstantResolution`, `Lint/ShadowingOuterLocalVariable`,
-   `Lint/NumberConversion`, `Lint/SelfAssignment`,
-   `Style/OptionalBooleanParameter` — see `docs/planning/phase3-rules.md`'s
-   "Excluded as semantic" list).
+1. Phase 4 conformance: run `cargo xtask conformance --app
+   <discourse|mastodon> --rule Cop` for each of the ten new cops, resolve
+   diffs, promote. The known modelling deviation to watch for is documented
+   in `docs/planning/phase4-semantic.md` (`Branch.of` past a twisted block
+   call).
 2. Phase 5 `[INFERENCE — no dedicated planning doc yet, extrapolated from
    the "What does not work yet" list above]`: config/CLI hardening ahead of
    extension-gem cop work — a `ConfigValidator` (type/unknown-cop errors), a

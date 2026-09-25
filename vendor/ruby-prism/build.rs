@@ -233,6 +233,7 @@ fn write_node(file: &mut File, flags: &[Flags], node: &Node) -> Result<(), Box<d
         writeln!(file, "/// ```")?;
     }
 
+    writeln!(file, "#[derive(Clone, Copy)]")?;
     writeln!(file, "pub struct {}<'pr> {{", node.name)?;
     writeln!(file, "    /// The pointer to the parser this node came from.")?;
     writeln!(file, "    parser: NonNull<pm_parser_t>,")?;
@@ -575,6 +576,7 @@ use crate::{{ConstantId, ConstantList, Integer, Location, NodeList}};
     writeln!(file)?;
 
     writeln!(file, "/// An enum representing the different kinds of nodes that can be parsed.")?;
+    writeln!(file, "#[derive(Clone, Copy)]")?;
     writeln!(file, "pub enum Node<'pr> {{")?;
 
     for node in &config.nodes {
