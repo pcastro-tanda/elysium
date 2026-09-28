@@ -88,7 +88,17 @@ fn name_span(node: &Node<'_>) -> Option<Span> {
         Node::LocalVariableOrWriteNode { .. } => {
             Some(node.as_local_variable_or_write_node()?.name_loc().span())
         }
-        Node::CallNode { .. } => Some(node.as_call_node()?.message_loc()?.span()),
+        Node::CallNode { .. } => {
+            let call = node.as_call_node()?;
+            // Prism's `message_loc` for the implicit `[]`/`[]=` operators spans
+            // the *entire* bracketed expression (e.g. `foo["😀"]`), not just a
+            // bare `[]` token. RuboCop's lexer never emits a `tIDENTIFIER` for
+            // these (they lex as bracket tokens), so skip them here too.
+            if matches!(call.name().as_slice(), b"[]" | b"[]=") {
+                return None;
+            }
+            Some(call.message_loc()?.span())
+        }
         Node::CallTargetNode { .. } => Some(node.as_call_target_node()?.message_loc().span()),
         Node::CallAndWriteNode { .. } => Some(node.as_call_and_write_node()?.message_loc()?.span()),
         Node::CallOperatorWriteNode { .. } => {
@@ -183,7 +193,7 @@ height = 10
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[
             NodeKind::LocalVariableReadNode,
             NodeKind::LocalVariableTargetNode,

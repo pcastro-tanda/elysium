@@ -120,7 +120,7 @@ end
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[],
         config: &[],
         blind_spots: "",
@@ -342,13 +342,18 @@ fn unless_branches<'pr>(node: &Node<'pr>) -> Vec<Option<StatementsNode<'pr>>> {
 }
 
 /// Every direct child of `node`, walking through Prism's `StatementsNode`
-/// transparently so a candidate `kwbegin` reachable *anywhere* below (any
-/// depth, any node kind) is still found -- upstream's `offensive_kwbegins`
-/// searches the whole subtree, not just direct bodies.
+/// and `ArgumentsNode` transparently. `ArgumentsNode` has no whitequark
+/// counterpart -- `send`'s argument nodes are its own direct children
+/// there, whereas Prism wraps them in an intervening `ArgumentsNode` --
+/// so a `begin...end` passed as a call argument (including the "value"
+/// half of a plain attribute/index assignment, which Prism represents as
+/// a call with an extra trailing argument) must see the call itself as
+/// its logical parent, not the wrapper. Reused so a candidate `kwbegin`
+/// reachable *anywhere* below (any depth, any node kind) is still found
+/// -- upstream's `offensive_kwbegins` searches the whole subtree, not
+/// just direct bodies.
 fn contains_non_allowable_descendant(node: &Node<'_>) -> bool {
-    let mut kids = Vec::new();
-    for_each_child(node, |c| kids.push(*c));
-    for c in kids {
+    for c in real_children(node) {
         if let Some(stmts) = c.as_statements_node() {
             let body = stmts.body();
             let len = body.len();
@@ -363,6 +368,22 @@ fn contains_non_allowable_descendant(node: &Node<'_>) -> bool {
         }
     }
     false
+}
+
+/// The direct children of `node`, with any `ArgumentsNode` child expanded
+/// into its own argument list in place (see `contains_non_allowable_descendant`).
+fn real_children<'pr>(node: &Node<'pr>) -> Vec<Node<'pr>> {
+    let mut kids = Vec::new();
+    for_each_child(node, |c| kids.push(*c));
+    let mut result = Vec::new();
+    for c in kids {
+        if let Some(args) = c.as_arguments_node() {
+            result.extend(&args.arguments());
+        } else {
+            result.push(c);
+        }
+    }
+    result
 }
 
 fn check_descendant(n: &Node<'_>, p: &Parent<'_>) -> bool {
@@ -413,9 +434,7 @@ impl RedundantBegin {
     }
 
     fn recurse_children(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
-        let mut kids = Vec::new();
-        for_each_child(node, |c| kids.push(*c));
-        for c in kids {
+        for c in real_children(node) {
             if let Some(stmts) = c.as_statements_node() {
                 self.walk_statements(&stmts, Some(*node), ctx);
             } else {

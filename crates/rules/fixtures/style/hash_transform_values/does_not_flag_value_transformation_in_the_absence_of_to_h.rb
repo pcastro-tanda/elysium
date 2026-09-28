@@ -1,1 +1,1 @@
-x.map {|k, v| [k, foo(v)]}
+{a: 1, b: 2}.map {|k, v| [k, foo(v)]}

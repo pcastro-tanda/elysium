@@ -1,0 +1,1 @@
+Hash[x.map { |k, v| [k, foo(v)] }]

@@ -1,5 +1,5 @@
 wrapping do
-  x.transform_keys do |k|
+  {a: 1, b: 2}.transform_keys do |k|
     k.to_sym
   end
 end

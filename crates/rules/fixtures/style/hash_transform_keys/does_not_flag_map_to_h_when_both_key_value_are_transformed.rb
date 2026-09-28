@@ -1,1 +1,1 @@
-x.map {|k, v| [k.to_sym, foo(v)]}.to_h
+{a: 1, b: 2}.map {|k, v| [k.to_sym, foo(v)]}.to_h

@@ -8,7 +8,7 @@ Checks that there is a `# rubocop:enable ...` after a `# rubocop:disable ...`.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks that there is an `# rubocop:enable ...` statement
 after a `# rubocop:disable ...` statement. This will prevent leaving

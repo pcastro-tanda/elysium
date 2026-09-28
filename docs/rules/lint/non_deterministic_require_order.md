@@ -8,7 +8,7 @@ Always sort arrays returned by Dir.glob when requiring files.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | unsafe |
-| Stability | nursery |
+| Stability | stable |
 
 `Dir[...]` and `Dir.glob(...)` do not make any guarantees about the order in which files are returned. The final order is determined by the operating system and file system. This means that using them in cases where the order matters, such as requiring files, can lead to intermittent failures that are hard to debug. To ensure this doesn't happen, always sort the list.
 

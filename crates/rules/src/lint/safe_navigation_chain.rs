@@ -22,18 +22,20 @@ use linter::{
     Context, Department, FixAvailability, OptionError, Rule, RuleMeta, RuleOptions, Severity,
     Stability,
 };
+use ruby_ast::node::StatementsNode;
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 const MSG: &str = "Do not chain ordinary method call after safe navigation operator.";
 
 /// `NilMethods#nil_methods`: `nil.methods` plus `other_stdlib_methods`
-/// (`:to_d`, from `require "bigdecimal/util"`). RuboCop's own test suite
-/// runs with `ActiveSupport`'s `Object` core extensions loaded, which add
-/// `blank?`/`present?`/`try`/`in?` (among others) to `NilClass`; the
-/// upstream spec's `accepts` fixtures rely on that, so they're included
-/// here too. `AllowedMethods` is empty since this cop declares no
-/// `AllowedMethods` config in `default.yml`.
+/// (`:to_d`, from `require "bigdecimal/util"`). Real-world Rails apps run
+/// RuboCop with `rubocop-rails`/the app's own plugins loaded, which pull in
+/// `ActiveSupport`'s `Object` core extensions, adding `blank?`/`present?`/
+/// `try`/`in?`/`presence` (among others) to `NilClass`; both the upstream
+/// spec's `accepts` fixtures and the discourse/mastodon corpora rely on
+/// that, so they're included here too. `AllowedMethods` is empty since this
+/// cop declares no `AllowedMethods` config in `default.yml`.
 const NIL_METHODS: &[&[u8]] = &[
     b"!",
     b"!=",
@@ -102,6 +104,7 @@ const NIL_METHODS: &[&[u8]] = &[
     b"present?",
     b"try",
     b"in?",
+    b"presence",
 ];
 
 /// `PLUS_MINUS_METHODS`: unary `+@`/`-@`.
@@ -113,6 +116,13 @@ pub struct SafeNavigationChain {
     /// `AndNode.right().span() -> parent.lhs.receiver == parent.rhs.receiver`,
     /// populated on entering the `AndNode` (visited before its children).
     and_rhs_receiver_matches: HashMap<Span, bool>,
+    /// RuboCop's `ternary_safe_navigation?`: keyed by the span of the sole
+    /// statement in an `IfNode`/`UnlessNode`'s truthy branch (normalized for
+    /// `unless`), mapped to that conditional's predicate source text.
+    /// Populated on entering the `IfNode`/`UnlessNode` (visited before its
+    /// children), so it's available once the candidate offense (that sole
+    /// statement) is visited.
+    ternary_guard_predicate: HashMap<Span, Vec<u8>>,
 }
 
 impl Rule for SafeNavigationChain {
@@ -128,8 +138,8 @@ This cop checks for the problem outlined above.",
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
-        kinds: &[NodeKind::CallNode, NodeKind::AndNode],
+        stability: Stability::Stable,
+        kinds: &[NodeKind::CallNode, NodeKind::AndNode, NodeKind::IfNode, NodeKind::UnlessNode],
         config: &[],
         blind_spots: "",
     };
@@ -145,6 +155,18 @@ This cop checks for the problem outlined above.",
                 let matches =
                     call_receiver_text(&and.left(), ctx) == call_receiver_text(&and.right(), ctx);
                 self.and_rhs_receiver_matches.insert(and.right().span(), matches);
+            }
+            NodeKind::IfNode => {
+                let Some(if_node) = node.as_if_node() else { return };
+                self.record_ternary_guard(if_node.predicate().span(), if_node.statements(), ctx);
+            }
+            NodeKind::UnlessNode => {
+                let Some(unless_node) = node.as_unless_node() else { return };
+                // `IfNode::if_branch`/`UnlessNode::if_branch` are normalized
+                // in rubocop-ast: for `unless`, the branch that runs when the
+                // predicate is truthy is the `else` clause, not `statements`.
+                let branch = unless_node.else_clause().and_then(|e| e.statements());
+                self.record_ternary_guard(unless_node.predicate().span(), branch, ctx);
             }
             NodeKind::CallNode => self.check_call(node, ctx),
             _ => {}
@@ -173,6 +195,9 @@ impl SafeNavigationChain {
         if !self.require_safe_navigation(node, ctx) {
             return;
         }
+        if self.ternary_safe_navigation(node, &safe_nav, ctx) {
+            return;
+        }
         let begin =
             call.call_operator_loc().map_or_else(|| receiver.span().end, |loc| loc.span().start);
         let span = Span::new(begin, node.span().end);
@@ -193,6 +218,43 @@ impl SafeNavigationChain {
             }
             _ => true,
         }
+    }
+
+    /// RuboCop's `ternary_safe_navigation?`: an offense is suppressed when
+    /// `node` (the candidate offense) is the sole statement of an
+    /// `if`/`unless`/ternary's truthy branch, guarded by that same
+    /// conditional's predicate (e.g. `x&.foo ? x&.foo.bar : baz`, where
+    /// `x&.foo` being truthy already proves the chained `.bar` call safe).
+    fn ternary_safe_navigation(
+        &self,
+        node: &Node<'_>,
+        safe_nav: &ruby_ast::node::CallNode<'_>,
+        ctx: &Context<'_>,
+    ) -> bool {
+        match self.ternary_guard_predicate.get(&node.span()) {
+            Some(predicate_text) => {
+                predicate_text.as_slice() == ctx.text(safe_nav.as_node().span())
+            }
+            None => false,
+        }
+    }
+
+    /// Populates `ternary_guard_predicate` for an `IfNode`/`UnlessNode`'s
+    /// truthy branch, keyed by that branch's sole statement's span (when it
+    /// has exactly one), mapped to the conditional's predicate source text.
+    fn record_ternary_guard(
+        &mut self,
+        predicate_span: Span,
+        branch: Option<StatementsNode<'_>>,
+        ctx: &Context<'_>,
+    ) {
+        let Some(stmts) = branch else { return };
+        let body = stmts.body();
+        if body.len() != 1 {
+            return;
+        }
+        let Some(sole) = body.iter().next() else { return };
+        self.ternary_guard_predicate.insert(sole.span(), ctx.text(predicate_span).to_vec());
     }
 }
 

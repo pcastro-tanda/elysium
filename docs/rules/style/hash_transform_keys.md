@@ -8,7 +8,7 @@ Prefer `transform_keys` over `each_with_object`, `map`, or `to_h`.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Looks for uses of `each_with_object({}) {...}`, `map {...}.to_h`, and `Hash[map {...}]` that are actually just transforming the keys of a hash, and tries to use a simpler & faster call to `transform_keys` instead.
 

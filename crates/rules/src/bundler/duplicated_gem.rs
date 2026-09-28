@@ -143,7 +143,22 @@ impl DuplicatedGem {
     /// Upstream's `conditional_declaration?`: true when every node in the
     /// group is a direct statement of a distinct branch of the same single
     /// `if`/`case` that `nodes.first` sits directly in.
-    fn conditional_declaration(&self, indices: &[usize]) -> bool {
+    ///
+    /// `within_conditional?`'s `branch.child_nodes.include?(node)` is an
+    /// `Array#include?` scan using whitequark `Parser::AST::Node#==`:
+    /// structural equality of the whole call node (method name + every
+    /// argument, recursively), ignoring source location entirely -- not
+    /// "is this literally that ancestry slot". So a branch matches not only
+    /// the call that actually sits there, but any *other* direct statement
+    /// of that branch that happens to be a structurally identical `gem`
+    /// call (e.g. two bare `gem "redcarpet"` with no extra args, one inside
+    /// the `if`, one inside an unrelated `group` block elsewhere: upstream
+    /// still treats the second as "in" the first's branch and skips it).
+    /// This port approximates that structural equality with exact
+    /// source-text comparison of the whole call, matching this codebase's
+    /// established approximation for the same problem elsewhere (see
+    /// `Lint/DuplicateElsifCondition`, `Lint/DuplicateCaseCondition`).
+    fn conditional_declaration(&self, indices: &[usize], ctx: &Context<'_>) -> bool {
         let Some(first) = indices.first().map(|&i| &self.gem_calls[i]) else { return false };
         let Some((kind, span)) = first.root else { return false };
         let Some(branches) = (match kind {
@@ -153,7 +168,11 @@ impl DuplicatedGem {
             return false;
         };
         indices.iter().all(|&i| {
-            self.gem_calls[i].stmt_span.is_some_and(|stmt_span| branches.contains(&stmt_span))
+            let text = ctx.text(self.gem_calls[i].call_span);
+            self.gem_calls.iter().any(|other| {
+                other.stmt_span.is_some_and(|s| branches.contains(&s))
+                    && ctx.text(other.call_span) == text
+            })
         })
     }
 }
@@ -200,7 +219,7 @@ end
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode, NodeKind::IfNode, NodeKind::CaseNode],
         config: &[],
         blind_spots: "\
@@ -247,7 +266,7 @@ groups with anything, even another identical interpolation.",
         }
 
         for (name, indices) in &groups {
-            if indices.len() < 2 || self.conditional_declaration(indices) {
+            if indices.len() < 2 || self.conditional_declaration(indices, ctx) {
                 continue;
             }
             let first_line = ctx.line_col(self.gem_calls[indices[0]].call_span.start).line;

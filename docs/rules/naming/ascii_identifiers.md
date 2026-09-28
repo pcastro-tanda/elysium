@@ -8,7 +8,7 @@ Use only ascii symbols in identifiers and constants.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for non-ascii characters in identifier and constant names.
 Identifiers are always checked and whether constants are checked

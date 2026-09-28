@@ -93,16 +93,17 @@ impl Rule for RedundantCopEnableDirective {
         if directives.is_empty() {
             return;
         }
-        // Seeding every cop the loaded configuration disables (real `Enabled: false`) would pull
-        // in cops never mentioned by any directive in this file at all -- upstream's spec suite
-        // runs cop specs against an isolated, otherwise-empty config, so this only reproduces
-        // upstream's own `expected_final_disable?`/`extra_enabled_comments` seeding faithfully
-        // for a cop this file's directives could plausibly be talking about.
+        // `registry.disabled_names(config)` seeds one pending disable per config-disabled cop.
+        // Under `--only` the run's registry is exactly the listed cops, all enabled, so nothing
+        // is seeded. Otherwise only cops this file's directives mention can matter, so the
+        // search is limited to those.
+        let only_run = self.options.only_run();
         let disabled_by_config: Vec<String> = self
             .known_cops
             .iter()
             .filter(|cop| {
-                matches!(self.options.peer(cop, "Enabled"), Some(OptionValue::Bool(false)))
+                !only_run
+                    && matches!(self.options.peer(cop, "Enabled"), Some(OptionValue::Bool(false)))
                     && directives
                         .iter()
                         .any(|d| d.cops.iter().any(|c| matches!(c, CopRef::Cop(n) if n == *cop)))

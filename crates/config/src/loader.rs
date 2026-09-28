@@ -205,6 +205,8 @@ impl ConfigLoader {
             Some(path) => base_dir_for_path_parameters(path, &self.cwd, self.home.as_deref()),
             None => self.cwd.clone(),
         };
+        let mut resolved = resolved;
+        infer_target_ruby_version(&mut resolved, &root);
         Ok(LoadedConfig::new(
             resolved,
             loaded_path,
@@ -638,6 +640,25 @@ fn base_dir_for_path_parameters(loaded_path: &Path, cwd: &Path, home: Option<&Pa
     }
 }
 
+/// Fills `AllCops/TargetRubyVersion` from the project's version files when
+/// the configuration leaves it unset, so rules see the version RuboCop's
+/// `Config#target_ruby_version` reports rather than the bare default.
+fn infer_target_ruby_version(resolved: &mut Mapping, root: &Path) {
+    let stated = resolved
+        .get_mapping("AllCops")
+        .and_then(|all| all.get("TargetRubyVersion"))
+        .is_some_and(|value| !value.is_null());
+    if stated {
+        return;
+    }
+    let version = inferred_target_ruby_version(root);
+    if let Some(all) = resolved.get_mapping_mut("AllCops") {
+        // Via the decimal text, so `3.4` stays `3.4` rather than `3.4000000953674316`.
+        let value = version.to_string().parse().unwrap_or_else(|_| f64::from(version));
+        all.insert("TargetRubyVersion", YamlValue::Float(value));
+    }
+}
+
 /// `TargetRuby`, minus the gemspec source (which needs a Ruby parse).
 fn target_ruby_version(hash: &Mapping, path: &Path, cwd: &Path, home: Option<&Path>) -> f32 {
     if let Some(version) = hash
@@ -647,7 +668,14 @@ fn target_ruby_version(hash: &Mapping, path: &Path, cwd: &Path, home: Option<&Pa
     {
         return version;
     }
-    let base_dir = base_dir_for_path_parameters(path, cwd, home);
+    inferred_target_ruby_version(&base_dir_for_path_parameters(path, cwd, home))
+}
+
+/// `TargetRuby`'s file-based sources (`.ruby-version`, `.tool-versions`,
+/// `Gemfile.lock`), searched from `base_dir`; the default when none states
+/// a version. The gemspec source is not implemented.
+fn inferred_target_ruby_version(base_dir: &Path) -> f32 {
+    let base_dir = base_dir.to_path_buf();
     if let Some(file) = find_file_upwards(".ruby-version", &base_dir, None) {
         if let Some(version) = std::fs::read_to_string(file)
             .ok()

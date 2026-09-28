@@ -156,22 +156,19 @@ semantic cops (60 rules total).
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 155 | 0 | 15 |
+| 169 | 0 | 1 |
 
 Promotion to `stable` requires >99% corpus conformance on `discourse` and
-`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 155 of 170 rules meet
+`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 169 of 170 rules meet
 it. At `nursery`:
 
 - `Lint/RedundantCopDisableDirective` — held back per policy regardless of
   measured agreement (see above).
-- 14 wave-3a cops with open corpus diffs (RuboCop 1.91, `--defaults`):
-  `Bundler/DuplicatedGem`, `Gemspec/RequiredRubyVersion`,
-  `Layout/RescueEnsureAlignment`, `Lint/MissingCopEnableDirective`,
-  `Lint/NonDeterministicRequireOrder`, `Lint/SafeNavigationChain`,
-  `Metrics/BlockNesting`, `Naming/AsciiIdentifiers`,
-  `Style/CommentAnnotation`, `Style/HashTransformKeys`,
-  `Style/HashTransformValues`, `Style/LineEndConcatenation`,
-  `Style/NumericPredicate`, `Style/RedundantBegin`.
+Known sub-100% residue among `stable` rules (all above the 99% bar):
+`Layout/HeredocIndentation` misses 1 of 1,266 on discourse's own config;
+under RuboCop defaults only, `Layout/FirstHashElementIndentation` (6
+missing on discourse), `Style/IfUnlessModifier` (1-2 extra) and
+`Layout/LineLength` (1 missing on mastodon).
 
 `Lint/Syntax` is built into the engine and is not counted.
 
@@ -284,8 +281,11 @@ cop needs: `docs/planning/default-parity.md`.
    closely. A review pass afterward fixed hot-path allocations across the
    wave. Wave 3a (`docs/planning/waves/wave3a.txt`, 65 cops needing
    target-ruby, file-level, or comment/token support) is ported, plus
-   `Lint/EmptyEnsure`: 52 `stable` at 100% agreement on both apps, 14 at
-   `nursery` with corpus diffs (listed above). Porters work from
+   `Lint/EmptyEnsure`: all 66 `stable` at 100% agreement on both apps. Fixing the
+   last diffs surfaced two engine gaps, now closed: `TargetRubyVersion` is
+   inferred from `.ruby-version`/`.tool-versions`/`Gemfile.lock` when the
+   config leaves it unset, and rules can tell a CLI `--only` run (RuboCop's
+   `--only` registry semantics) from an isolated spec-style run. Porters work from
    `docs/porting/KIT.md` with `tools/scaffold_cop.rb` skeletons, each in
    its own `CARGO_TARGET_DIR` to avoid build-lock contention; conformance
    truth is batched (`cargo xtask conformance --rule A,B,...`).

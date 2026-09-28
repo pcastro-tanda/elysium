@@ -1,1 +1,1 @@
-x.transform_values {|v| foo(v)}
+{a: 1, b: 2}.transform_values {|v| foo(v)}

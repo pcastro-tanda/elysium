@@ -1,1 +1,1 @@
-x.each_with_object({}) {|(k, v), h| h[foo(v)] = v}
+{a: 1, b: 2}.each_with_object({}) {|(k, v), h| h[foo(v)] = v}

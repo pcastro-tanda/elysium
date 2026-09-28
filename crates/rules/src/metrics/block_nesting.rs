@@ -45,7 +45,7 @@ impl Rule for BlockNesting {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[],
         config: &[
             ConfigOption {
@@ -151,6 +151,14 @@ fn count_if_block(node: &Node<'_>, count_modifier_forms: bool) -> bool {
 /// it end to end; Prism's `BlockNode` is only the `{ ... }`/`do...end` part,
 /// but its owning `CallNode`'s span already extends through it, so that is
 /// reported instead.
+/// `subsequent` is fixed up here: Prism chains multiple `rescue` clauses via
+/// `RescueNode::subsequent`, nesting the second clause as a child of the
+/// first, whereas whitequark makes every `resbody` a sibling under the
+/// enclosing `rescue` node, all sharing the same incoming level. Recursing
+/// into `subsequent` with `current_level` (not this clause's own
+/// post-increment `level`) reproduces that, and it must still happen even
+/// when this clause itself gets flagged: `ignore_node` only ever suppresses
+/// a flagged node's own subtree, never its whitequark siblings.
 fn check_nesting_level<'pr>(
     node: &Node<'pr>,
     parent: Option<&Node<'pr>>,
@@ -161,6 +169,7 @@ fn check_nesting_level<'pr>(
     current_level: u32,
 ) {
     let mut level = current_level;
+    let mut reported = false;
     if consider_node(node.kind(), count_blocks) {
         if count_if_block(node, count_modifier_forms) {
             level += 1;
@@ -172,8 +181,62 @@ fn check_nesting_level<'pr>(
                 node.span()
             };
             ctx.report(&BlockNesting::META, span, message(max));
-            return;
+            reported = true;
         }
+    }
+
+    if let Some(rescue) = node.as_rescue_node() {
+        if !reported {
+            for exception in &rescue.exceptions() {
+                check_nesting_level(
+                    &exception,
+                    Some(node),
+                    ctx,
+                    max,
+                    count_blocks,
+                    count_modifier_forms,
+                    level,
+                );
+            }
+            if let Some(reference) = rescue.reference() {
+                check_nesting_level(
+                    &reference,
+                    Some(node),
+                    ctx,
+                    max,
+                    count_blocks,
+                    count_modifier_forms,
+                    level,
+                );
+            }
+            if let Some(statements) = rescue.statements() {
+                check_nesting_level(
+                    &statements.as_node(),
+                    Some(node),
+                    ctx,
+                    max,
+                    count_blocks,
+                    count_modifier_forms,
+                    level,
+                );
+            }
+        }
+        if let Some(subsequent) = rescue.subsequent() {
+            check_nesting_level(
+                &subsequent.as_node(),
+                parent,
+                ctx,
+                max,
+                count_blocks,
+                count_modifier_forms,
+                current_level,
+            );
+        }
+        return;
+    }
+
+    if reported {
+        return;
     }
     for_each_child(node, |child| {
         check_nesting_level(child, Some(node), ctx, max, count_blocks, count_modifier_forms, level);

@@ -1,5 +1,5 @@
 wrapping do
-  x.transform_values do |v|
+  {a: 1, b: 2}.transform_values do |v|
     v.to_s
   end
 end

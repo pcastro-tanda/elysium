@@ -8,7 +8,7 @@ Use \ instead of + or << to concatenate two string literals at line end.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | unsafe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for string literal concatenation at the end of a line.
 

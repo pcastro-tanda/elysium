@@ -86,7 +86,7 @@ hash, e.g.: `[[k1, v1], [k2, v2], ...]`.",
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
@@ -309,7 +309,9 @@ impl Captures<'_> {
         }
         // `use_transformed_argname?`: the value expression must actually
         // reference the value argument, or the receiver likely isn't a hash.
+        // `transforming_body_expr.splat_type?`
         contains_lvar_named(&self.val_expr, self.val_argname)
+            && self.val_expr.as_splat_node().is_none()
     }
 }
 
@@ -321,23 +323,49 @@ fn contains_lvar_named(node: &Node<'_>, name: &[u8]) -> bool {
     found
 }
 
-/// `#array_receiver?`: `[...].each_with_object`/`.map`/`.to_h`,
-/// `_.each_with_index...`, `_.with_index...`, and `_.zip(...)` are
-/// enumerables of pairs, not hashes, so transforming them isn't the same
-/// operation as `Hash#transform_values`.
-fn is_array_receiver(node: &Node<'_>) -> bool {
-    if node.kind() == NodeKind::ArrayNode {
+/// `#hash_receiver?`: a literal hash, or a call/block known to return a
+/// hash (`to_h`, `merge`, `invert`, `group_by`, `each_with_object({})`,
+/// etc.). Replaces the old array-receiver blacklist with upstream's
+/// current whitelist -- the receiver of `each_with_object`, `map`/
+/// `collect`, and `to_h` must match this before the cop fires at all.
+fn is_hash_receiver(node: &Node<'_>) -> bool {
+    if node.as_hash_node().is_some() {
         return true;
     }
     let Some(call) = node.as_call_node() else { return false };
-    if call.receiver().is_none() {
+    let name = call.name();
+    let name = name.as_slice();
+    let block = call.block().and_then(|b| b.as_block_node());
+    // The pattern's `block` excludes whitequark's `numblock`/`itblock`.
+    if block.as_ref().and_then(ruby_ast::node::BlockNode::parameters).is_some_and(|p| {
+        p.as_it_parameters_node().is_some() || p.as_numbered_parameters_node().is_some()
+    }) {
         return false;
     }
-    match call.name().as_slice() {
-        b"each_with_index" => call.arguments().is_none(),
-        b"with_index" => call.arguments().is_none_or(|a| a.arguments().len() == 1),
-        b"zip" => true,
-        _ => false,
+    match block {
+        None => matches!(
+            name,
+            b"to_h"
+                | b"to_hash"
+                | b"merge"
+                | b"merge!"
+                | b"update"
+                | b"invert"
+                | b"except"
+                | b"tally"
+        ),
+        Some(_) => match name {
+            b"group_by" | b"to_h" | b"tally" | b"transform_keys" | b"transform_keys!"
+            | b"transform_values" | b"transform_values!" => true,
+            b"each_with_object" => {
+                let args = call.arguments().map(|a| a.arguments());
+                args.is_some_and(|args| {
+                    args.len() == 1
+                        && args.iter().next().is_some_and(|a| a.as_hash_node().is_some())
+                })
+            }
+            _ => false,
+        },
     }
 }
 
@@ -430,7 +458,7 @@ fn each_with_object_body<'pr>(
 
 /// `on_bad_each_with_object`: `_.each_with_object({}) { |(k, v), h| h[k] = ... }`.
 fn match_each_with_object<'pr>(call: &CallNode<'pr>) -> Option<(Captures<'pr>, BlockNode<'pr>)> {
-    if is_array_receiver(&call.receiver()?) {
+    if !is_hash_receiver(&call.receiver()?) {
         return None;
     }
     let args = call.arguments()?.arguments();
@@ -451,7 +479,7 @@ fn match_each_with_object<'pr>(call: &CallNode<'pr>) -> Option<(Captures<'pr>, B
 /// block and `on_bad_to_h`'s own block: `(args (arg _key)(arg $_)) (array
 /// $(lvar _key) $_)`, i.e. `{ |k, v| [k, <val_expr>] }`.
 fn match_block_array_pair<'pr>(call: &CallNode<'pr>) -> Option<(Captures<'pr>, BlockNode<'pr>)> {
-    if is_array_receiver(&call.receiver()?) {
+    if !is_hash_receiver(&call.receiver()?) {
         return None;
     }
     let block = call.block()?.as_block_node()?;

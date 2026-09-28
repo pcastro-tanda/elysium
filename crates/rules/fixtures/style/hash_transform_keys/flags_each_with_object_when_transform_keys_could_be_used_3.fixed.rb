@@ -1,1 +1,1 @@
-x&.transform_keys {|k| foo(k)}
+x.to_h&.transform_keys {|k| foo(k)}

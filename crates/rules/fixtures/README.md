@@ -12,6 +12,9 @@ later tag's checkout instead:
 
 - `lint/number_conversion`: RuboCop 1.91.0 (1.88's #15252 safe-navigation
   message/no-autocorrect and #15194 `IgnoredClasses` -> `AllowedClasses`).
+- `style/hash_transform_keys`, `style/hash_transform_values`: RuboCop 1.91.0
+  (`HashTransformMethod` switched from the `array_receiver?` blacklist to
+  the `hash_receiver?` whitelist).
 
 A case that does not state `AllCops/TargetRubyVersion` in its `.yml` runs at
 3.3: the specs were ported with `PARSER_ENGINE=parser_prism`, where RuboCop's

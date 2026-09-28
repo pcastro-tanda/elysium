@@ -31,6 +31,12 @@
 //! config-disabled cop that the file never mentions by name never gets a group at all, which is
 //! moot: upstream's seeded-only range for such a cop is always acceptable too.
 
+//! `acceptable_range?`'s first early return (`Registry.global.names.include?(cop)`) *is* ported,
+//! via [`is_registered`] over the configuration's cop names: RuboCop's own cops plus those of
+//! required plugins. Under `--force-default-config` no plugin is required, so a directive naming
+//! e.g. `RSpec/SubjectStub` or `Discourse/NoChdir` never demands a re-enable there, while the
+//! app's own configuration (which requires those plugins) does.
+
 use std::collections::{BTreeMap, HashSet};
 
 use linter::{
@@ -116,6 +122,23 @@ fn describe(cop: &CopRef) -> (&str, RefKind) {
         CopRef::All => ("all", RefKind::Cop),
         CopRef::Department(name) => (name.as_str(), RefKind::Department),
         CopRef::Cop(name) => (name.as_str(), RefKind::Cop),
+    }
+}
+
+/// `Registry.global.names.include?(cop)` (`acceptable_range?`'s second early return): whether
+/// a literal reference names a registered cop. The registry is every cop the effective
+/// configuration knows (RuboCop's defaults plus required plugins' `default.yml`), which is the
+/// set RuboCop registers. `"all"` always qualifies; a department qualifies when any registered
+/// cop lives in it.
+fn is_registered(options: &RuleOptions, key: &str, kind: RefKind) -> bool {
+    if key == "all" {
+        return true;
+    }
+    match kind {
+        RefKind::Department => options
+            .peer_names()
+            .any(|name| name.strip_prefix(key).is_some_and(|rest| rest.starts_with('/'))),
+        RefKind::Cop => options.peer_names().any(|name| name == key),
     }
 }
 
@@ -205,7 +228,7 @@ x += 1
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[],
         config: &[ConfigOption {
             name: "MaximumRangeSize",
@@ -257,6 +280,9 @@ impl MissingCopEnableDirective {
 
         let mut reported_spans: HashSet<Span> = HashSet::new();
         for (key, (state, kind)) in states {
+            if !is_registered(&self.options, &key, kind) {
+                continue;
+            }
             let config_disabled = self
                 .options
                 .peer(&key, "Enabled")

@@ -1,2 +1,2 @@
-x.to_h {|k, v| [k, foo(v)]}
-^^^^^^^^^^^^^^^^^^^^^^^^^^^ Prefer `transform_values` over `to_h {...}`.
+{a: 1, b: 2}.to_h {|k, v| [k, foo(v)]}
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Prefer `transform_values` over `to_h {...}`.

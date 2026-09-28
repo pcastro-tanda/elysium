@@ -1,3 +1,3 @@
-some_hash.transform_values do |val|
+some_hash.to_h.transform_values do |val|
   val * val
 end

@@ -8,7 +8,7 @@ Checks for duplicate gem entries in Gemfile.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 A Gem's requirements should be listed only once in a Gemfile.
 

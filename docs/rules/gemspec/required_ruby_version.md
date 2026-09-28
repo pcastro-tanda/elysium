@@ -8,7 +8,7 @@ Checks that `required_ruby_version` of gemspec is specified and equal to `Target
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks that `required_ruby_version` of gemspec is specified and equal to `TargetRubyVersion`
 of .rubocop.yml.

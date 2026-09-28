@@ -8,7 +8,7 @@ Checks for uses of `each_with_object`, `map`, and `to_h` that are actually just 
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | unsafe |
-| Stability | nursery |
+| Stability | stable |
 
 Looks for uses of `each_with_object({})`, `map { ... }.to_h`, and `Hash[_.map { ... }]` that are actually just transforming the values of a hash, and tries to use a simpler & faster call to `transform_values` instead.
 

@@ -178,9 +178,13 @@ pub struct NumericPredicate {
     /// RuboCop's `target_ruby_version`, read once at configure time (it is
     /// a `RuleOptions` accessor, not a per-file `Context` one).
     target_ruby_version: f32,
-    /// See the module doc: every currently-open `CallNode`'s name, outermost
-    /// first.
-    call_stack: Vec<Vec<u8>>,
+    /// See the module doc: every currently-open `CallNode`'s name (outermost
+    /// first) paired with whether it was a safe-navigation (`&.`) call.
+    /// RuboCop's `each_ancestor(:send, :any_block)` only matches plain
+    /// `send`/block ancestors, never `csend`, so a safe-navigation frame is
+    /// kept on the stack (for correct nesting) but excluded from the
+    /// allowed-ancestor and `negated?` checks below.
+    call_stack: Vec<(Vec<u8>, bool)>,
 }
 
 impl NumericPredicate {
@@ -193,17 +197,23 @@ impl NumericPredicate {
             .is_ok_and(|text| self.allowed_patterns.iter().any(|re| re.is_match(text)))
     }
 
-    /// RuboCop's `node.each_ancestor(:send, :block).any? { |a| allowed_method_name?(a.method_name) }`.
+    /// RuboCop's `node.each_ancestor(:send, :block).any? { |a| allowed_method_name?(a.method_name) }`,
+    /// excluding `csend` frames (see the `call_stack` field doc).
     fn any_ancestor_allowed(&self) -> bool {
-        self.call_stack.iter().any(|name| self.allowed_method_name(name))
+        self.call_stack
+            .iter()
+            .any(|(name, is_safe_nav)| !is_safe_nav && self.allowed_method_name(name))
     }
 
-    /// RuboCop's `negated?`: the immediate parent is a `!` call. See the
-    /// module doc for why the call stack's top is a safe stand-in for the
-    /// direct structural parent here.
+    /// RuboCop's `negated?`: the immediate parent is a plain (non-`csend`)
+    /// `!` call. See the module doc for why the call stack's top is a safe
+    /// stand-in for the direct structural parent here.
     fn is_negated(&self, ctx: &Context<'_>) -> bool {
         ctx.parent().is_some_and(|p| p.kind == NodeKind::CallNode)
-            && self.call_stack.last().is_some_and(|name| name.as_slice() == b"!")
+            && self
+                .call_stack
+                .last()
+                .is_some_and(|(name, is_safe_nav)| !is_safe_nav && name.as_slice() == b"!")
     }
 }
 
@@ -284,7 +294,7 @@ bar.baz.positive?
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[
             ConfigOption {
@@ -336,11 +346,17 @@ bar.baz.positive?
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
         let Some(call) = node.as_call_node() else { return };
 
-        let matched = match self.style {
-            Style::Predicate => {
-                match_comparison(&call).or_else(|| match_inverted_comparison(&call))
+        // RuboCop's `RESTRICT_ON_SEND` filters `on_send` dispatch, which
+        // never fires for `csend` (`&.`) nodes.
+        let matched = if call.is_safe_navigation() {
+            None
+        } else {
+            match self.style {
+                Style::Predicate => {
+                    match_comparison(&call).or_else(|| match_inverted_comparison(&call))
+                }
+                Style::Comparison => match_predicate(&call),
             }
-            Style::Comparison => match_predicate(&call),
         };
 
         if let Some((numeric, kind)) = matched {
@@ -380,7 +396,7 @@ bar.baz.positive?
             }
         }
 
-        self.call_stack.push(call.name().as_slice().to_vec());
+        self.call_stack.push((call.name().as_slice().to_vec(), call.is_safe_navigation()));
     }
 
     fn leave(&mut self, node: &Node<'_>, _ctx: &mut Context<'_>) {

@@ -6,7 +6,7 @@
 
 | Cop | Fix | Stability | Summary |
 | --- | --- | --- | --- |
-| [Bundler/DuplicatedGem](bundler/duplicated_gem.md) | none | nursery | Checks for duplicate gem entries in Gemfile. |
+| [Bundler/DuplicatedGem](bundler/duplicated_gem.md) | none | stable | Checks for duplicate gem entries in Gemfile. |
 | [Bundler/DuplicatedGroup](bundler/duplicated_group.md) | none | stable | Checks for duplicate gem group entries in Gemfile. |
 | [Bundler/GemFilename](bundler/gem_filename.md) | none | stable | Verifies that a project contains Gemfile or gems.rb file and correct associated lock file based on the configuration. |
 | [Bundler/OrderedGems](bundler/ordered_gems.md) | safe | stable | Gems within groups in the Gemfile should be alphabetically sorted. |
@@ -17,7 +17,7 @@
 | --- | --- | --- | --- |
 | [Gemspec/DuplicatedAssignment](gemspec/duplicated_assignment.md) | none | stable | An attribute assignment method calls should be listed only once in a gemspec. |
 | [Gemspec/OrderedDependencies](gemspec/ordered_dependencies.md) | safe | stable | Dependencies in the gemspec should be alphabetically sorted. |
-| [Gemspec/RequiredRubyVersion](gemspec/required_ruby_version.md) | none | nursery | Checks that `required_ruby_version` of gemspec is specified and equal to `TargetRubyVersion` of .rubocop.yml. |
+| [Gemspec/RequiredRubyVersion](gemspec/required_ruby_version.md) | none | stable | Checks that `required_ruby_version` of gemspec is specified and equal to `TargetRubyVersion` of .rubocop.yml. |
 | [Gemspec/RubyVersionGlobalsUsage](gemspec/ruby_version_globals_usage.md) | none | stable | Checks usage of RUBY_VERSION in gemspec. |
 
 ## Layout
@@ -43,7 +43,7 @@
 | [Layout/InitialIndentation](layout/initial_indentation.md) | safe | stable | Checks for indentation of the first non-blank non-comment line in a file. |
 | [Layout/LeadingEmptyLines](layout/leading_empty_lines.md) | safe | stable | Checks for unnecessary blank lines at the beginning of a file. |
 | [Layout/LineLength](layout/line_length.md) | safe | stable | Checks the length of lines in the source code. |
-| [Layout/RescueEnsureAlignment](layout/rescue_ensure_alignment.md) | none | nursery | Align rescues and ensures correctly. |
+| [Layout/RescueEnsureAlignment](layout/rescue_ensure_alignment.md) | none | stable | Align rescues and ensures correctly. |
 | [Layout/SpaceAroundEqualsInParameterDefault](layout/space_around_equals_in_parameter_default.md) | safe | stable | Checks that the equals signs in parameter default assignments have or don't have surrounding space depending on configuration. |
 | [Layout/SpaceAroundKeyword](layout/space_around_keyword.md) | safe | stable | Use a space around keywords if appropriate. |
 | [Layout/SpaceAroundOperators](layout/space_around_operators.md) | safe | stable | Checks that operators have space around them, except for ** which should or shouldn't have surrounding space depending on configuration. |
@@ -89,13 +89,13 @@
 | [Lint/FloatOutOfRange](lint/float_out_of_range.md) | none | stable | Catches floating-point literals too large or small for Ruby to represent. |
 | [Lint/FormatParameterMismatch](lint/format_parameter_mismatch.md) | none | stable | Checks for a mismatch between the number of expected fields for format/sprintf/#% and what is actually passed as arguments. |
 | [Lint/HashCompareByIdentity](lint/hash_compare_by_identity.md) | none | stable | Checks for hashes being keyed by objects' `object_id`. |
-| [Lint/MissingCopEnableDirective](lint/missing_cop_enable_directive.md) | none | nursery | Checks that there is a `# rubocop:enable ...` after a `# rubocop:disable ...`. |
+| [Lint/MissingCopEnableDirective](lint/missing_cop_enable_directive.md) | none | stable | Checks that there is a `# rubocop:enable ...` after a `# rubocop:disable ...`. |
 | [Lint/MissingSuper](lint/missing_super.md) | none | stable | Checks for the presence of constructors and lifecycle callbacks without calls to `super`. |
 | [Lint/MixedRegexpCaptureTypes](lint/mixed_regexp_capture_types.md) | none | stable | Checks for regexp literals that mix named and numbered captures. |
 | [Lint/NestedMethodDefinition](lint/nested_method_definition.md) | none | stable | Checks for nested method definitions. |
 | [Lint/NestedPercentLiteral](lint/nested_percent_literal.md) | none | stable | Checks for nested percent literals. |
 | [Lint/NextWithoutAccumulator](lint/next_without_accumulator.md) | none | stable | Don't omit the accumulator when calling `next` in a `reduce` block. |
-| [Lint/NonDeterministicRequireOrder](lint/non_deterministic_require_order.md) | unsafe | nursery | Always sort arrays returned by Dir.glob when requiring files. |
+| [Lint/NonDeterministicRequireOrder](lint/non_deterministic_require_order.md) | unsafe | stable | Always sort arrays returned by Dir.glob when requiring files. |
 | [Lint/NonLocalExitFromIterator](lint/non_local_exit_from_iterator.md) | none | stable | Checks for non-local exits from iterators without a return value. |
 | [Lint/NumberConversion](lint/number_conversion.md) | unsafe | stable | Warns the usage of unsafe number conversions. |
 | [Lint/OrderedMagicComments](lint/ordered_magic_comments.md) | unsafe | stable | Checks the proper ordering of magic comments and whether a magic comment is not placed before a shebang. |
@@ -107,7 +107,7 @@
 | [Lint/RequireParentheses](lint/require_parentheses.md) | none | stable | Checks for expressions where there is a call to a predicate method with at least one argument, where no parentheses are used around the parameter list, and a boolean operator, && or ||, is used in the last argument. |
 | [Lint/RescueException](lint/rescue_exception.md) | none | stable | Checks for `rescue` blocks targeting the `Exception` class. |
 | [Lint/ReturnInVoidContext](lint/return_in_void_context.md) | none | stable | Checks for the use of a return with a value in a context where the value will be ignored. |
-| [Lint/SafeNavigationChain](lint/safe_navigation_chain.md) | none | nursery | Do not chain ordinary method call after safe navigation operator. |
+| [Lint/SafeNavigationChain](lint/safe_navigation_chain.md) | none | stable | Do not chain ordinary method call after safe navigation operator. |
 | [Lint/ScriptPermission](lint/script_permission.md) | none | stable | Grant script file execute permission. |
 | [Lint/SelfAssignment](lint/self_assignment.md) | none | stable | Checks for self-assignments. |
 | [Lint/ShadowedException](lint/shadowed_exception.md) | none | stable | Checks for a rescued exception that get shadowed by a less specific exception being rescued before a more specific exception is rescued. |
@@ -126,7 +126,7 @@
 
 | Cop | Fix | Stability | Summary |
 | --- | --- | --- | --- |
-| [Metrics/BlockNesting](metrics/block_nesting.md) | none | nursery | Avoid excessive block nesting. |
+| [Metrics/BlockNesting](metrics/block_nesting.md) | none | stable | Avoid excessive block nesting. |
 
 ## Migration
 
@@ -139,7 +139,7 @@
 | Cop | Fix | Stability | Summary |
 | --- | --- | --- | --- |
 | [Naming/AccessorMethodName](naming/accessor_method_name.md) | none | stable | Avoid prefixing accessor method names with `get_` or `set_`. |
-| [Naming/AsciiIdentifiers](naming/ascii_identifiers.md) | none | nursery | Use only ascii symbols in identifiers and constants. |
+| [Naming/AsciiIdentifiers](naming/ascii_identifiers.md) | none | stable | Use only ascii symbols in identifiers and constants. |
 | [Naming/BlockParameterName](naming/block_parameter_name.md) | none | stable | Checks block parameter names for how descriptive they are. |
 | [Naming/ConstantName](naming/constant_name.md) | none | stable | Checks whether constant names are written using SCREAMING_SNAKE_CASE. |
 | [Naming/FileName](naming/file_name.md) | none | stable | Use snake_case for source file names. |
@@ -166,7 +166,7 @@
 | [Style/BlockComments](style/block_comments.md) | safe | stable | Do not use block comments. |
 | [Style/ClassAndModuleChildren](style/class_and_module_children.md) | unsafe | stable | Checks that namespaced classes and modules are defined with a consistent style. |
 | [Style/ClassVars](style/class_vars.md) | none | stable | Checks for uses of class variables. |
-| [Style/CommentAnnotation](style/comment_annotation.md) | none | nursery | Checks formatting of special comments (TODO, FIXME, OPTIMIZE, HACK, REVIEW, NOTE). |
+| [Style/CommentAnnotation](style/comment_annotation.md) | none | stable | Checks formatting of special comments (TODO, FIXME, OPTIMIZE, HACK, REVIEW, NOTE). |
 | [Style/CommentedKeyword](style/commented_keyword.md) | unsafe | stable | Do not place comments on the same line as certain keywords. |
 | [Style/Dir](style/dir.md) | safe | stable | Use the `__dir__` method to retrieve the canonicalized absolute path to the current file. |
 | [Style/DisableCopsWithinSourceCodeDirective](style/disable_cops_within_source_code_directive.md) | safe | stable | Forbids disabling/enabling cops within source code. |
@@ -178,11 +178,11 @@
 | [Style/GuardClause](style/guard_clause.md) | safe | stable | Checks for conditionals that can be replaced with guard clauses. |
 | [Style/HashLikeCase](style/hash_like_case.md) | none | stable | Checks for places where `case-when` represents a simple 1:1 mapping and can be replaced with a hash lookup. |
 | [Style/HashSyntax](style/hash_syntax.md) | safe | stable | Prefer Ruby 1.9 hash syntax `{ a: 1, b: 2 }` over 1.8 syntax `{ :a => 1, :b => 2 }`. |
-| [Style/HashTransformKeys](style/hash_transform_keys.md) | none | nursery | Prefer `transform_keys` over `each_with_object`, `map`, or `to_h`. |
-| [Style/HashTransformValues](style/hash_transform_values.md) | unsafe | nursery | Checks for uses of `each_with_object`, `map`, and `to_h` that are actually just transforming the values of a hash, and prefers `transform_values` instead. |
+| [Style/HashTransformKeys](style/hash_transform_keys.md) | none | stable | Prefer `transform_keys` over `each_with_object`, `map`, or `to_h`. |
+| [Style/HashTransformValues](style/hash_transform_values.md) | unsafe | stable | Checks for uses of `each_with_object`, `map`, and `to_h` that are actually just transforming the values of a hash, and prefers `transform_values` instead. |
 | [Style/IfUnlessModifier](style/if_unless_modifier.md) | safe | stable | Favor modifier if/unless usage when you have a single-line body. |
 | [Style/IfUnlessModifierOfIfUnless](style/if_unless_modifier_of_if_unless.md) | safe | stable | Avoid modifier if/unless usage on conditionals. |
-| [Style/LineEndConcatenation](style/line_end_concatenation.md) | unsafe | nursery | Use \ instead of + or << to concatenate two string literals at line end. |
+| [Style/LineEndConcatenation](style/line_end_concatenation.md) | unsafe | stable | Use \ instead of + or << to concatenate two string literals at line end. |
 | [Style/MissingRespondToMissing](style/missing_respond_to_missing.md) | none | stable | Checks for the presence of `method_missing` without also defining `respond_to_missing?`. |
 | [Style/MixinUsage](style/mixin_usage.md) | none | stable | Checks that `include`, `extend` and `prepend` statements appear inside classes and modules, not at the top level. |
 | [Style/MultilineBlockChain](style/multiline_block_chain.md) | none | stable | Checks for chaining of a block after another block that spans multiple lines. |
@@ -190,10 +190,10 @@
 | [Style/MutableConstant](style/mutable_constant.md) | unsafe | stable | Do not assign mutable objects to constants. |
 | [Style/NumericLiteralPrefix](style/numeric_literal_prefix.md) | safe | stable | Use smallcase prefixes for numeric literals. |
 | [Style/NumericLiterals](style/numeric_literals.md) | safe | stable | Checks for big numeric literals without `_` between groups of digits in them. |
-| [Style/NumericPredicate](style/numeric_predicate.md) | unsafe | nursery | Checks for the use of predicate- or comparison methods for numeric comparisons. |
+| [Style/NumericPredicate](style/numeric_predicate.md) | unsafe | stable | Checks for the use of predicate- or comparison methods for numeric comparisons. |
 | [Style/OptionalArguments](style/optional_arguments.md) | none | stable | Checks for optional arguments to methods that do not come at the end of the argument list. |
 | [Style/OptionalBooleanParameter](style/optional_boolean_parameter.md) | none | stable | Checks for places where keyword arguments can be used instead of boolean arguments when defining methods. |
-| [Style/RedundantBegin](style/redundant_begin.md) | safe | nursery | Don't use begin blocks when they are not needed. |
+| [Style/RedundantBegin](style/redundant_begin.md) | safe | stable | Don't use begin blocks when they are not needed. |
 | [Style/RedundantCondition](style/redundant_condition.md) | safe | stable | Checks for unnecessary conditional expressions. |
 | [Style/RedundantFreeze](style/redundant_freeze.md) | safe | stable | Checks usages of Object#freeze on immutable objects. |
 | [Style/RedundantInterpolation](style/redundant_interpolation.md) | unsafe | stable | Checks for strings that are just an interpolated expression. |

@@ -1,1 +1,1 @@
-x&.transform_values {|v| foo(v)}
+x.to_h&.transform_values {|v| foo(v)}

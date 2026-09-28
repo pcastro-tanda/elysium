@@ -8,7 +8,7 @@ Checks formatting of special comments (TODO, FIXME, OPTIMIZE, HACK, REVIEW, NOTE
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks that comment annotation keywords are written according to
 guidelines.

@@ -146,12 +146,13 @@ pub struct RuleOptions {
     meta: &'static RuleMeta,
     own: Vec<(String, OptionValue)>,
     peers: Arc<PeerOptions>,
+    only_run: bool,
 }
 
 impl RuleOptions {
     /// Only the rule's `META.config` defaults.
     pub fn defaults(meta: &'static RuleMeta) -> Self {
-        Self { meta, own: Vec::new(), peers: Arc::new(PeerOptions::new()) }
+        Self { meta, own: Vec::new(), peers: Arc::new(PeerOptions::new()), only_run: false }
     }
 
     /// Configured values for this rule plus every other cop's options.
@@ -160,7 +161,21 @@ impl RuleOptions {
         own: Vec<(String, OptionValue)>,
         peers: Arc<PeerOptions>,
     ) -> Self {
-        Self { meta, own, peers }
+        Self { meta, own, peers, only_run: false }
+    }
+
+    /// Marks these options as belonging to a `--only` run.
+    #[must_use]
+    pub fn with_only_run(mut self, only_run: bool) -> Self {
+        self.only_run = only_run;
+        self
+    }
+
+    /// Whether the run was restricted with `--only`. RuboCop then builds the
+    /// run's cop registry from exactly the listed cops, all enabled, so
+    /// `registry.disabled_names(config)` is empty.
+    pub fn only_run(&self) -> bool {
+        self.only_run
     }
 
     /// The rule these options belong to.

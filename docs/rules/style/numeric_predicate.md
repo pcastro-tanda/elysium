@@ -8,7 +8,7 @@ Checks for the use of predicate- or comparison methods for numeric comparisons.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | unsafe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for usage of comparison operators (`==`, `>`, `<`) to test numbers as
 zero, positive, or negative. These can be replaced by their respective

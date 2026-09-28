@@ -73,7 +73,7 @@ some_str = 'ala' \\
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[],
         config: &[],
         blind_spots: "\
@@ -93,8 +93,16 @@ string: replacing `<<` with `\\` when the receiver is e.g. an array (`array
         collect_candidates(&root, source, &mut candidates);
         candidates.sort_by_key(|c| c.span.start);
 
-        for pair in candidates.windows(2) {
-            let [pred, succ] = pair else { unreachable!() };
+        // Upstream pairs *tokens*, so a predecessor's real successor is the
+        // very next token after it, regardless of how many string literals
+        // are nested inside the predecessor itself (e.g. another string
+        // literal inside the predecessor's own interpolation). Skip past
+        // any candidate still nested inside `pred` to find that successor.
+        for (i, pred) in candidates.iter().enumerate() {
+            let Some(succ) = candidates[i + 1..].iter().find(|c| c.span.start >= pred.span.end)
+            else {
+                continue;
+            };
             check_pair(ctx, source, pred, succ);
         }
     }
@@ -133,14 +141,10 @@ fn is_standard_delimiter(source: &[u8], opening: Span) -> bool {
 }
 
 /// Checks one adjacent (predecessor, successor) string pair for a
-/// line-end `+`/`<<` concatenation, mirroring `check_token_set`.
+/// line-end `+`/`<<` concatenation, mirroring `check_token_set`. The
+/// caller has already found `succ` as the first candidate that starts at
+/// or after `pred` ends (skipping past anything nested inside `pred`).
 fn check_pair(ctx: &mut Context<'_>, source: &[u8], pred: &Candidate, succ: &Candidate) {
-    if pred.span.end > succ.span.start {
-        // One node nests inside the other (e.g. a literal inside its
-        // sibling's own interpolation); not sequential tokens.
-        return;
-    }
-
     let gap_start = pred.span.end as usize;
     let gap_end = succ.span.start as usize;
     let gap = &source[gap_start..gap_end];

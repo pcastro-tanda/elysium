@@ -34,8 +34,10 @@ struct AnnotationComment<'a> {
     colon: Option<&'a str>,
     space: Option<&'a str>,
     note: Option<&'a str>,
-    /// Byte offset (within `text`) where `keyword` starts, i.e. after the
-    /// margin (`# ` or `#`).
+    /// Length of the captured margin (`# ` or `#`), used as-if it were the
+    /// offset where `keyword` starts. This deliberately mirrors upstream's
+    /// `bounds` bug (see [`AnnotationComment::parse`]): it is the margin's
+    /// *length*, not its actual offset within `text`.
     keyword_start: usize,
 }
 
@@ -50,7 +52,17 @@ impl<'a> AnnotationComment<'a> {
             colon: caps.get(3).map(|m| m.as_str()),
             space: caps.get(4).map(|m| m.as_str()),
             note: caps.get(5).map(|m| m.as_str()),
-            keyword_start: margin.end(),
+            // NOTE: upstream's `bounds` computes `begin_pos + margin.length`,
+            // i.e. the *length* of the captured margin, not the absolute
+            // offset where the match actually starts within `text`. For an
+            // ordinary single-line `#` comment the match starts at offset 0,
+            // so this coincides with `margin.end()`. But for a multi-line
+            // `=begin`/`=end` block comment (one big comment whose `text`
+            // can contain a `#`-prefixed line anywhere inside it, matched via
+            // Ruby's per-line `^`), the real match offset is nonzero and
+            // upstream's formula yields a nonsensical span near the start of
+            // the whole block. We replicate that bug faithfully.
+            keyword_start: margin.len(),
         })
     }
 
@@ -182,7 +194,7 @@ annotation.
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[],
         config: &[
             ConfigOption {
@@ -208,7 +220,12 @@ annotation.
         let mut sorted: Vec<&str> = keywords.iter().map(String::as_str).collect();
         sorted.sort_by_key(|k| std::cmp::Reverse(k.len()));
         let union = sorted.iter().map(|k| regex::escape(k)).collect::<Vec<_>>().join("|");
-        let pattern = format!(r"(?i)^(# ?)(\b(?:{union})\b)(\s*:)?(\s+)?(\S+)?");
+        // `(?m)`: Ruby's `^`/`$` are always line anchors (no separate
+        // multiline flag needed), unlike Rust's default whole-haystack
+        // anchors. This matters for multi-line `=begin`/`=end` comments,
+        // where an annotation keyword can start a `#`-prefixed line deep
+        // inside the block, not just at the very start of the comment text.
+        let pattern = format!(r"(?mi)^(# ?)(\b(?:{union})\b)(\s*:)?(\s+)?(\S+)?");
         let keyword_regex = Regex::new(&pattern).expect("keyword regex is valid");
         Ok(Self { keyword_regex, require_colon: options.bool("RequireColon") })
     }
@@ -217,7 +234,11 @@ annotation.
         let comments = ctx.comments().to_vec();
         for (index, comment) in comments.iter().enumerate() {
             let is_first = Self::is_first_comment_line(&comments, index);
-            let is_inline = !ctx.begins_its_line(comment.span);
+            // `inline_comment?`: `!comment_line?(source_line)`, i.e. the
+            // comment's first line does not start with `#` -- which also
+            // holds for a `=begin` block.
+            let line = ctx.line_col(comment.span.start).line;
+            let is_inline = !ctx.line_text(line).trim_ascii_start().starts_with(b"#");
             if !is_first && !is_inline {
                 continue;
             }

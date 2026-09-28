@@ -1,1 +1,1 @@
-Hash[x.map {|k, v| [k.to_sym, foo(v)]}]
+Hash[{a: 1, b: 2}.map {|k, v| [k.to_sym, foo(v)]}]

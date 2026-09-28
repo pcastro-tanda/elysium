@@ -392,7 +392,7 @@ fn run_case(meta: &'static RuleMeta, case: &Path) -> Result<(), String> {
     let (source_bytes, expected) = parse_annotated(&bytes);
 
     let cfg = load_config(case);
-    let rule_set = RuleSet::only(&[meta.name], &cfg).map_err(|err| err.to_string())?;
+    let rule_set = RuleSet::isolated(&[meta.name], &cfg).map_err(|err| err.to_string())?;
     let options = ParseOptions {
         version: ruby_version(cfg.all_cops().target_ruby_version),
         partial_script: true,

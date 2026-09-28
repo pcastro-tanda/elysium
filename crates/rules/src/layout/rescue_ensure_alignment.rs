@@ -231,6 +231,19 @@ fn anchor_for(node: &Node<'_>) -> Option<Anchor> {
                 expr_end: s.expression().span().end,
             })
         }
+        NodeKind::LambdaNode => {
+            let l = node.as_lambda_node()?;
+            Some(Anchor::Call {
+                start: node.span().start,
+                end_excluding_block: l.operator_loc().span().end,
+                message: Some(l.operator_loc().span()),
+                dot: None,
+                is_access_modifier: false,
+                is_attr_assignment: false,
+                receiver_end: None,
+                block_opening: Some(l.opening_loc().span()),
+            })
+        }
         NodeKind::CallNode => {
             let c = node.as_call_node()?;
             let block_opening =
@@ -296,6 +309,7 @@ const KINDS: &[NodeKind] = &[
     NodeKind::ModuleNode,
     NodeKind::SingletonClassNode,
     NodeKind::BlockNode,
+    NodeKind::LambdaNode,
     NodeKind::CallNode,
     NodeKind::SuperNode,
     NodeKind::ForwardingSuperNode,
@@ -350,7 +364,7 @@ properly.\n\n```ruby\n# bad\nbegin\n  something\n  rescue\n  puts 'error'\nend\n
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: KINDS,
         config: &[],
         blind_spots: "",
@@ -398,6 +412,7 @@ properly.\n\n```ruby\n# bad\nbegin\n  something\n  rescue\n  puts 'error'\nend\n
             | NodeKind::ClassNode
             | NodeKind::ModuleNode
             | NodeKind::SingletonClassNode
+            | NodeKind::LambdaNode
             | NodeKind::CallNode
             | NodeKind::SuperNode
             | NodeKind::ForwardingSuperNode

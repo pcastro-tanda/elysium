@@ -286,6 +286,8 @@ struct Builder<'a> {
     /// When set, exactly these cops run, regardless of `Enabled`, mirroring
     /// RuboCop's `--only`.
     only: Option<&'a [&'a str]>,
+    /// Whether `only` came from the CLI's `--only` (see [`RuleOptions::only_run`]).
+    only_run: bool,
     peers: Arc<PeerOptions>,
 }
 
@@ -301,7 +303,9 @@ impl Builder<'_> {
             return Ok(None);
         }
         let own = cop.map(cop_options).unwrap_or_default();
-        R::configure(&RuleOptions::new(meta, own, Arc::clone(&self.peers))).map(Some)
+        let options =
+            RuleOptions::new(meta, own, Arc::clone(&self.peers)).with_only_run(self.only_run);
+        R::configure(&options).map(Some)
     }
 }
 
@@ -435,22 +439,44 @@ impl RuleSet {
     /// If a rule rejects its own declared defaults, which is a bug in that
     /// rule's schema.
     pub fn rubocop_defaults() -> Self {
-        let builder = Builder { cfg: None, only: None, peers: Arc::new(PeerOptions::new()) };
+        let builder =
+            Builder { cfg: None, only: None, only_run: false, peers: Arc::new(PeerOptions::new()) };
         Self::from_builder(&builder)
             .unwrap_or_else(|err| panic!("rule rejected its own defaults: {err}"))
     }
 
     /// The rules `cfg` enables, configured from it.
     pub fn from_config(cfg: &LoadedConfig) -> Result<Self, OptionError> {
-        let builder = Builder { cfg: Some(cfg), only: None, peers: Arc::new(peer_options(cfg)) };
+        let builder = Builder {
+            cfg: Some(cfg),
+            only: None,
+            only_run: false,
+            peers: Arc::new(peer_options(cfg)),
+        };
         Self::from_builder(&builder)
     }
 
     /// Only `names`, configured from `cfg`, enabled regardless of what
     /// `cfg` says about them (RuboCop's `--only`).
     pub fn only(names: &[&str], cfg: &LoadedConfig) -> Result<Self, OptionError> {
-        let builder =
-            Builder { cfg: Some(cfg), only: Some(names), peers: Arc::new(peer_options(cfg)) };
+        Self::restricted(names, cfg, true)
+    }
+
+    /// Only `names`, configured from `cfg` and enabled regardless of it, the
+    /// way RuboCop's `CopHelper` runs a cop in its specs: unlike
+    /// [`RuleSet::only`], the run is not an `--only` run, so rules that read
+    /// the registry see every configured cop.
+    pub fn isolated(names: &[&str], cfg: &LoadedConfig) -> Result<Self, OptionError> {
+        Self::restricted(names, cfg, false)
+    }
+
+    fn restricted(names: &[&str], cfg: &LoadedConfig, only_run: bool) -> Result<Self, OptionError> {
+        let builder = Builder {
+            cfg: Some(cfg),
+            only: Some(names),
+            only_run,
+            peers: Arc::new(peer_options(cfg)),
+        };
         Self::from_builder(&builder)
     }
 }

@@ -8,7 +8,7 @@ Avoid excessive block nesting.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for excessive nesting of conditional and looping constructs.
 

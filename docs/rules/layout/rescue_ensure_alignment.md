@@ -8,7 +8,7 @@ Align rescues and ensures correctly.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks whether the rescue and ensure keywords are aligned properly.
 

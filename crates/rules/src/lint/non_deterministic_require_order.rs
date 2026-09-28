@@ -57,7 +57,7 @@ impl Rule for NonDeterministicRequireOrder {
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
