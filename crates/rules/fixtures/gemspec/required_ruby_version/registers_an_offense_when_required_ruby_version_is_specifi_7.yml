@@ -1,0 +1,3 @@
+# file: bar.gemspec
+AllCops:
+  TargetRubyVersion: 3.4

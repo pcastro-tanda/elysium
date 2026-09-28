@@ -29,10 +29,13 @@ mod name_similarity;
 /// Registers every rule in one place.
 ///
 /// Expands to the private slot-list type [`RuleSet`] stores its configured
-/// rules in (a nested `(Option<Rule>, rest)` tuple, so no identifier has to
-/// be synthesized for each rule and cop names that share a snake-case file
+/// rules in and to [`ALL_RULES`], in registration order. The slot list is a
+/// tree of tuples with `Option<Rule>` leaves, so no identifier has to be
+/// synthesized for each rule and cop names that share a snake-case file
 /// name across departments -- `Layout/LineLength` and `Metrics/LineLength`
-/// -- cannot collide) and to [`ALL_RULES`], in registration order.
+/// -- cannot collide. Rules are grouped eight to a balanced subtree before
+/// chaining, keeping type nesting (and rustc's drop-check/auto-trait
+/// recursion over it) at roughly an eighth of the rule count.
 macro_rules! rule_set {
     ($($rule:path),+ $(,)?) => {
         /// Every registered rule's metadata, in registration order.
@@ -41,11 +44,69 @@ macro_rules! rule_set {
         /// The configured rules [`RuleSet`] dispatches to.
         type Slots = rule_set!(@slots $($rule),+);
     };
-    (@slots $head:path) => { (Option<$head>, ()) };
+    (@slots $a:path, $b:path, $c:path, $d:path, $e:path, $f:path, $g:path, $h:path, $($rest:path),+) => {
+        (
+            (
+                ((Option<$a>, Option<$b>), (Option<$c>, Option<$d>)),
+                ((Option<$e>, Option<$f>), (Option<$g>, Option<$h>)),
+            ),
+            rule_set!(@slots $($rest),+),
+        )
+    };
+    (@slots $head:path) => { Option<$head> };
     (@slots $head:path, $($tail:path),+) => { (Option<$head>, rule_set!(@slots $($tail),+)) };
 }
 
 rule_set! {
+    lint::empty_ensure::EmptyEnsure,
+    naming::file_name::FileName,
+    naming::ascii_identifiers::AsciiIdentifiers,
+    migration::department_name::DepartmentName,
+    metrics::block_nesting::BlockNesting,
+    lint::redundant_cop_enable_directive::RedundantCopEnableDirective,
+    lint::missing_cop_enable_directive::MissingCopEnableDirective,
+    gemspec::required_ruby_version::RequiredRubyVersion,
+    gemspec::ordered_dependencies::OrderedDependencies,
+    gemspec::duplicated_assignment::DuplicatedAssignment,
+    bundler::ordered_gems::OrderedGems,
+    bundler::duplicated_group::DuplicatedGroup,
+    bundler::duplicated_gem::DuplicatedGem,
+    layout::space_around_keyword::SpaceAroundKeyword,
+    layout::rescue_ensure_alignment::RescueEnsureAlignment,
+    lint::safe_navigation_chain::SafeNavigationChain,
+    lint::useless_else_without_rescue::UselessElseWithoutRescue,
+    lint::script_permission::ScriptPermission,
+    lint::ordered_magic_comments::OrderedMagicComments,
+    lint::non_deterministic_require_order::NonDeterministicRequireOrder,
+    style::redundant_interpolation::RedundantInterpolation,
+    style::redundant_begin::RedundantBegin,
+    style::disable_cops_within_source_code_directive::DisableCopsWithinSourceCodeDirective,
+    style::bisected_attr_accessor::BisectedAttrAccessor,
+    style::access_modifier_declarations::AccessModifierDeclarations,
+    style::single_line_methods::SingleLineMethods,
+    style::encoding::Encoding,
+    style::commented_keyword::CommentedKeyword,
+    style::comment_annotation::CommentAnnotation,
+    style::block_comments::BlockComments,
+    style::hash_transform_values::HashTransformValues,
+    style::hash_transform_keys::HashTransformKeys,
+    style::line_end_concatenation::LineEndConcatenation,
+    style::numeric_predicate::NumericPredicate,
+    style::ternary_parentheses::TernaryParentheses,
+    style::symbol_array::SymbolArray,
+    style::special_global_vars::SpecialGlobalVars,
+    style::multiline_ternary_operator::MultilineTernaryOperator,
+    style::redundant_freeze::RedundantFreeze,
+    style::slicing_with_range::SlicingWithRange,
+    style::unpack_first::UnpackFirst,
+    style::dir::Dir,
+    lint::ambiguous_operator::AmbiguousOperator,
+    lint::ambiguous_regexp_literal::AmbiguousRegexpLiteral,
+    lint::out_of_range_regexp_ref::OutOfRangeRegexpRef,
+    lint::uri_regexp::UriRegexp,
+    lint::unified_integer::UnifiedInteger,
+    lint::empty_conditional_body::EmptyConditionalBody,
+    lint::empty_when::EmptyWhen,
     bundler::gem_filename::GemFilename,
     layout::heredoc_indentation::HeredocIndentation,
     lint::redundant_cop_disable_directive::RedundantCopDisableDirective,
@@ -244,7 +305,7 @@ impl Builder<'_> {
     }
 }
 
-/// One slot list: a nested tuple of optional rules, terminated by `()`.
+/// One slot list: a tree of tuples whose leaves are optional rules.
 trait SlotList: Clone + Send + Sync + 'static + Sized {
     fn build(builder: &Builder<'_>) -> Result<Self, OptionError>;
     fn add_interest(&self, interest: &mut [bool; NodeKind::COUNT]);
@@ -255,73 +316,96 @@ trait SlotList: Clone + Send + Sync + 'static + Sized {
     fn file_finish(&mut self, ctx: &mut Context<'_>, reported: &[Diagnostic]);
 }
 
-impl SlotList for () {
-    fn build(_builder: &Builder<'_>) -> Result<Self, OptionError> {
-        Ok(())
-    }
-    fn add_interest(&self, _interest: &mut [bool; NodeKind::COUNT]) {}
-    fn file_start(&mut self, _ctx: &mut Context<'_>) {}
-    fn enter(&mut self, _kind: NodeKind, _node: &Node<'_>, _ctx: &mut Context<'_>) {}
-    fn leave(&mut self, _kind: NodeKind, _node: &Node<'_>, _ctx: &mut Context<'_>) {}
-    fn file_end(&mut self, _ctx: &mut Context<'_>) {}
-    fn file_finish(&mut self, _ctx: &mut Context<'_>, _reported: &[Diagnostic]) {}
-}
-
-impl<R: Rule, T: SlotList> SlotList for (Option<R>, T) {
+impl<R: Rule> SlotList for Option<R> {
     fn build(builder: &Builder<'_>) -> Result<Self, OptionError> {
-        Ok((builder.configure::<R>()?, T::build(builder)?))
+        builder.configure::<R>()
     }
 
     fn add_interest(&self, interest: &mut [bool; NodeKind::COUNT]) {
-        if self.0.is_some() {
+        if self.is_some() {
             for (slot, subscribed) in interest.iter_mut().zip(<R as RuleExt>::SUBSCRIBED) {
                 *slot |= subscribed;
             }
         }
+    }
+
+    #[inline]
+    fn file_start(&mut self, ctx: &mut Context<'_>) {
+        if let Some(rule) = self {
+            rule.file_start(ctx);
+        }
+    }
+
+    #[inline]
+    fn enter(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>) {
+        if let Some(rule) = self {
+            if <R as RuleExt>::SUBSCRIBED[kind as usize] {
+                rule.enter(node, ctx);
+            }
+        }
+    }
+
+    #[inline]
+    fn leave(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>) {
+        if let Some(rule) = self {
+            if <R as RuleExt>::SUBSCRIBED[kind as usize] {
+                rule.leave(node, ctx);
+            }
+        }
+    }
+
+    #[inline]
+    fn file_end(&mut self, ctx: &mut Context<'_>) {
+        if let Some(rule) = self {
+            rule.file_end(ctx);
+        }
+    }
+
+    #[inline]
+    fn file_finish(&mut self, ctx: &mut Context<'_>, reported: &[Diagnostic]) {
+        if let Some(rule) = self {
+            rule.file_finish(ctx, reported);
+        }
+    }
+}
+
+impl<A: SlotList, B: SlotList> SlotList for (A, B) {
+    fn build(builder: &Builder<'_>) -> Result<Self, OptionError> {
+        Ok((A::build(builder)?, B::build(builder)?))
+    }
+
+    fn add_interest(&self, interest: &mut [bool; NodeKind::COUNT]) {
+        self.0.add_interest(interest);
         self.1.add_interest(interest);
     }
 
     #[inline]
     fn file_start(&mut self, ctx: &mut Context<'_>) {
-        if let Some(rule) = &mut self.0 {
-            rule.file_start(ctx);
-        }
+        self.0.file_start(ctx);
         self.1.file_start(ctx);
     }
 
     #[inline]
     fn enter(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>) {
-        if let Some(rule) = &mut self.0 {
-            if <R as RuleExt>::SUBSCRIBED[kind as usize] {
-                rule.enter(node, ctx);
-            }
-        }
+        self.0.enter(kind, node, ctx);
         self.1.enter(kind, node, ctx);
     }
 
     #[inline]
     fn leave(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>) {
-        if let Some(rule) = &mut self.0 {
-            if <R as RuleExt>::SUBSCRIBED[kind as usize] {
-                rule.leave(node, ctx);
-            }
-        }
+        self.0.leave(kind, node, ctx);
         self.1.leave(kind, node, ctx);
     }
 
     #[inline]
     fn file_end(&mut self, ctx: &mut Context<'_>) {
-        if let Some(rule) = &mut self.0 {
-            rule.file_end(ctx);
-        }
+        self.0.file_end(ctx);
         self.1.file_end(ctx);
     }
 
     #[inline]
     fn file_finish(&mut self, ctx: &mut Context<'_>, reported: &[Diagnostic]) {
-        if let Some(rule) = &mut self.0 {
-            rule.file_finish(ctx, reported);
-        }
+        self.0.file_finish(ctx, reported);
         self.1.file_finish(ctx, reported);
     }
 }

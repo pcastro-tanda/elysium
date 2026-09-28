@@ -1,0 +1,5 @@
+# file: /lib/my/http_server.rb
+Naming/FileName:
+  ExpectMatchingDefinition: true
+  AllowedAcronyms: [HTTP]
+  Exclude: ~

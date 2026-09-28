@@ -1,0 +1,1 @@
+public def foo; end

@@ -1,0 +1,3 @@
+private
+
+def foo; end

@@ -1,0 +1,2 @@
+# comment
+def x; end

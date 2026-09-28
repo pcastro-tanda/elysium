@@ -1,0 +1,4 @@
+# file: /some/dir/Gemfile
+Naming/FileName:
+  Exclude: ~
+  AllowedAcronyms: ~

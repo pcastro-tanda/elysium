@@ -1,0 +1,4 @@
+Style/SymbolArray:
+  MinSize: 0
+Style/PercentLiteralDelimiters:
+  PreferredDelimiters: {default: "[]"}

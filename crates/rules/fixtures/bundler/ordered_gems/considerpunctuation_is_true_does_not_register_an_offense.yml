@@ -1,0 +1,3 @@
+Bundler/OrderedGems:
+  TreatCommentsAsGroupSeparators: false
+  ConsiderPunctuation: true

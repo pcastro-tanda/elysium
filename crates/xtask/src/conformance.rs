@@ -118,7 +118,7 @@ impl ComparisonReport {
 pub(crate) fn run(args: &ConformanceConfigArgs) -> Result<ExitCode> {
     let workspace_root = workspace_root();
     build_release_cli(&workspace_root)?;
-    let binary = workspace_root.join("target/release/elysium");
+    let binary = crate::release_binary(&workspace_root);
 
     let truth = fs::read_to_string(&args.truth)
         .with_context(|| format!("reading ground-truth capture {}", args.truth.display()))?;

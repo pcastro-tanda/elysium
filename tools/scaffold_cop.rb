@@ -95,7 +95,7 @@ end.parse!
 abort 'missing --rubocop-src' unless rubocop_src
 abort 'no cops given' if ARGV.empty?
 
-defaults = YAML.load_file(File.join(rubocop_src, 'config/default.yml'))
+defaults = YAML.unsafe_load_file(File.join(rubocop_src, 'config/default.yml'))
 
 ARGV.each do |cop|
   entry = defaults.fetch(cop) { abort "#{cop}: not in default.yml" }

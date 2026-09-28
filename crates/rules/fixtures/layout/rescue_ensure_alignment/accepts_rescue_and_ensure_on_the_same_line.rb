@@ -1,0 +1,1 @@
+begin; puts 1; rescue; ensure; puts 2; end

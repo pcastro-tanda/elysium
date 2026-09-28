@@ -90,7 +90,7 @@ pub(crate) fn run(args: &BenchArgs) -> Result<ExitCode> {
     let workspace_root = workspace_root();
     build_release_cli(&workspace_root)?;
 
-    let binary = workspace_root.join("target/release/elysium");
+    let binary = crate::release_binary(&workspace_root);
     let corpus = args
         .corpus
         .canonicalize()

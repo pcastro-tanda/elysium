@@ -1,0 +1,3 @@
+puts $LOAD_PATH
+puts $LOADED_FEATURES
+puts $PROGRAM_NAME

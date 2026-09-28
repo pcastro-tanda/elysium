@@ -1,0 +1,5 @@
+Style/SymbolArray:
+  EnforcedStyle: brackets
+  MinSize: 0
+Style/PercentLiteralDelimiters:
+  PreferredDelimiters: {default: "()"}

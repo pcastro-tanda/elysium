@@ -1,0 +1,1 @@
+case "" when a; end

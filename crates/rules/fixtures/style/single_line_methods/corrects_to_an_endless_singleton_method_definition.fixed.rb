@@ -1,0 +1,1 @@
+def foo.some_method() = body

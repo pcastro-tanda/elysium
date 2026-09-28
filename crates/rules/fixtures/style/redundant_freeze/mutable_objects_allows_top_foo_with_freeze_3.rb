@@ -1,0 +1,1 @@
+CONST = "top#$foo".freeze

@@ -1,0 +1,3 @@
+Style/NumericPredicate:
+  EnforcedStyle: comparison
+  AllowedPatterns: [zero]

@@ -91,3 +91,13 @@ after regeneration:
   ported rule directly (`RuleSet::only(&["Bundler/GemFilename"], &cfg)` +
   `linter::lint_parsed_with`), matching every expected message and the
   absence of an offense for every "valid gem file" case.
+- `lint/script_permission/registers_an_offense_for_script_permission` and
+  `lint/script_permission/if_autocorrection_is_off_leaves_the_file_intact`:
+  the expected message embeds the basename of a random `Tempfile` created
+  during the one-time upstream RSpec run; no deterministic port can
+  reproduce it. The remaining cases cover the same logic.
+- `layout/rescue_ensure_alignment/accepts_correctly_aligned_rescue_in_assigned_begin_end_block`:
+  upstream's spec config has no `Layout/BeginEndAlignment` peer, while the
+  fixture harness (like real RuboCop) merges `default.yml`, where
+  `EnforcedStyleAlignWith: start_of_line` makes the case an offense; real
+  RuboCop with its default configuration flags it too.

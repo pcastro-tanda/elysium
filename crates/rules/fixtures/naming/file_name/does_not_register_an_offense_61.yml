@@ -1,0 +1,6 @@
+# file: /lib/some/path/foo.rb
+Naming/FileName:
+  ExpectMatchingDefinition: true
+  CheckDefinitionPathHierarchy: false
+  Exclude: ~
+  AllowedAcronyms: ~

@@ -1,0 +1,4 @@
+# file: some/dir/some_view.html.slim_spec.rb
+Naming/FileName:
+  Exclude: ~
+  AllowedAcronyms: ~

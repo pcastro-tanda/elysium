@@ -1,0 +1,5 @@
+# file: /some/dir/spec/project/spec/a/b.rb
+Naming/FileName:
+  ExpectMatchingDefinition: true
+  Exclude: ~
+  AllowedAcronyms: ~

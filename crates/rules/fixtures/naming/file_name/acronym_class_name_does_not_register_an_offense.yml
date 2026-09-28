@@ -1,0 +1,5 @@
+# file: /lib/my/cli.rb
+Naming/FileName:
+  ExpectMatchingDefinition: true
+  AllowedAcronyms: [CLI]
+  Exclude: ~

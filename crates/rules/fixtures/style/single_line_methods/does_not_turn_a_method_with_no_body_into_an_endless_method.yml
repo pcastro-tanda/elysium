@@ -1,0 +1,4 @@
+Style/SingleLineMethods:
+  AllowIfMethodIsEmpty: false
+Style/EndlessMethod:
+  Enabled: true

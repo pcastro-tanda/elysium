@@ -1,0 +1,4 @@
+# rubocop:disable Layout/LineLength
+fooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo = barrrrrrrrrrrrrrrrrrrrrrrrrr
+
+some_code

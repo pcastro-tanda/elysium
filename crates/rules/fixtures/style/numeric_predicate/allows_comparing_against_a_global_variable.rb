@@ -1,0 +1,1 @@
+$CHILD_STATUS == 0

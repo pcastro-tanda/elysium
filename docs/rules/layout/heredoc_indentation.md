@@ -8,7 +8,7 @@ Checks the indentation of the here document bodies.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks the indentation of the here document bodies. The bodies are indented
 one step.

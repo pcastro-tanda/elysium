@@ -1,0 +1,4 @@
+# file: some/dir/some_file.xlsx+mobile.axlsx
+Naming/FileName:
+  Exclude: ~
+  AllowedAcronyms: ~

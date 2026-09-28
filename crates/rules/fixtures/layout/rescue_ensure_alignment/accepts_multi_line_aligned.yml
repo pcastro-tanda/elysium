@@ -1,0 +1,5 @@
+Layout/RescueEnsureAlignment:
+  EnforcedStyle: require_parentheses
+Layout/BeginEndAlignment:
+  Enabled: false
+  EnforcedStyleAlignWith: start_of_line

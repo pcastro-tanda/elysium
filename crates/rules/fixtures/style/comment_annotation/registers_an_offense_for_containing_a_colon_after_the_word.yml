@@ -1,0 +1,3 @@
+Style/CommentAnnotation:
+  Keywords: [ISSUE]
+  RequireColon: false

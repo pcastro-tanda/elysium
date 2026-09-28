@@ -1,0 +1,6 @@
+# file: /lib/image_collection.rb
+Naming/FileName:
+  ExpectMatchingDefinition: true
+  CheckDefinitionPathHierarchy: false
+  Exclude: ~
+  AllowedAcronyms: ~

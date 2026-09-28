@@ -1,0 +1,1 @@
+protected def foo; end

@@ -1,0 +1,1 @@
+puts line.grep(/pattern/)

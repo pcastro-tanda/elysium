@@ -1,0 +1,1 @@
+CONST = ([42] * 42).freeze

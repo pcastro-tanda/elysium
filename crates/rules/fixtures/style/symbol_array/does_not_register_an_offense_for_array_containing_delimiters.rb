@@ -1,0 +1,1 @@
+%i[zero (one) [two] three[4] five[six] seven(8) nine(ten) ([]) [] ()]

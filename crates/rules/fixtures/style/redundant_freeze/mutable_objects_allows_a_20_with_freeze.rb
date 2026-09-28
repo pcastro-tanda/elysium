@@ -1,0 +1,1 @@
+CONST = ('a' * 20).freeze

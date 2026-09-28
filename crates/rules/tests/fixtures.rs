@@ -223,8 +223,11 @@ fn parse_annotated(bytes: &[u8]) -> (Vec<u8>, Vec<Annotation>) {
             None => source_lines.push(line),
         }
     }
-    if source_lines.is_empty() {
-        for annotation in &mut annotations {
+    // An annotation with no source line above it only occurs for an empty
+    // file (`^{}` alone, possibly followed by a trailing newline); RuboCop
+    // places that offense on line 1.
+    for annotation in &mut annotations {
+        if annotation.line == 0 {
             annotation.line = 1;
         }
     }

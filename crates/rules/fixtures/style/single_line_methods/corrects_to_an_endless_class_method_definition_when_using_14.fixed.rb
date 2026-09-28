@@ -1,0 +1,1 @@
+def ==(other) = self == other

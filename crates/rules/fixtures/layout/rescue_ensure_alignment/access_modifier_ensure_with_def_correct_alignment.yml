@@ -1,0 +1,2 @@
+Layout/RescueEnsureAlignment:
+  Style/AccessModifierDeclarations: {EnforcedStyle: inline}

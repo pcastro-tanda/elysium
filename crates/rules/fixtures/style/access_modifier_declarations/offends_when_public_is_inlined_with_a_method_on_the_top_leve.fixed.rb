@@ -1,0 +1,3 @@
+public
+
+def foo; end

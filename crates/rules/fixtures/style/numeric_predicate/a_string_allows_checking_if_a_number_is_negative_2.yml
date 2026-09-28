@@ -1,0 +1,4 @@
+Style/NumericPredicate:
+  AutoCorrect: true
+  AllowedMethods: [where]
+  AllowedPatterns: [order]

@@ -1,0 +1,1 @@
+foo = bar = (bar == 1) ? a : b

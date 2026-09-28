@@ -1,0 +1,1 @@
+where(Sequel[:number] > 0)

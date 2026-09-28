@@ -1,0 +1,4 @@
+# file: some/dir/file?!.rb
+Naming/FileName:
+  Exclude: ~
+  AllowedAcronyms: ~

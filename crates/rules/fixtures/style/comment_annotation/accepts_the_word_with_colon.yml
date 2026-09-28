@@ -1,0 +1,3 @@
+Style/CommentAnnotation:
+  Keywords: [FIXME, OPTIMIZE, HACK, REVIEW]
+  RequireColon: false

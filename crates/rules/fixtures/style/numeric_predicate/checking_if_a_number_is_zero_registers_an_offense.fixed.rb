@@ -1,0 +1,2 @@
+number.zero?
+number.zero?

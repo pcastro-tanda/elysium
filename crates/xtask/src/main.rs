@@ -50,3 +50,12 @@ fn main() -> ExitCode {
         }
     }
 }
+
+/// The release `elysium` binary, honouring `CARGO_TARGET_DIR` (relative
+/// paths resolve against the workspace, as cargo does) so isolated build
+/// directories see their own build.
+fn release_binary(workspace: &std::path::Path) -> std::path::PathBuf {
+    let target = std::env::var_os("CARGO_TARGET_DIR")
+        .map_or_else(|| workspace.join("target"), |dir| workspace.join(dir));
+    target.join("release/elysium")
+}

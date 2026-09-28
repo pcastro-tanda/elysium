@@ -1,0 +1,2 @@
+def NoSnakeCase
+end

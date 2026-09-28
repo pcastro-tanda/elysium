@@ -1,0 +1,3 @@
+unless condition
+  nil
+end

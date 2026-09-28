@@ -1,0 +1,6 @@
+# file: /some/other/dir/test_case.rb
+Naming/FileName:
+  ExpectMatchingDefinition: true
+  CheckDefinitionPathHierarchyRoots: [foo]
+  Exclude: ~
+  AllowedAcronyms: ~

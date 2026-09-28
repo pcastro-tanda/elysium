@@ -1,0 +1,1 @@
+x.map {|k, v| [k.to_sym, foo(v)]}.to_h

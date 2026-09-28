@@ -1,0 +1,2 @@
+var ||= (foo if condition)
+

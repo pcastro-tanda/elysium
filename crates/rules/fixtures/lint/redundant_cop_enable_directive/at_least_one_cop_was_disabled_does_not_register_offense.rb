@@ -1,0 +1,3 @@
+# rubocop:disable Layout/LineLength
+foooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooooo
+# rubocop:enable all

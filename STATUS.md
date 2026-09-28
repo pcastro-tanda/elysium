@@ -156,16 +156,22 @@ semantic cops (60 rules total).
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 119 | 0 | 2 |
+| 155 | 0 | 15 |
 
 Promotion to `stable` requires >99% corpus conformance on `discourse` and
-`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 119 of 121 rules meet
+`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 155 of 170 rules meet
 it. At `nursery`:
 
 - `Lint/RedundantCopDisableDirective` — held back per policy regardless of
   measured agreement (see above).
-- `Layout/HeredocIndentation` — 98.75% on discourse (16 missing, 6 extra,
-  mostly squiggly heredocs inside method-call arguments); 100% on mastodon.
+- 14 wave-3a cops with open corpus diffs (RuboCop 1.91, `--defaults`):
+  `Bundler/DuplicatedGem`, `Gemspec/RequiredRubyVersion`,
+  `Layout/RescueEnsureAlignment`, `Lint/MissingCopEnableDirective`,
+  `Lint/NonDeterministicRequireOrder`, `Lint/SafeNavigationChain`,
+  `Metrics/BlockNesting`, `Naming/AsciiIdentifiers`,
+  `Style/CommentAnnotation`, `Style/HashTransformKeys`,
+  `Style/HashTransformValues`, `Style/LineEndConcatenation`,
+  `Style/NumericPredicate`, `Style/RedundantBegin`.
 
 `Lint/Syntax` is built into the engine and is not counted.
 
@@ -277,10 +283,11 @@ cop needs: `docs/planning/default-parity.md`.
    `BlockNode#multiline?` — all fixed by following RuboCop's own logic more
    closely. A review pass afterward fixed hot-path allocations across the
    wave. Wave 3a (`docs/planning/waves/wave3a.txt`, 65 cops needing
-   target-ruby, file-level, or comment/token support) is under way: 17 ported
-   so far (Bundler department stood up), 16 `stable` at 100% agreement on
-   both apps, `Layout/HeredocIndentation` at `nursery`. Porters work from
-   `docs/porting/KIT.md` with `tools/scaffold_cop.rb` skeletons; conformance
+   target-ruby, file-level, or comment/token support) is ported, plus
+   `Lint/EmptyEnsure`: 52 `stable` at 100% agreement on both apps, 14 at
+   `nursery` with corpus diffs (listed above). Porters work from
+   `docs/porting/KIT.md` with `tools/scaffold_cop.rb` skeletons, each in
+   its own `CARGO_TARGET_DIR` to avoid build-lock contention; conformance
    truth is batched (`cargo xtask conformance --rule A,B,...`).
 3. Phase 6 `[INFERENCE — no dedicated planning doc yet, extrapolated from
    the "What does not work yet" list above]`: config/CLI hardening — a

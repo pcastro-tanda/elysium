@@ -18,8 +18,9 @@ use linter::{
     Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
     OptionError, OptionValue, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
-use ruby_ast::{ext, LocationExt as _, Node, NodeKind};
+use ruby_ast::{each_descendant, ext, LocationExt as _, Node, NodeKind};
 use ruby_source::Span;
+use std::collections::HashMap;
 
 /// The three ways a heredoc's opening delimiter can be spelled -- RuboCop's
 /// `heredoc_indent_type`, which returns `'~'`, `'-'` or `nil`.
@@ -78,16 +79,64 @@ pub struct HeredocIndentation {
     max_line_length: Option<i64>,
     /// `Layout/LineLength`'s `AllowHeredoc` (default `true`).
     allow_heredoc_overflow: bool,
+    /// Where each heredoc's body physically starts, keyed by the heredoc's
+    /// own opening `Span::start`. Ruby's lexer fills stacked heredoc bodies
+    /// (multiple `<<~TAG` openers on one physical line, e.g.
+    /// `foo(<<~A, <<~B)`) in opener order, so a later opener's body does
+    /// not begin right after its own line -- it begins right after the
+    /// *previous pending* heredoc's closing delimiter line.
+    /// `opening_loc`/the physical opener line never reflects that, but
+    /// `closing_loc` (read straight off the node) does. This map is built
+    /// once in [`Rule::file_start`] by collecting every heredoc in the
+    /// file and sorting by opening offset -- true lexer order -- rather
+    /// than relying on tree-visit order, which does not always match
+    /// source order (e.g. a modifier-`if`'s predicate is visited before
+    /// its statement, though it reads after it).
+    body_start_lines: HashMap<u32, u32>,
 }
 
 impl HeredocIndentation {
+    /// The heredoc's own `opening`/`closing` locations, for any
+    /// heredoc-shaped `StringNode`/`InterpolatedStringNode`/`XStringNode`/
+    /// `InterpolatedXStringNode`; `None` for anything else (or a heredoc
+    /// missing a location, which cannot happen but Prism's API is
+    /// `Option`-typed).
+    fn heredoc_locs(node: &Node<'_>) -> Option<(Span, Span)> {
+        if !ext::is_heredoc(node) {
+            return None;
+        }
+        Some(match node {
+            Node::StringNode { .. } => {
+                let n = node.as_string_node().expect("kind matched");
+                let (Some(o), Some(c)) = (n.opening_loc(), n.closing_loc()) else { return None };
+                (o.span(), c.span())
+            }
+            Node::InterpolatedStringNode { .. } => {
+                let n = node.as_interpolated_string_node().expect("kind matched");
+                let (Some(o), Some(c)) = (n.opening_loc(), n.closing_loc()) else { return None };
+                (o.span(), c.span())
+            }
+            Node::XStringNode { .. } => {
+                let n = node.as_x_string_node().expect("kind matched");
+                (n.opening_loc().span(), n.closing_loc().span())
+            }
+            Node::InterpolatedXStringNode { .. } => {
+                let n = node.as_interpolated_x_string_node().expect("kind matched");
+                (n.opening_loc().span(), n.closing_loc().span())
+            }
+            _ => return None,
+        })
+    }
+
     /// RuboCop's `on_heredoc`, given the heredoc's own `opening`/`closing`
     /// locations (every heredoc-shaped string/xstring node has both).
     fn check_heredoc(&self, ctx: &mut Context<'_>, opening: Span, closing: Span) {
         let indent_type = IndentType::from_opening(ctx.text(opening));
 
         let opening_line = ctx.line_col(opening.start).line;
-        let body_span = Span::new(ctx.line_span(opening_line + 1).start, closing.start);
+        let body_start_line =
+            self.body_start_lines.get(&opening.start).copied().unwrap_or(opening_line + 1);
+        let body_span = Span::new(ctx.line_span(body_start_line).start, closing.start);
         let body = ctx.text(body_span);
         if body.iter().all(u8::is_ascii_whitespace) {
             return;
@@ -321,7 +370,7 @@ RUBY
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[
             NodeKind::StringNode,
             NodeKind::InterpolatedStringNode,
@@ -366,34 +415,39 @@ parser this cop is ported against -- never targets a Ruby that old.",
             .peer("Layout/LineLength", "AllowHeredoc")
             .and_then(OptionValue::as_bool)
             .unwrap_or(true);
-        Ok(Self { indentation_width, max_line_length, allow_heredoc_overflow })
+        Ok(Self {
+            indentation_width,
+            max_line_length,
+            allow_heredoc_overflow,
+            body_start_lines: HashMap::new(),
+        })
+    }
+
+    fn file_start(&mut self, ctx: &mut Context<'_>) {
+        let mut heredocs: Vec<(Span, Span)> = Vec::new();
+        each_descendant(&ctx.parsed().root(), &mut |n| {
+            if let Some(locs) = Self::heredoc_locs(n) {
+                heredocs.push(locs);
+            }
+        });
+        // Lexer order is opening-offset order, not tree-visit order (e.g. a
+        // modifier-`if`'s predicate is visited before its statement, though
+        // it reads after it).
+        heredocs.sort_by_key(|(opening, _)| opening.start);
+
+        let mut cursor = 0u32;
+        self.body_start_lines.clear();
+        for (opening, closing) in heredocs {
+            let opening_line = ctx.line_col(opening.start).line;
+            let closing_line = ctx.line_col(closing.start).line;
+            let body_start_line = (opening_line + 1).max(cursor);
+            cursor = cursor.max(closing_line + 1);
+            self.body_start_lines.insert(opening.start, body_start_line);
+        }
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
-        if !ext::is_heredoc(node) {
-            return;
-        }
-        let (opening, closing) = match node {
-            Node::StringNode { .. } => {
-                let n = node.as_string_node().expect("kind matched");
-                let (Some(o), Some(c)) = (n.opening_loc(), n.closing_loc()) else { return };
-                (o.span(), c.span())
-            }
-            Node::InterpolatedStringNode { .. } => {
-                let n = node.as_interpolated_string_node().expect("kind matched");
-                let (Some(o), Some(c)) = (n.opening_loc(), n.closing_loc()) else { return };
-                (o.span(), c.span())
-            }
-            Node::XStringNode { .. } => {
-                let n = node.as_x_string_node().expect("kind matched");
-                (n.opening_loc().span(), n.closing_loc().span())
-            }
-            Node::InterpolatedXStringNode { .. } => {
-                let n = node.as_interpolated_x_string_node().expect("kind matched");
-                (n.opening_loc().span(), n.closing_loc().span())
-            }
-            _ => return,
-        };
+        let Some((opening, closing)) = Self::heredoc_locs(node) else { return };
         self.check_heredoc(ctx, opening, closing);
     }
 }

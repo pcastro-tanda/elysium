@@ -1,0 +1,1 @@
+foo = (bar = find_bar) ? a : b

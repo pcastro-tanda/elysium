@@ -1,0 +1,5 @@
+%i[
+foo
+bar
+baz
+]

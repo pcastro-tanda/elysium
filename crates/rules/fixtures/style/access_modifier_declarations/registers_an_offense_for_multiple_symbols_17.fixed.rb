@@ -1,0 +1,6 @@
+class Foo
+  foo
+protected
+
+attr_accessor :bar, :baz
+end

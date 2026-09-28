@@ -5,6 +5,7 @@
 //! complexity, and ABC size. They live here rather than in `linter` because
 //! only cops consume them, exactly as upstream keeps them cop-internal.
 
+pub mod block_nesting;
 /// The calculators are engine primitives that land ahead of the `Metrics/*`
 /// cops consuming them, so nothing in the crate calls them yet.
 #[allow(dead_code, reason = "consumed by the Metrics cops ported on top of it")]

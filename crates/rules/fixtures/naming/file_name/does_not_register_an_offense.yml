@@ -1,0 +1,4 @@
+# file: /some/dir/test_case.rb
+Naming/FileName:
+  Exclude: ~
+  AllowedAcronyms: ~

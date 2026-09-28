@@ -1,0 +1,5 @@
+# file: /some/dir/test-case
+Naming/FileName:
+  IgnoreExecutableScripts: false
+  Exclude: ~
+  AllowedAcronyms: ~

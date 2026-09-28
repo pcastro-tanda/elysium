@@ -582,7 +582,7 @@ fn rubocop_once(
 /// Like RuboCop, elysium is run once for the whole wave (`--only A,B,C`);
 /// the report is filtered per rule when comparing.
 fn run_elysium(workspace: &Path, app: &Path, rules: &[String], defaults: bool) -> Result<String> {
-    let binary = workspace.join("target/release/elysium");
+    let binary = crate::release_binary(workspace);
     let mut command = Command::new(&binary);
     command.args(["check", "--only", &rules.join(","), "-f", "json"]).current_dir(app);
     if let Some(gemfile) = side_gemfile(app) {

@@ -1,0 +1,3 @@
+# file: /path/to/foo.gemspec
+AllCops:
+  TargetRubyVersion: 3.4

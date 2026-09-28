@@ -1,0 +1,4 @@
+# file: .pryrc
+Naming/FileName:
+  Exclude: ~
+  AllowedAcronyms: ~

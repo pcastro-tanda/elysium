@@ -1,0 +1,1 @@
+begin; rescue(Error); end

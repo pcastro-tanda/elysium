@@ -1,0 +1,5 @@
+Style/SingleLineMethods:
+  AllowIfMethodIsEmpty: false
+Style/EndlessMethod:
+  Enabled: true
+  EnforcedStyle: allow_always

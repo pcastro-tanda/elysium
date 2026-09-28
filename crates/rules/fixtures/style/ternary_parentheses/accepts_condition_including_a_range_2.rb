@@ -1,0 +1,1 @@
+(foo..bar).include?(baz) ? a : b
