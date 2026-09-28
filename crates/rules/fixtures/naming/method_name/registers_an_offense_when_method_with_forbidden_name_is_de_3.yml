@@ -1,0 +1,2 @@
+Naming/MethodName:
+  ForbiddenIdentifiers: [super]

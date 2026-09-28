@@ -1,0 +1,1 @@
+open "foo#{2}.txt"

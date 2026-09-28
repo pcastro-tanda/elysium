@@ -1,0 +1,3 @@
+def set_something(*args)
+  # ...
+end

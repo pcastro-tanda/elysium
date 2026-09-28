@@ -1,0 +1,1 @@
+Invalid ||= Class.new(StandardError)

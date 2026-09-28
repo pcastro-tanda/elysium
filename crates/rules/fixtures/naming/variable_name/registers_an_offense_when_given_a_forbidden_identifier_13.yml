@@ -1,0 +1,2 @@
+Naming/VariableName:
+  ForbiddenPatterns: ["st_[a-z]"]

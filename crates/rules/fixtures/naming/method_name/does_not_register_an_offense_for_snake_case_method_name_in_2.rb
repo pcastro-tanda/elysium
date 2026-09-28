@@ -1,0 +1,3 @@
+attr_reader :on_selection_cleared
+attr_accessor :on_selection_cleared
+attr_writer :on_selection_cleared

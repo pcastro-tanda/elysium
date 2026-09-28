@@ -1,0 +1,4 @@
+begin
+  something
+ensure
+end

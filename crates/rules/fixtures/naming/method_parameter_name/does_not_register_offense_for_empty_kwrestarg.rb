@@ -1,0 +1,3 @@
+def qux(**)
+  stuff!
+end

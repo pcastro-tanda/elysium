@@ -1,0 +1,1 @@
+eval("puts 1", binding, "test.rb", 1)

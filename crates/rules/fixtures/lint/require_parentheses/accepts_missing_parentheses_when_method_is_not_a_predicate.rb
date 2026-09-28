@@ -1,0 +1,1 @@
+weekdays.foo 'tuesday' && true == true

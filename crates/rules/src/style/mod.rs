@@ -1,17 +1,25 @@
 //! `Style` department.
 
 pub mod accessor_grouping;
+pub mod begin_block;
 pub mod class_and_module_children;
+pub mod class_vars;
 pub mod documentation;
 pub mod empty_else;
+pub mod exponential_notation;
 pub mod frozen_string_literal_comment;
 pub mod guard_clause;
+pub mod hash_like_case;
 pub mod hash_syntax;
 pub mod if_unless_modifier;
 pub mod if_unless_modifier_of_if_unless;
+pub mod missing_respond_to_missing;
+pub mod mixin_usage;
+pub mod multiline_block_chain;
 pub mod mutable_constant;
 pub mod numeric_literal_prefix;
 pub mod numeric_literals;
+pub mod optional_arguments;
 pub mod optional_boolean_parameter;
 pub mod redundant_condition;
 pub mod redundant_parentheses;

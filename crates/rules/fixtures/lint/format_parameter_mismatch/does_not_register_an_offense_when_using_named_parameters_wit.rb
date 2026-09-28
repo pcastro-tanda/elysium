@@ -1,0 +1,1 @@
+format("%%%<hex>02X", hex: 10)

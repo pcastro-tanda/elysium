@@ -1,0 +1,3 @@
+Naming/VariableName:
+  EnforcedStyle: camelCase
+  ForbiddenIdentifiers: [first_arg]

@@ -1,0 +1,1 @@
+Investigation = if true then "foo" else Bar end

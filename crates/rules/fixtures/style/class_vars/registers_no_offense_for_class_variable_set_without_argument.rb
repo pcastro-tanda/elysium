@@ -1,0 +1,1 @@
+class_variable_set

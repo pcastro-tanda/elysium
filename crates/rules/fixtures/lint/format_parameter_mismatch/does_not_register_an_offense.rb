@@ -1,0 +1,1 @@
+puts "%s %s" % var

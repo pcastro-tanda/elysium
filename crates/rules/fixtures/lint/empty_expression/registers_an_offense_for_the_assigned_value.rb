@@ -1,0 +1,2 @@
+foo = ()
+      ^^ Avoid empty expressions.

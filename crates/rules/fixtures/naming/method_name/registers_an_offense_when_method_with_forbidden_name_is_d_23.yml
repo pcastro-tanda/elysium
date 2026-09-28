@@ -1,0 +1,3 @@
+Naming/MethodName:
+  EnforcedStyle: camelCase
+  ForbiddenPatterns: [_gen\d+\z]

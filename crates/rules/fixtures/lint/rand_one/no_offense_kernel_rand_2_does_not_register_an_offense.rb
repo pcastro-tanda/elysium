@@ -1,0 +1,1 @@
+Kernel.rand 2

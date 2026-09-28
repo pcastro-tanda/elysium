@@ -1,0 +1,1 @@
+format("%0.1f%% percent", 22.5)

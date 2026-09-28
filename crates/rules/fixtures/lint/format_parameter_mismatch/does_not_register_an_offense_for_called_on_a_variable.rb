@@ -1,0 +1,2 @@
+CONST = '%s'
+CONST % [foo]

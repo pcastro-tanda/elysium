@@ -1,0 +1,3 @@
+def get_something(arg)
+  # ...
+end

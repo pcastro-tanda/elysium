@@ -1,0 +1,2 @@
+Naming/MethodName:
+  AllowedPatterns: ["\\AonSelectionBulkChange\\z", "\\Aon_selection_cleared\\z"]

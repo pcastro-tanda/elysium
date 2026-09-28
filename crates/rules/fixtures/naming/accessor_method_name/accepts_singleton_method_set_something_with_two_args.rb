@@ -1,0 +1,3 @@
+def self.get_something(arg1, arg2)
+  # ...
+end

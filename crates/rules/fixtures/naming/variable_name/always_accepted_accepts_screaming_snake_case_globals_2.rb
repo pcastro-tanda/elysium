@@ -1,0 +1,1 @@
+$MY_GLOBAL = 0

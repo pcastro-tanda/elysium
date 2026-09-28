@@ -1,0 +1,2 @@
+def onSelectionBulkChange(arg)
+end

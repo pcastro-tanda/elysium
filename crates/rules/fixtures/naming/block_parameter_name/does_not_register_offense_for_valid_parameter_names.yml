@@ -1,0 +1,3 @@
+Naming/BlockParameterName:
+  MinNameLength: 2
+  AllowNamesEndingInNumbers: false

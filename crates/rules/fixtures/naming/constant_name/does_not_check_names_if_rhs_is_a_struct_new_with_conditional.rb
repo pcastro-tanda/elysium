@@ -1,0 +1,1 @@
+Investigation ||= Struct.new(:offenses, :errors)

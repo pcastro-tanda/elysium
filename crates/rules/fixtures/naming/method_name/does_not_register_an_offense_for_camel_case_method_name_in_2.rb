@@ -1,0 +1,3 @@
+attr_reader :onSelectionBulkChange
+attr_accessor :onSelectionBulkChange
+attr_writer :onSelectionBulkChange

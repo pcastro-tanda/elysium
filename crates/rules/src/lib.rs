@@ -14,8 +14,11 @@ use linter::{
 };
 use ruby_ast::{Node, NodeKind};
 
+pub mod gemspec;
 pub mod layout;
 pub mod lint;
+pub mod naming;
+pub mod security;
 pub mod style;
 
 mod name_similarity;
@@ -41,12 +44,16 @@ macro_rules! rule_set {
 
 rule_set! {
     lint::redundant_cop_disable_directive::RedundantCopDisableDirective,
+    lint::binary_operator_with_identical_operands::BinaryOperatorWithIdenticalOperands,
     style::class_and_module_children::ClassAndModuleChildren,
     style::empty_else::EmptyElse,
     style::string_concatenation::StringConcatenation,
     lint::debugger::Debugger,
+    lint::duplicate_case_condition::DuplicateCaseCondition,
+    lint::duplicate_elsif_condition::DuplicateElsifCondition,
     lint::duplicate_hash_key::DuplicateHashKey,
     lint::duplicate_methods::DuplicateMethods,
+    lint::duplicate_rescue_exception::DuplicateRescueException,
     style::redundant_regexp_character_class::RedundantRegexpCharacterClass,
     style::redundant_regexp_escape::RedundantRegexpEscape,
     style::numeric_literal_prefix::NumericLiteralPrefix,
@@ -55,6 +62,9 @@ rule_set! {
     lint::else_layout::ElseLayout,
     lint::redundant_string_coercion::RedundantStringCoercion,
     lint::empty_block::EmptyBlock,
+    lint::empty_expression::EmptyExpression,
+    lint::ensure_return::EnsureReturn,
+    lint::each_with_object_argument::EachWithObjectArgument,
     layout::empty_line_between_defs::EmptyLineBetweenDefs,
     layout::empty_lines_around_class_body::EmptyLinesAroundClassBody,
     layout::space_around_operators::SpaceAroundOperators,
@@ -100,6 +110,43 @@ rule_set! {
     lint::self_assignment::SelfAssignment,
     lint::useless_assignment::UselessAssignment,
     lint::shadowing_outer_local_variable::ShadowingOuterLocalVariable,
+    lint::float_out_of_range::FloatOutOfRange,
+    lint::flip_flop::FlipFlop,
+    lint::hash_compare_by_identity::HashCompareByIdentity,
+    lint::constant_definition_in_block::ConstantDefinitionInBlock,
+    lint::mixed_regexp_capture_types::MixedRegexpCaptureTypes,
+    lint::float_comparison::FloatComparison,
+    lint::uri_escape_unescape::UriEscapeUnescape,
+    security::marshal_load::MarshalLoad,
+    security::eval::Eval,
+    security::open::Open,
+    naming::accessor_method_name::AccessorMethodName,
+    naming::constant_name::ConstantName,
+    style::exponential_notation::ExponentialNotation,
+    style::optional_arguments::OptionalArguments,
+    lint::rescue_exception::RescueException,
+    style::begin_block::BeginBlock,
+    lint::return_in_void_context::ReturnInVoidContext,
+    lint::struct_new_override::StructNewOverride,
+    style::class_vars::ClassVars,
+    lint::rand_one::RandOne,
+    style::multiline_block_chain::MultilineBlockChain,
+    lint::next_without_accumulator::NextWithoutAccumulator,
+    lint::nested_percent_literal::NestedPercentLiteral,
+    lint::nested_method_definition::NestedMethodDefinition,
+    lint::require_parentheses::RequireParentheses,
+    lint::non_local_exit_from_iterator::NonLocalExitFromIterator,
+    gemspec::ruby_version_globals_usage::RubyVersionGlobalsUsage,
+    style::mixin_usage::MixinUsage,
+    style::hash_like_case::HashLikeCase,
+    style::missing_respond_to_missing::MissingRespondToMissing,
+    lint::unreachable_loop::UnreachableLoop,
+    lint::format_parameter_mismatch::FormatParameterMismatch,
+    naming::block_parameter_name::BlockParameterName,
+    naming::method_parameter_name::MethodParameterName,
+    naming::method_name::MethodName,
+    naming::variable_name::VariableName,
+    lint::unreachable_code::UnreachableCode,
 }
 
 /// Per-rule constants derived from [`Rule::META`] at compile time.

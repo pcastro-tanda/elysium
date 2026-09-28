@@ -1,0 +1,6 @@
+SomeNamespace::Marshal.load('')
+SomeNamespace::Marshal.restore('')
+SomeNamespace::Marshal.dump('')
+::SomeNamespace::Marshal.load('')
+::SomeNamespace::Marshal.restore('')
+::SomeNamespace::Marshal.dump('')

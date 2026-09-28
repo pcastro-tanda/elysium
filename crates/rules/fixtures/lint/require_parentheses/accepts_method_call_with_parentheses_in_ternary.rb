@@ -1,0 +1,1 @@
+wd.include?('tuesday' && true == true) ? a : b

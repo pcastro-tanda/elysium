@@ -1,0 +1,3 @@
+Naming/MethodName:
+  EnforcedStyle: camelCase
+  ForbiddenIdentifiers: [super]

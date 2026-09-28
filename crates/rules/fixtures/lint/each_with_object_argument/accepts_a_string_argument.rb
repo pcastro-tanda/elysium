@@ -1,0 +1,1 @@
+collection.each_with_object('') { |e, a| a << e.to_s }

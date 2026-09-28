@@ -1,0 +1,2 @@
+Marshal.dump({})
+::Marshal.dump({})

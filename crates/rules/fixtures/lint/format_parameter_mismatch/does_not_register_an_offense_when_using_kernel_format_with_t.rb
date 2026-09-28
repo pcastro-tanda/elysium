@@ -1,0 +1,1 @@
+Kernel.format("%.#{number_of_decimal_places}f", num)

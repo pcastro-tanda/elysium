@@ -1,0 +1,3 @@
+def set_something(arg = :default)
+  # ...
+end

@@ -1,0 +1,1 @@
+open "prefix_#{foo}"

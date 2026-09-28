@@ -1,0 +1,1 @@
+collection.each_with_object(x) { |e, a| a.add(e) }

@@ -454,7 +454,11 @@ begin
     when nil then '~'
     when Array then "[#{v.map { |e| yaml_value(e) }.join(', ')}]"
     when Hash then "{#{v.map { |k, e| "#{yaml_value(k.to_s)}: #{yaml_value(e)}" }.join(', ')}}"
-    when String then YAML.dump(v).sub(/\A---\s*/, '').chomp
+    when String
+      scalar = YAML.dump(v).sub(/\A---\s*/, '').chomp
+      # Psych emits a plain scalar whenever block context allows it, but these
+      # values land inside a flow sequence/mapping where `[]{},` are indicators.
+      scalar.match?(/\A[^'"].*[\[\]{},]/m) ? JSON.generate(v) : scalar
     else v.to_s
     end
   end

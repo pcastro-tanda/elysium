@@ -1,0 +1,3 @@
+def self.myMethod
+  # ...
+end

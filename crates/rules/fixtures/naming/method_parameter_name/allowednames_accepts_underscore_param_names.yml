@@ -1,0 +1,3 @@
+Naming/MethodParameterName:
+  AllowedNames: [foo1, foo2]
+  AllowNamesEndingInNumbers: false

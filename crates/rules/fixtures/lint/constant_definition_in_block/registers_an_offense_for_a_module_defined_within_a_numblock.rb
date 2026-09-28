@@ -1,0 +1,5 @@
+describe do
+  module Foo; end
+  ^^^^^^^^^^^^^^^ Do not define constants this way within a block.
+  _1
+end

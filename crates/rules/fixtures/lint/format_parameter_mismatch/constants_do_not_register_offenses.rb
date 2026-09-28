@@ -1,0 +1,1 @@
+format(A_CONST, 1, 2, 3)

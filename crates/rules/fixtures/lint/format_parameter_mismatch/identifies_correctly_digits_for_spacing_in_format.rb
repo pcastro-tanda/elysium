@@ -1,0 +1,1 @@
+"duration: %10.fms" % 42

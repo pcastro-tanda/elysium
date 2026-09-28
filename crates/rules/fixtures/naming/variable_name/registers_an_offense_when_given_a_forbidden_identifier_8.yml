@@ -1,0 +1,2 @@
+Naming/VariableName:
+  ForbiddenIdentifiers: [first_arg]

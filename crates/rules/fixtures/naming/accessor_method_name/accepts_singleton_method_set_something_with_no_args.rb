@@ -1,0 +1,3 @@
+def self.set_something
+  # ...
+end

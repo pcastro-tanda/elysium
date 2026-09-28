@@ -1,0 +1,1 @@
+sprintf("%s, %s, %s", 1, *arr)
