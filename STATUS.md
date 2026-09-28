@@ -50,7 +50,11 @@ semantic cops (60 rules total).
   `crates/rules/fixtures/README.md` (see ADR 0006).
 - Conformance: `cargo xtask conformance --app DIR --rule Cop` diffs offenses
   against real RuboCop on discourse/forem/mastodon/gitlab; results in
-  `docs/conformance/rules.md`. All 50 rules are at 100% agreement on
+  `docs/conformance/rules.md`. `--rule` is repeatable and comma-separated
+  (`--rule A,B --rule C`) and `--rules-file FILE` reads one cop per line, so a
+  whole wave costs a single RuboCop pass (`--only A,B,C`, split back into the
+  per-rule cache files) and a single elysium pass instead of one each per cop;
+  reporting stays one `rule:` line per cop. All 50 rules are at 100% agreement on
   `discourse` and `mastodon` (RuboCop 1.91.0 truth) except
   `Lint/RedundantCopDisableDirective` (can't be measured the normal way —
   see below). `forem`'s remaining
@@ -152,14 +156,16 @@ semantic cops (60 rules total).
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 103 | 0 | 1 |
+| 119 | 0 | 2 |
 
 Promotion to `stable` requires >99% corpus conformance on `discourse` and
-`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 103 of 104 rules meet
+`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 119 of 121 rules meet
 it. At `nursery`:
 
 - `Lint/RedundantCopDisableDirective` — held back per policy regardless of
   measured agreement (see above).
+- `Layout/HeredocIndentation` — 98.75% on discourse (16 missing, 6 extra,
+  mostly squiggly heredocs inside method-call arguments); 100% on mastodon.
 
 `Lint/Syntax` is built into the engine and is not counted.
 
@@ -270,7 +276,12 @@ cop needs: `docs/planning/default-parity.md`.
    `Style/MultilineBlockChain` missing block-arg calls and
    `BlockNode#multiline?` — all fixed by following RuboCop's own logic more
    closely. A review pass afterward fixed hot-path allocations across the
-   wave. Next: wave 3 per `docs/planning/phase5-wave3.md`.
+   wave. Wave 3a (`docs/planning/waves/wave3a.txt`, 65 cops needing
+   target-ruby, file-level, or comment/token support) is under way: 17 ported
+   so far (Bundler department stood up), 16 `stable` at 100% agreement on
+   both apps, `Layout/HeredocIndentation` at `nursery`. Porters work from
+   `docs/porting/KIT.md` with `tools/scaffold_cop.rb` skeletons; conformance
+   truth is batched (`cargo xtask conformance --rule A,B,...`).
 3. Phase 6 `[INFERENCE — no dedicated planning doc yet, extrapolated from
    the "What does not work yet" list above]`: config/CLI hardening — a
    `ConfigValidator` (type/unknown-cop errors), a minimal ERB subset

@@ -1,0 +1,5 @@
+a[ 1 ]
+b[ index, 3 ]
+c[ "foo" ]
+d[ :bar ]
+e[ ]

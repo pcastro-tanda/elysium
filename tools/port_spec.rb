@@ -111,6 +111,7 @@ begin
     require 'rspec'
     require 'rubocop/rspec/support'
     Dir[File.join(#{rubocop_src.inspect}, 'spec/support/**/*.rb')].sort.each { |f| require f }
+    Dir[File.join(#{rubocop_src.inspect}, 'spec/core_ext/**/*.rb')].sort.each { |f| require f }
     require 'json'
 
     CAPTURES = []

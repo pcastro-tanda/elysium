@@ -13,6 +13,13 @@ later tag's checkout instead:
 - `lint/number_conversion`: RuboCop 1.91.0 (1.88's #15252 safe-navigation
   message/no-autocorrect and #15194 `IgnoredClasses` -> `AllowedClasses`).
 
+A case that does not state `AllCops/TargetRubyVersion` in its `.yml` runs at
+3.3: the specs were ported with `PARSER_ENGINE=parser_prism`, where RuboCop's
+`CopHelper` resolves `let(:ruby_version)` to 3.3 and `tools/port_spec.rb`
+therefore only records a version when the spec asked for a different one. The
+harness (`crates/rules/tests/fixtures.rs`) injects it; the engine's own
+default for real projects stays RuboCop's 2.7.
+
 ## Deliberately removed cases
 
 Cases that depend on Ruby process state elysium does not model are deleted
@@ -73,3 +80,14 @@ after regeneration:
   `-do_something`, which is what elysium produces. The remaining checks --
   offenses, and that the fix loop converges without leaving a correctable
   offense behind -- still run.
+- `bundler/gem_filename`: all 15 examples in the spec are un-portable by
+  `tools/port_spec.rb`, so the directory holds zero fixture cases. The spec
+  never calls `expect_offense`/`expect_no_offenses`/`expect_correction` --
+  it stubs `processed_source.buffer.name` and asserts directly on
+  `_investigate(cop, processed_source)`'s return value, which the tool's
+  capture mechanism (monkeypatching those three helpers) cannot see.
+  Verified instead with a throwaway harness invocation exercising every one
+  of the spec's 15 `(EnforcedStyle, filename)` combinations against the
+  ported rule directly (`RuleSet::only(&["Bundler/GemFilename"], &cfg)` +
+  `linter::lint_parsed_with`), matching every expected message and the
+  absence of an offense for every "valid gem file" case.

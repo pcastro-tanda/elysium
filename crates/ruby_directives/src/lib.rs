@@ -76,6 +76,7 @@
 //!   themselves are not (see above): a comment using any of these modes is
 //!   simply not treated as a directive at all.
 
+use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
 use regex::bytes::Regex;
@@ -431,6 +432,121 @@ impl Directives {
         self.disabled_ranges_from(|d| d.cops.iter().any(|c| c.covers(cop_name)), Some(0))
             .into_iter()
             .any(|(s, e)| line >= s && line <= e)
+    }
+
+    /// Port of `CommentConfig#extra_enabled_comments` (`comment_config.rb:55-62`,
+    /// `#extra_enabled_comments_with_names`/`#handle_enable_all`/`#handle_switch`,
+    /// lines 70-82 and 334-357): for every own-line `enable` directive, the cop
+    /// references it names that were not actually disabled at that point, so
+    /// enabling them is redundant. Backs `Lint/RedundantCopEnableDirective`.
+    ///
+    /// `cop_names` is the cop universe (`RuleOptions::peer_names()`), used to
+    /// expand `all` and department references the way upstream's cop registry
+    /// does: a `# rubocop:disable Layout` counts as a disable of every `Layout`
+    /// cop, so a later `# rubocop:enable Layout/LineLength` is not redundant.
+    /// `disabled_by_config` is every cop the configuration itself disables
+    /// (upstream's `registry.disabled(config)`), each of which
+    /// `#extra_enabled_comments` seeds with one pending disable, so the first
+    /// `enable` of such a cop is legitimate and only a second one is redundant.
+    ///
+    /// Each returned pair is one directive's [`Directive::span`] and the cop
+    /// references it redundantly enables, spelled as written (`all`, a
+    /// department name, or a cop name) and deduplicated, in written order --
+    /// the shape `Lint/RedundantCopEnableDirective#register_offense` needs to
+    /// locate each name inside the comment. Upstream reaches the same shape by
+    /// mapping an expanded name back to its department (`name.split('/').first`)
+    /// and letting duplicate offenses collapse.
+    ///
+    /// Deviations, on top of the crate-wide ones in the module docs: upstream
+    /// tests `comment_only_line?` against the token stream, this uses
+    /// [`Directive::inline`]; and the `-next` modes (which upstream has no
+    /// equivalent of in 1.82, and whose scope is a single following line) never
+    /// count as a disable or as a redundant enable here.
+    #[must_use]
+    pub fn redundant_enables<'a>(
+        &self,
+        cop_names: impl Iterator<Item = &'a str>,
+        disabled_by_config: impl Iterator<Item = &'a str>,
+    ) -> Vec<(Span, Vec<String>)> {
+        let universe: Vec<&str> = cop_names.collect();
+        // `disable_count` upstream: how many pending disables each cop has.
+        let mut pending: BTreeMap<String, u32> = BTreeMap::new();
+        for name in disabled_by_config {
+            *pending.entry(name.to_string()).or_default() += 1;
+        }
+
+        let mut extras: Vec<(Span, Vec<String>)> = Vec::new();
+        let relevant =
+            self.directives.iter().filter(|d| !d.inline && !d.kind.is_next() && !d.cops.is_empty());
+        for directive in relevant {
+            let disables = directive.kind.disables();
+            if !disables && directive.cops == [CopRef::All] {
+                // handle_enable_all: `enable all` is redundant only when it
+                // enables nothing; otherwise it clears one pending disable
+                // from every cop that has one.
+                let mut enabled = 0_u32;
+                for count in pending.values_mut() {
+                    if *count > 0 {
+                        *count -= 1;
+                        enabled += 1;
+                    }
+                }
+                if enabled == 0 {
+                    record_extra(&mut extras, directive.span, "all");
+                }
+                continue;
+            }
+            for cop in &directive.cops {
+                let written = match cop {
+                    CopRef::All => "all",
+                    CopRef::Department(name) | CopRef::Cop(name) => name.as_str(),
+                };
+                for name in expand(&universe, cop) {
+                    if disables {
+                        *pending.entry(name).or_default() += 1;
+                    } else if let Some(count) = pending.get_mut(&name).filter(|c| **c > 0) {
+                        *count -= 1;
+                    } else {
+                        record_extra(&mut extras, directive.span, written);
+                    }
+                }
+            }
+        }
+        extras
+    }
+}
+
+/// Every cop name `cop` stands for, against the known cop universe --
+/// upstream's `DirectiveComment#cop_names` (registry expansion of `all` and
+/// of department names). A reference the universe does not know (an unknown
+/// or misspelled cop, or a universe that was never supplied) stands for
+/// itself, as `Registry.qualified_cop_name` leaves it.
+fn expand(universe: &[&str], cop: &CopRef) -> Vec<String> {
+    if matches!(cop, CopRef::All) {
+        return universe.iter().map(|name| (*name).to_string()).collect();
+    }
+    let matched: Vec<String> =
+        universe.iter().filter(|name| cop.covers(name)).map(|name| (*name).to_string()).collect();
+    if matched.is_empty() {
+        match cop {
+            CopRef::Department(name) | CopRef::Cop(name) => vec![name.clone()],
+            CopRef::All => Vec::new(),
+        }
+    } else {
+        matched
+    }
+}
+
+/// Adds `name` to the entry for `span`, keeping entries in first-seen order
+/// and each entry's names unique (upstream dedups by offense range instead).
+fn record_extra(extras: &mut Vec<(Span, Vec<String>)>, span: Span, name: &str) {
+    let index = extras.iter().position(|(s, _)| *s == span).unwrap_or_else(|| {
+        extras.push((span, Vec::new()));
+        extras.len() - 1
+    });
+    let names = &mut extras[index].1;
+    if !names.iter().any(|existing| existing == name) {
+        names.push(name.to_string());
     }
 }
 
@@ -853,5 +969,115 @@ mod tests {
         assert!(!d.is_disabled_for_opted_in_cop("Layout/LineLength", 3));
         assert!(d.is_disabled_for_opted_in_cop("Layout/LineLength", 5));
         assert!(!d.is_disabled_for_opted_in_cop("Layout/LineLength", 7));
+    }
+
+    // Ports of spec/rubocop/cop/lint/redundant_cop_enable_directive_spec.rb
+    // (RuboCop 1.82.1), exercising `#extra_enabled_comments` through
+    // `redundant_enables`.
+
+    const UNIVERSE: [&str; 5] = [
+        "Layout/LineLength",
+        "Layout/IndentationStyle",
+        "Lint/Debugger",
+        "Metrics/AbcSize",
+        "Metrics/MethodLength",
+    ];
+
+    fn extras(source: &str) -> Vec<Vec<String>> {
+        directives_for(source)
+            .redundant_enables(UNIVERSE.into_iter(), std::iter::empty())
+            .into_iter()
+            .map(|(_, names)| names)
+            .collect()
+    }
+
+    #[test]
+    fn enable_without_a_disable_is_redundant() {
+        // "registers offense and corrects unnecessary enable"
+        assert_eq!(extras("foo\n# rubocop:enable Layout/LineLength\n"), [["Layout/LineLength"]]);
+    }
+
+    #[test]
+    fn enable_after_a_matching_disable_is_not_redundant() {
+        // "registers correct offense when combined with necessary enable"
+        assert_eq!(
+            extras(
+                "# rubocop:disable Layout/LineLength\nfoo\n# rubocop:enable Metrics/AbcSize, Layout/LineLength\n"
+            ),
+            [["Metrics/AbcSize"]]
+        );
+    }
+
+    #[test]
+    fn second_enable_of_the_same_cop_is_redundant() {
+        // "registers offense and corrects redundant enabling of same cop"
+        assert_eq!(
+            extras(
+                "# rubocop:disable Layout/LineLength\nfoo\n# rubocop:enable Layout/LineLength\nbar\n# rubocop:enable Layout/LineLength\n"
+            ),
+            [["Layout/LineLength"]]
+        );
+    }
+
+    #[test]
+    fn enable_of_a_cop_disabled_by_its_department_is_not_redundant() {
+        // "registers offense and corrects redundant enabling of cop of same
+        // department": the department disable expands, so enabling one of its
+        // cops is legitimate -- and enabling it twice is not.
+        assert!(extras("# rubocop:disable Layout\nfoo\n# rubocop:enable Layout/LineLength\n")
+            .is_empty());
+        assert_eq!(
+            extras("# rubocop:disable Layout\nfoo\n# rubocop:enable Layout, Layout/LineLength\n"),
+            [["Layout/LineLength"]]
+        );
+    }
+
+    #[test]
+    fn enable_all_is_redundant_only_when_nothing_was_disabled() {
+        // "all switch": bare `enable all` is redundant; `enable all` after any
+        // disable is not.
+        assert_eq!(extras("foo\n# rubocop:enable all\n"), [["all"]]);
+        assert!(
+            extras("# rubocop:disable Layout/LineLength\nfoo\n# rubocop:enable all\n").is_empty()
+        );
+    }
+
+    #[test]
+    fn config_disabled_cop_absorbs_the_first_enable() {
+        // "when cop is disabled in the configuration": the first enable is
+        // legitimate, the second is redundant.
+        let source =
+            "foo\n# rubocop:enable Layout/LineLength\n# rubocop:enable Layout/LineLength\n";
+        let seeded: Vec<Vec<String>> = directives_for(source)
+            .redundant_enables(UNIVERSE.into_iter(), std::iter::once("Layout/LineLength"))
+            .into_iter()
+            .map(|(_, names)| names)
+            .collect();
+        assert_eq!(seeded, [["Layout/LineLength"]]);
+        assert_eq!(extras(source), [["Layout/LineLength"], ["Layout/LineLength"]]);
+    }
+
+    #[test]
+    fn inline_enable_is_ignored_and_span_covers_the_directive_text() {
+        // Upstream's `comment_only_line?` guard: a trailing directive never
+        // takes part. The reported span is the directive's own text.
+        assert!(extras("foo # rubocop:enable Layout/LineLength\n").is_empty());
+        let d = directives_for("foo\n# rubocop:enable Metrics/AbcSize\n");
+        let (span, names) = d
+            .redundant_enables(UNIVERSE.into_iter(), std::iter::empty())
+            .pop()
+            .expect("one redundant enable");
+        assert_eq!(names, ["Metrics/AbcSize"]);
+        assert_eq!(span, Span::new(4, 36));
+    }
+
+    #[test]
+    fn unknown_cop_names_still_pair_up() {
+        // A name the universe does not know stands for itself, so a
+        // disable/enable pair of it is not redundant while a lone enable is.
+        assert!(
+            extras("# rubocop:disable Custom/Cop\nfoo\n# rubocop:enable Custom/Cop\n").is_empty()
+        );
+        assert_eq!(extras("foo\n# rubocop:enable Custom/Cop\n"), [["Custom/Cop"]]);
     }
 }

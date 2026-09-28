@@ -1,0 +1,4 @@
+def m
+  # comment
+
+end

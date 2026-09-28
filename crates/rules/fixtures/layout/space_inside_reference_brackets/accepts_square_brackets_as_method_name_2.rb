@@ -1,0 +1,2 @@
+def Vector.[](*array)
+end

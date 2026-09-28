@@ -11,6 +11,24 @@ use std::sync::Arc;
 
 use crate::rule::{ConfigDefault, RuleMeta};
 
+/// RuboCop's `TargetRuby::DEFAULT_VERSION`: the target Ruby version cops see
+/// when the configuration states none. `config`'s `DEFAULT_RUBY_VERSION` is
+/// the same constant; this crate does not depend on `config`.
+pub const DEFAULT_RUBY_VERSION: f32 = 2.7;
+
+/// Ruby's `String#to_f`, restricted to what a version string can hold: the
+/// longest parseable numeric prefix, or `None` when there is none. Rust
+/// parses `"inf"`/`"nan"`, which `String#to_f` reads as `0.0`; neither is a
+/// version, so both are rejected outright.
+fn leading_float(text: &str) -> Option<f32> {
+    let text = text.trim();
+    (1..=text.len())
+        .rev()
+        .filter(|&end| text.is_char_boundary(end))
+        .find_map(|end| text[..end].parse::<f32>().ok())
+        .filter(|value| value.is_finite())
+}
+
 /// One configuration value, in RuboCop's YAML shapes.
 #[derive(Debug, Clone, PartialEq)]
 pub enum OptionValue {
@@ -256,8 +274,92 @@ impl RuleOptions {
         self.peers.keys().map(String::as_str).filter(|name| *name != "AllCops")
     }
 
+    /// `AllCops/TargetRubyVersion` -- RuboCop's `Config#target_ruby_version`
+    /// (`lib/rubocop/target_ruby.rb`), the value version-gated cops compare
+    /// against (`target_ruby_version >= 2.5`).
+    ///
+    /// Accepts every YAML spelling `TargetRuby` tolerates: a float (`3.1`),
+    /// an integer (`3`) and a string (`'3.1'`), the last coerced the way
+    /// Ruby's `String#to_f` coerces it (leading numeric prefix, so `'3.1.2'`
+    /// is `3.1`). Anything unparseable, or no value at all, yields
+    /// `TargetRuby::DEFAULT_VERSION` (2.7).
+    ///
+    /// Only what the configuration *states* is visible here: `config`'s
+    /// `.ruby-version`/`.tool-versions`/`Gemfile.lock` inference
+    /// (`loader::target_ruby_version`) is computed for obsoletion checks
+    /// and never written back into `AllCops`, so a project that relies on
+    /// one of those files reads as the default here, exactly as
+    /// `LoadedConfig::all_cops().target_ruby_version` does.
+    pub fn target_ruby_version(&self) -> f32 {
+        self.peer("AllCops", "TargetRubyVersion")
+            .and_then(|value| match value {
+                #[allow(clippy::cast_possible_truncation)]
+                OptionValue::Float(_) | OptionValue::Int(_) => value.as_float().map(|f| f as f32),
+                OptionValue::Str(text) => leading_float(text),
+                _ => None,
+            })
+            .unwrap_or(DEFAULT_RUBY_VERSION)
+    }
+
     /// Builds an [`OptionError`] attributed to this rule.
     pub fn error(&self, key: &str, message: impl Into<String>) -> OptionError {
         OptionError { rule: self.meta.name, option: key.to_string(), message: message.into() }
+    }
+}
+
+#[cfg(test)]
+mod tests {
+    use super::*;
+    use crate::diagnostic::Severity;
+    use crate::rule::{Department, FixAvailability, Stability};
+
+    static META: RuleMeta = RuleMeta {
+        name: "Test/Rule",
+        department: Department::Lint,
+        summary: "",
+        explanation: "",
+        enabled_by_default: true,
+        severity: Severity::Convention,
+        fix: FixAvailability::None,
+        stability: Stability::Stable,
+        kinds: &[],
+        config: &[],
+        blind_spots: "",
+    };
+
+    fn with_target(value: OptionValue) -> RuleOptions {
+        let mut peers = PeerOptions::new();
+        peers.insert("AllCops".to_string(), vec![("TargetRubyVersion".to_string(), value)]);
+        RuleOptions::new(&META, Vec::new(), Arc::new(peers))
+    }
+
+    #[test]
+    fn target_ruby_version_reads_every_yaml_spelling() {
+        assert!((with_target(OptionValue::Float(3.1)).target_ruby_version() - 3.1).abs() < 1e-6);
+        assert!((with_target(OptionValue::Int(3)).target_ruby_version() - 3.0).abs() < 1e-6);
+        // `TargetRubyVersion: '3.1'` is a YAML string; RuboCop coerces with
+        // `String#to_f`, so a patch level is dropped rather than rejected.
+        let quoted = with_target(OptionValue::Str("3.1".to_string()));
+        assert!((quoted.target_ruby_version() - 3.1).abs() < 1e-6);
+        let patch = with_target(OptionValue::Str("3.1.2".to_string()));
+        assert!((patch.target_ruby_version() - 3.1).abs() < 1e-6);
+    }
+
+    #[test]
+    fn target_ruby_version_falls_back_to_rubocops_default() {
+        // No `AllCops` peer at all, an `AllCops` without the key, and an
+        // unusable value all read as `TargetRuby::DEFAULT_VERSION`.
+        let bare = RuleOptions::defaults(&META);
+        assert!((bare.target_ruby_version() - DEFAULT_RUBY_VERSION).abs() < 1e-6);
+
+        let mut peers = PeerOptions::new();
+        peers.insert("AllCops".to_string(), vec![("NewCops".to_string(), OptionValue::Null)]);
+        let other_key = RuleOptions::new(&META, Vec::new(), Arc::new(peers));
+        assert!((other_key.target_ruby_version() - DEFAULT_RUBY_VERSION).abs() < 1e-6);
+
+        for value in [OptionValue::Null, OptionValue::Str("ruby".to_string())] {
+            let bad = with_target(value);
+            assert!((bad.target_ruby_version() - DEFAULT_RUBY_VERSION).abs() < 1e-6);
+        }
     }
 }

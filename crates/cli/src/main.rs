@@ -1,4 +1,5 @@
 //! `elysium` command-line entry point.
+#![recursion_limit = "512"]
 #![allow(unreachable_pub, missing_docs)]
 
 use std::process::ExitCode;

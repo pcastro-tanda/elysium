@@ -260,16 +260,59 @@ fn parse_annotation(line: &str, previous_source_line: u32) -> Option<Annotation>
     })
 }
 
+/// The target Ruby version a case that does not state one runs at.
+///
+/// The specs these fixtures were ported from run under
+/// `PARSER_ENGINE=parser_prism`, where RuboCop's `CopHelper` resolves
+/// `let(:ruby_version)` to 3.3 rather than `TargetRuby::DEFAULT_VERSION`
+/// (2.7), and `tools/port_spec.rb` only writes `AllCops/TargetRubyVersion`
+/// into a case's yml when the spec asked for a *different* version. So an
+/// unset version means 3.3 here, even though the engine's own default
+/// (`linter::DEFAULT_RUBY_VERSION`, what a real project gets) is 2.7.
+const FIXTURE_TARGET_RUBY_VERSION: f32 = 3.3;
+
 fn load_config(case: &Path) -> LoadedConfig {
     let yml = case.with_extension("yml");
     let loader = ConfigLoader::new()
         .with_cwd(case.parent().expect("case has a parent"))
         .with_project_root(case.parent().expect("case has a parent"))
         .with_gem_lookup(false);
-    if yml.is_file() {
-        loader.load(Some(&yml)).expect("load fixture config")
+    let stated = std::fs::read_to_string(&yml).unwrap_or_default();
+    if stated.lines().any(|line| line.trim_start().starts_with("TargetRubyVersion:")) {
+        return loader.load(Some(&yml)).expect("load fixture config");
+    }
+    // `LoadedConfig` is immutable once resolved, so the version goes in
+    // through the YAML the loader reads: a scratch copy of the case's
+    // configuration next to it (same directory, so every relative path in it
+    // still resolves identically), removed as soon as it is loaded.
+    let scratch = case.with_file_name(format!(
+        ".{}.target-ruby.yml",
+        case.file_stem().expect("case has a stem").to_string_lossy()
+    ));
+    let injected = inject_target_ruby(&stated);
+    std::fs::write(&scratch, injected).expect("write scratch fixture config");
+    let config = loader.load(Some(&scratch)).expect("load fixture config");
+    std::fs::remove_file(&scratch).expect("remove scratch fixture config");
+    config
+}
+
+/// Adds `AllCops/TargetRubyVersion` to a case's YAML text, either into its
+/// existing `AllCops` section or as a new one.
+fn inject_target_ruby(yml: &str) -> String {
+    let setting = format!("  TargetRubyVersion: {FIXTURE_TARGET_RUBY_VERSION}\n");
+    if let Some(position) = yml.lines().position(|line| line.trim_end() == "AllCops:") {
+        let mut out = String::with_capacity(yml.len() + setting.len());
+        for (index, line) in yml.lines().enumerate() {
+            out.push_str(line);
+            out.push('\n');
+            if index == position {
+                out.push_str(&setting);
+            }
+        }
+        out
     } else {
-        loader.load(None).expect("load default config")
+        let separator = if yml.is_empty() || yml.ends_with('\n') { "" } else { "\n" };
+        format!("{yml}{separator}AllCops:\n{setting}")
     }
 }
 

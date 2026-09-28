@@ -2,6 +2,7 @@
 
 pub mod ambiguous_block_association;
 pub mod binary_operator_with_identical_operands;
+pub mod circular_argument_reference;
 pub mod constant_definition_in_block;
 pub mod constant_resolution;
 pub mod debugger;
@@ -14,7 +15,9 @@ pub mod each_with_object_argument;
 pub mod else_layout;
 pub mod empty_block;
 pub mod empty_expression;
+pub mod empty_file;
 pub mod ensure_return;
+pub mod erb_new_arguments;
 pub mod flip_flop;
 pub mod float_comparison;
 pub mod float_out_of_range;

@@ -160,4 +160,5 @@ of list ids keyed by `(kind, span)`; no `ruby_semantic` dependency.
 - `ruby_semantic` unit tests port the assertions of
   `spec/rubocop/cop/variable_force_spec.rb` and `variable_force/*_spec.rb`.
 - Conformance: `cargo xtask conformance --app <discourse|mastodon> --rule
-  Cop` for every cop before promotion past `nursery`.
+  Cop` for every cop before promotion past `nursery`; a whole wave in one
+  pass with `--rule A,B,C` (or `--rules-file FILE`).

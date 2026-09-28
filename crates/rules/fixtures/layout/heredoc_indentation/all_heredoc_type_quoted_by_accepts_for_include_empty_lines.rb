@@ -1,0 +1,7 @@
+<<~MSG
+
+  foo
+
+    bar
+
+MSG

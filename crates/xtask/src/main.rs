@@ -28,7 +28,7 @@ enum Command {
     /// Compare `elysium config --format show-cops` against a ground-truth
     /// `rubocop --show-cops` capture, cop by cop.
     ConformanceConfig(conformance::ConformanceConfigArgs),
-    /// Compare one rule's offenses against real RuboCop's on a corpus app.
+    /// Compare one or more rules' offenses against real RuboCop's on a corpus app.
     Conformance(conformance_rule::ConformanceArgs),
     /// Regenerate `docs/rules` from the registered rules' metadata.
     DocsRules,

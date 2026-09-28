@@ -1,0 +1,3 @@
+=begin
+Doc comment
+=end

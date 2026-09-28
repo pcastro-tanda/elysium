@@ -1,13 +1,13 @@
 # Default-cop parity inventory
 Generated from RuboCop 1.82.1 `config/default.yml` (`Enabled: true` only; `pending` cops excluded) minus the rules registered in `docs/rules/`. Regenerate with the script in this file's git history / `tools/` once ported there.
-**294 default-enabled cops missing of 394** (100 implemented).
+**277 default-enabled cops missing of 394** (117 implemented).
 ## By department
 - Style: 138
-- Layout: 64
-- Lint: 62
+- Layout: 51
+- Lint: 59
 - Naming: 10
 - Metrics: 9
-- Bundler: 5
+- Bundler: 4
 - Gemspec: 3
 - Security: 2
 - Migration: 1
@@ -29,7 +29,6 @@ Coarse, from mixins/API usage in the cop source. `pure-ast` = only node callback
 |---|---|---|---|
 | Bundler/DuplicatedGem | 94 | 10 | file-level |
 | Bundler/DuplicatedGroup | 127 | 21 | file-level |
-| Bundler/GemFilename | 102 | 2 | file-level |
 | Bundler/InsecureProtocolSource | 85 | 6 | autocorrect |
 | Bundler/OrderedGems | 69 | 17 | autocorrect, file-level |
 | Gemspec/DuplicatedAssignment | 111 | 19 | file-level |
@@ -44,14 +43,11 @@ Coarse, from mixins/API usage in the cop source. `pure-ast` = only node callback
 | Layout/CaseIndentation | 219 | 50 | autocorrect, config-options |
 | Layout/ClosingHeredocIndentation | 123 | 11 | autocorrect |
 | Layout/ClosingParenthesisIndentation | 193 | 43 | autocorrect |
-| Layout/CommentIndentation | 168 | 16 | tokens/comments, autocorrect, file-level, config-options |
 | Layout/ConditionPosition | 60 | 5 | autocorrect |
 | Layout/DefEndAlignment | 73 | 4 | autocorrect |
 | Layout/DotPosition | 139 | 39 | autocorrect |
 | Layout/ElseAlignment | 156 | 53 | autocorrect |
-| Layout/EmptyComment | 153 | 14 | tokens/comments, autocorrect, file-level, config-options |
 | Layout/EmptyLineAfterGuardClause | 217 | 47 | autocorrect, metrics |
-| Layout/EmptyLineAfterMagicComment | 71 | 17 | autocorrect, file-level |
 | Layout/EmptyLinesAroundAccessModifier | 241 | 48 | autocorrect |
 | Layout/EmptyLinesAroundArguments | 82 | 22 | autocorrect |
 | Layout/EmptyLinesAroundAttributeAccessor | 139 | 20 | autocorrect |
@@ -61,14 +57,9 @@ Coarse, from mixins/API usage in the cop source. `pure-ast` = only node callback
 | Layout/EmptyLinesAroundMethodBody | 64 | 14 | autocorrect |
 | Layout/EmptyLinesAroundModuleBody | 59 | 18 | autocorrect |
 | Layout/EndAlignment | 214 | 14 | autocorrect |
-| Layout/EndOfLine | 92 | 13 | tokens/comments, file-level |
 | Layout/FirstArrayElementIndentation | 189 | 53 | autocorrect |
 | Layout/FirstParameterIndentation | 101 | 20 | autocorrect |
-| Layout/HeredocIndentation | 162 | 20 | target-ruby, autocorrect |
-| Layout/IndentationStyle | 115 | 25 | autocorrect, file-level |
-| Layout/InitialIndentation | 55 | 8 | tokens/comments, autocorrect, file-level |
 | Layout/LeadingCommentSpace | 203 | 27 | tokens/comments, autocorrect, file-level, metrics, config-options |
-| Layout/LeadingEmptyLines | 48 | 10 | tokens/comments, autocorrect, file-level |
 | Layout/MultilineArrayBraceLayout | 115 | 4 | autocorrect |
 | Layout/MultilineBlockLayout | 164 | 32 | autocorrect |
 | Layout/MultilineHashBraceLayout | 115 | 3 | autocorrect |
@@ -84,37 +75,29 @@ Coarse, from mixins/API usage in the cop source. `pure-ast` = only node callback
 | Layout/SpaceAfterNot | 39 | 6 | autocorrect |
 | Layout/SpaceAfterSemicolon | 39 | 7 | autocorrect |
 | Layout/SpaceAroundBlockParameters | 162 | 42 | autocorrect |
-| Layout/SpaceAroundEqualsInParameterDefault | 89 | 11 | tokens/comments, autocorrect |
 | Layout/SpaceAroundKeyword | 274 | 5 | target-ruby, autocorrect |
 | Layout/SpaceAroundMethodCallOperator | 98 | 17 | autocorrect |
 | Layout/SpaceBeforeBlockBraces | 164 | 20 | autocorrect, config-options |
 | Layout/SpaceBeforeComma | 29 | 6 | autocorrect |
-| Layout/SpaceBeforeComment | 34 | 5 | autocorrect, file-level |
 | Layout/SpaceBeforeFirstArg | 73 | 12 | autocorrect |
 | Layout/SpaceBeforeSemicolon | 24 | 8 | autocorrect |
 | Layout/SpaceInLambdaLiteral | 78 | 15 | autocorrect |
 | Layout/SpaceInsideArrayPercentLiteral | 46 | 9 | autocorrect |
-| Layout/SpaceInsideParens | 176 | 28 | autocorrect, file-level |
 | Layout/SpaceInsidePercentLiteralDelimiters | 94 | 15 | autocorrect |
 | Layout/SpaceInsideRangeLiteral | 54 | 7 | autocorrect |
-| Layout/SpaceInsideReferenceBrackets | 143 | 47 | tokens/comments, autocorrect, config-options |
-| Layout/SpaceInsideStringInterpolation | 63 | 12 | tokens/comments, autocorrect |
 | Lint/AmbiguousOperator | 105 | 17 | autocorrect, file-level |
 | Lint/AmbiguousRegexpLiteral | 78 | 15 | target-ruby, autocorrect, file-level |
 | Lint/AssignmentInCondition | 107 | 37 | autocorrect |
 | Lint/BigDecimalNew | 41 | 3 | autocorrect |
 | Lint/BooleanSymbol | 61 | 10 | autocorrect |
-| Lint/CircularArgumentReference | 106 | 13 | target-ruby |
 | Lint/DeprecatedClassMethods | 118 | 31 | autocorrect |
 | Lint/DeprecatedOpenSSLConstant | 0 | 0 | ? |
 | Lint/DisjunctiveAssignmentInConstructor | 110 | 7 | autocorrect |
 | Lint/DuplicateRequire | 56 | 10 | autocorrect |
 | Lint/EmptyConditionalBody | 148 | 42 | tokens/comments, autocorrect, config-options |
 | Lint/EmptyEnsure | 48 | 2 | autocorrect |
-| Lint/EmptyFile | 46 | 4 | file-level, config-options |
 | Lint/EmptyInterpolation | 42 | 12 | autocorrect |
 | Lint/EmptyWhen | 61 | 16 | tokens/comments, config-options |
-| Lint/ErbNewArguments | 162 | 10 | target-ruby, autocorrect |
 | Lint/IdentityComparison | 54 | 12 | autocorrect |
 | Lint/ImplicitStringConcatenation | 112 | 12 | autocorrect, metrics |
 | Lint/IneffectiveAccessModifier | 114 | 8 | metrics |

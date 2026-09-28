@@ -1,0 +1,154 @@
+# Prism node accessors (ruby-prism 1.9.0), generated from the crate's bindings.rs.
+# Every node also has location():Location, as_node():Node; generic Node has as_<snake>_node() -> Option<XNode>.
+# Flag predicates (is_safe_navigation, is_variable_call, ...) are listed where present.
+AliasGlobalVariableNode: new_name:Node, old_name:Node, keyword_loc:Location
+AliasMethodNode: new_name:Node, old_name:Node, keyword_loc:Location
+AlternationPatternNode: left:Node, right:Node, operator_loc:Location
+AndNode: left:Node, right:Node, operator_loc:Location
+ArgumentsNode: is_contains_forwarding:bool, is_contains_keywords:bool, is_contains_keyword_splat:bool, is_contains_splat:bool, is_contains_multiple_splats:bool, arguments:NodeList
+ArrayNode: is_contains_splat:bool, elements:NodeList, opening_loc:Option<Location>, closing_loc:Option<Location>
+ArrayPatternNode: constant:Option<Node>, requireds:NodeList, rest:Option<Node>, posts:NodeList, opening_loc:Option<Location>, closing_loc:Option<Location>
+AssocNode: key:Node, value:Node, operator_loc:Option<Location>
+AssocSplatNode: value:Option<Node>, operator_loc:Location
+BackReferenceReadNode: name:ConstantId
+BeginNode: begin_keyword_loc:Option<Location>, statements:Option<StatementsNode>, rescue_clause:Option<RescueNode>, else_clause:Option<ElseNode>, ensure_clause:Option<EnsureNode>, end_keyword_loc:Option<Location>
+BlockArgumentNode: expression:Option<Node>, operator_loc:Location
+BlockLocalVariableNode: is_repeated_parameter:bool, name:ConstantId
+BlockNode: locals:ConstantList, parameters:Option<Node>, body:Option<Node>, opening_loc:Location, closing_loc:Location
+BlockParameterNode: is_repeated_parameter:bool, name:Option<ConstantId>, name_loc:Option<Location>, operator_loc:Location
+BlockParametersNode: parameters:Option<ParametersNode>, locals:NodeList, opening_loc:Option<Location>, closing_loc:Option<Location>
+BreakNode: arguments:Option<ArgumentsNode>, keyword_loc:Location
+CallAndWriteNode: is_safe_navigation:bool, is_variable_call:bool, is_attribute_write:bool, is_ignore_visibility:bool, receiver:Option<Node>, call_operator_loc:Option<Location>, message_loc:Option<Location>, read_name:ConstantId, write_name:ConstantId, operator_loc:Location, value:Node
+CallNode: is_safe_navigation:bool, is_variable_call:bool, is_attribute_write:bool, is_ignore_visibility:bool, receiver:Option<Node>, call_operator_loc:Option<Location>, name:ConstantId, message_loc:Option<Location>, opening_loc:Option<Location>, arguments:Option<ArgumentsNode>, closing_loc:Option<Location>, equal_loc:Option<Location>, block:Option<Node>
+CallOperatorWriteNode: is_safe_navigation:bool, is_variable_call:bool, is_attribute_write:bool, is_ignore_visibility:bool, receiver:Option<Node>, call_operator_loc:Option<Location>, message_loc:Option<Location>, read_name:ConstantId, write_name:ConstantId, binary_operator:ConstantId, binary_operator_loc:Location, value:Node
+CallOrWriteNode: is_safe_navigation:bool, is_variable_call:bool, is_attribute_write:bool, is_ignore_visibility:bool, receiver:Option<Node>, call_operator_loc:Option<Location>, message_loc:Option<Location>, read_name:ConstantId, write_name:ConstantId, operator_loc:Location, value:Node
+CallTargetNode: is_safe_navigation:bool, is_variable_call:bool, is_attribute_write:bool, is_ignore_visibility:bool, receiver:Node, call_operator_loc:Location, name:ConstantId, message_loc:Location
+CapturePatternNode: value:Node, target:LocalVariableTargetNode, operator_loc:Location
+CaseMatchNode: predicate:Option<Node>, conditions:NodeList, else_clause:Option<ElseNode>, case_keyword_loc:Location, end_keyword_loc:Location
+CaseNode: predicate:Option<Node>, conditions:NodeList, else_clause:Option<ElseNode>, case_keyword_loc:Location, end_keyword_loc:Location
+ClassNode: locals:ConstantList, class_keyword_loc:Location, constant_path:Node, inheritance_operator_loc:Option<Location>, superclass:Option<Node>, body:Option<Node>, end_keyword_loc:Location, name:ConstantId
+ClassVariableAndWriteNode: name:ConstantId, name_loc:Location, operator_loc:Location, value:Node
+ClassVariableOperatorWriteNode: name:ConstantId, name_loc:Location, binary_operator_loc:Location, value:Node, binary_operator:ConstantId
+ClassVariableOrWriteNode: name:ConstantId, name_loc:Location, operator_loc:Location, value:Node
+ClassVariableReadNode: name:ConstantId
+ClassVariableTargetNode: name:ConstantId
+ClassVariableWriteNode: name:ConstantId, name_loc:Location, value:Node, operator_loc:Location
+ConstantAndWriteNode: name:ConstantId, name_loc:Location, operator_loc:Location, value:Node
+ConstantOperatorWriteNode: name:ConstantId, name_loc:Location, binary_operator_loc:Location, value:Node, binary_operator:ConstantId
+ConstantOrWriteNode: name:ConstantId, name_loc:Location, operator_loc:Location, value:Node
+ConstantPathAndWriteNode: target:ConstantPathNode, operator_loc:Location, value:Node
+ConstantPathNode: parent:Option<Node>, name:Option<ConstantId>, delimiter_loc:Location, name_loc:Location
+ConstantPathOperatorWriteNode: target:ConstantPathNode, binary_operator_loc:Location, value:Node, binary_operator:ConstantId
+ConstantPathOrWriteNode: target:ConstantPathNode, operator_loc:Location, value:Node
+ConstantPathTargetNode: parent:Option<Node>, name:Option<ConstantId>, delimiter_loc:Location, name_loc:Location
+ConstantPathWriteNode: target:ConstantPathNode, operator_loc:Location, value:Node
+ConstantReadNode: name:ConstantId
+ConstantTargetNode: name:ConstantId
+ConstantWriteNode: name:ConstantId, name_loc:Location, value:Node, operator_loc:Location
+DefNode: name:ConstantId, name_loc:Location, receiver:Option<Node>, parameters:Option<ParametersNode>, body:Option<Node>, locals:ConstantList, def_keyword_loc:Location, operator_loc:Option<Location>, lparen_loc:Option<Location>, rparen_loc:Option<Location>, equal_loc:Option<Location>, end_keyword_loc:Option<Location>
+DefinedNode: lparen_loc:Option<Location>, value:Node, rparen_loc:Option<Location>, keyword_loc:Location
+ElseNode: else_keyword_loc:Location, statements:Option<StatementsNode>, end_keyword_loc:Option<Location>
+EmbeddedStatementsNode: opening_loc:Location, statements:Option<StatementsNode>, closing_loc:Location
+EmbeddedVariableNode: operator_loc:Location, variable:Node
+EnsureNode: ensure_keyword_loc:Location, statements:Option<StatementsNode>, end_keyword_loc:Location
+FalseNode: 
+FindPatternNode: constant:Option<Node>, left:SplatNode, requireds:NodeList, right:Node, opening_loc:Option<Location>, closing_loc:Option<Location>
+FlipFlopNode: is_exclude_end:bool, left:Option<Node>, right:Option<Node>, operator_loc:Location
+FloatNode: value:f64
+ForNode: index:Node, collection:Node, statements:Option<StatementsNode>, for_keyword_loc:Location, in_keyword_loc:Location, do_keyword_loc:Option<Location>, end_keyword_loc:Location
+ForwardingArgumentsNode: 
+ForwardingParameterNode: 
+ForwardingSuperNode: block:Option<BlockNode>
+GlobalVariableAndWriteNode: name:ConstantId, name_loc:Location, operator_loc:Location, value:Node
+GlobalVariableOperatorWriteNode: name:ConstantId, name_loc:Location, binary_operator_loc:Location, value:Node, binary_operator:ConstantId
+GlobalVariableOrWriteNode: name:ConstantId, name_loc:Location, operator_loc:Location, value:Node
+GlobalVariableReadNode: name:ConstantId
+GlobalVariableTargetNode: name:ConstantId
+GlobalVariableWriteNode: name:ConstantId, name_loc:Location, value:Node, operator_loc:Location
+HashNode: opening_loc:Location, elements:NodeList, closing_loc:Location
+HashPatternNode: constant:Option<Node>, elements:NodeList, rest:Option<Node>, opening_loc:Option<Location>, closing_loc:Option<Location>
+IfNode: if_keyword_loc:Option<Location>, predicate:Node, then_keyword_loc:Option<Location>, statements:Option<StatementsNode>, subsequent:Option<Node>, end_keyword_loc:Option<Location>
+ImaginaryNode: numeric:Node
+ImplicitNode: value:Node
+ImplicitRestNode: 
+InNode: pattern:Node, statements:Option<StatementsNode>, in_loc:Location, then_loc:Option<Location>
+IndexAndWriteNode: is_safe_navigation:bool, is_variable_call:bool, is_attribute_write:bool, is_ignore_visibility:bool, receiver:Option<Node>, call_operator_loc:Option<Location>, opening_loc:Location, arguments:Option<ArgumentsNode>, closing_loc:Location, block:Option<BlockArgumentNode>, operator_loc:Location, value:Node
+IndexOperatorWriteNode: is_safe_navigation:bool, is_variable_call:bool, is_attribute_write:bool, is_ignore_visibility:bool, receiver:Option<Node>, call_operator_loc:Option<Location>, opening_loc:Location, arguments:Option<ArgumentsNode>, closing_loc:Location, block:Option<BlockArgumentNode>, binary_operator:ConstantId, binary_operator_loc:Location, value:Node
+IndexOrWriteNode: is_safe_navigation:bool, is_variable_call:bool, is_attribute_write:bool, is_ignore_visibility:bool, receiver:Option<Node>, call_operator_loc:Option<Location>, opening_loc:Location, arguments:Option<ArgumentsNode>, closing_loc:Location, block:Option<BlockArgumentNode>, operator_loc:Location, value:Node
+IndexTargetNode: is_safe_navigation:bool, is_variable_call:bool, is_attribute_write:bool, is_ignore_visibility:bool, receiver:Node, opening_loc:Location, arguments:Option<ArgumentsNode>, closing_loc:Location, block:Option<BlockArgumentNode>
+InstanceVariableAndWriteNode: name:ConstantId, name_loc:Location, operator_loc:Location, value:Node
+InstanceVariableOperatorWriteNode: name:ConstantId, name_loc:Location, binary_operator_loc:Location, value:Node, binary_operator:ConstantId
+InstanceVariableOrWriteNode: name:ConstantId, name_loc:Location, operator_loc:Location, value:Node
+InstanceVariableReadNode: name:ConstantId
+InstanceVariableTargetNode: name:ConstantId
+InstanceVariableWriteNode: name:ConstantId, name_loc:Location, value:Node, operator_loc:Location
+IntegerNode: is_binary:bool, is_decimal:bool, is_octal:bool, is_hexadecimal:bool, value:Integer
+InterpolatedMatchLastLineNode: is_ignore_case:bool, is_extended:bool, is_multi_line:bool, is_once:bool, is_euc_jp:bool, is_ascii_8bit:bool, is_windows_31j:bool, is_utf_8:bool, is_forced_utf8_encoding:bool, is_forced_binary_encoding:bool, is_forced_us_ascii_encoding:bool, opening_loc:Location, parts:NodeList, closing_loc:Location
+InterpolatedRegularExpressionNode: is_ignore_case:bool, is_extended:bool, is_multi_line:bool, is_once:bool, is_euc_jp:bool, is_ascii_8bit:bool, is_windows_31j:bool, is_utf_8:bool, is_forced_utf8_encoding:bool, is_forced_binary_encoding:bool, is_forced_us_ascii_encoding:bool, opening_loc:Location, parts:NodeList, closing_loc:Location
+InterpolatedStringNode: is_frozen:bool, is_mutable:bool, opening_loc:Option<Location>, parts:NodeList, closing_loc:Option<Location>
+InterpolatedSymbolNode: opening_loc:Option<Location>, parts:NodeList, closing_loc:Option<Location>
+InterpolatedXStringNode: opening_loc:Location, parts:NodeList, closing_loc:Location
+ItLocalVariableReadNode: 
+ItParametersNode: 
+KeywordHashNode: is_symbol_keys:bool, elements:NodeList
+KeywordRestParameterNode: is_repeated_parameter:bool, name:Option<ConstantId>, name_loc:Option<Location>, operator_loc:Location
+LambdaNode: locals:ConstantList, operator_loc:Location, opening_loc:Location, closing_loc:Location, parameters:Option<Node>, body:Option<Node>
+LocalVariableAndWriteNode: name_loc:Location, operator_loc:Location, value:Node, name:ConstantId, depth:u32
+LocalVariableOperatorWriteNode: name_loc:Location, binary_operator_loc:Location, value:Node, name:ConstantId, binary_operator:ConstantId, depth:u32
+LocalVariableOrWriteNode: name_loc:Location, operator_loc:Location, value:Node, name:ConstantId, depth:u32
+LocalVariableReadNode: name:ConstantId, depth:u32
+LocalVariableTargetNode: name:ConstantId, depth:u32
+LocalVariableWriteNode: name:ConstantId, depth:u32, name_loc:Location, value:Node, operator_loc:Location
+MatchLastLineNode: is_ignore_case:bool, is_extended:bool, is_multi_line:bool, is_once:bool, is_euc_jp:bool, is_ascii_8bit:bool, is_windows_31j:bool, is_utf_8:bool, is_forced_utf8_encoding:bool, is_forced_binary_encoding:bool, is_forced_us_ascii_encoding:bool, opening_loc:Location, content_loc:Location, closing_loc:Location, unescaped:&[u8]
+MatchPredicateNode: value:Node, pattern:Node, operator_loc:Location
+MatchRequiredNode: value:Node, pattern:Node, operator_loc:Location
+MatchWriteNode: call:CallNode, targets:NodeList
+MissingNode: 
+ModuleNode: locals:ConstantList, module_keyword_loc:Location, constant_path:Node, body:Option<Node>, end_keyword_loc:Location, name:ConstantId
+MultiTargetNode: lefts:NodeList, rest:Option<Node>, rights:NodeList, lparen_loc:Option<Location>, rparen_loc:Option<Location>
+MultiWriteNode: lefts:NodeList, rest:Option<Node>, rights:NodeList, lparen_loc:Option<Location>, rparen_loc:Option<Location>, operator_loc:Location, value:Node
+NextNode: arguments:Option<ArgumentsNode>, keyword_loc:Location
+NilNode: 
+NoKeywordsParameterNode: operator_loc:Location, keyword_loc:Location
+NumberedParametersNode: maximum:u8
+NumberedReferenceReadNode: number:u32
+OptionalKeywordParameterNode: is_repeated_parameter:bool, name:ConstantId, name_loc:Location, value:Node
+OptionalParameterNode: is_repeated_parameter:bool, name:ConstantId, name_loc:Location, operator_loc:Location, value:Node
+OrNode: left:Node, right:Node, operator_loc:Location
+ParametersNode: requireds:NodeList, optionals:NodeList, rest:Option<Node>, posts:NodeList, keywords:NodeList, keyword_rest:Option<Node>, block:Option<BlockParameterNode>
+ParenthesesNode: is_multiple_statements:bool, body:Option<Node>, opening_loc:Location, closing_loc:Location
+PinnedExpressionNode: expression:Node, operator_loc:Location, lparen_loc:Location, rparen_loc:Location
+PinnedVariableNode: variable:Node, operator_loc:Location
+PostExecutionNode: statements:Option<StatementsNode>, keyword_loc:Location, opening_loc:Location, closing_loc:Location
+PreExecutionNode: statements:Option<StatementsNode>, keyword_loc:Location, opening_loc:Location, closing_loc:Location
+ProgramNode: locals:ConstantList, statements:StatementsNode
+RangeNode: is_exclude_end:bool, left:Option<Node>, right:Option<Node>, operator_loc:Location
+RationalNode: is_binary:bool, is_decimal:bool, is_octal:bool, is_hexadecimal:bool, numerator:Integer, denominator:Integer
+RedoNode: 
+RegularExpressionNode: is_ignore_case:bool, is_extended:bool, is_multi_line:bool, is_once:bool, is_euc_jp:bool, is_ascii_8bit:bool, is_windows_31j:bool, is_utf_8:bool, is_forced_utf8_encoding:bool, is_forced_binary_encoding:bool, is_forced_us_ascii_encoding:bool, opening_loc:Location, content_loc:Location, closing_loc:Location, unescaped:&[u8]
+RequiredKeywordParameterNode: is_repeated_parameter:bool, name:ConstantId, name_loc:Location
+RequiredParameterNode: is_repeated_parameter:bool, name:ConstantId
+RescueModifierNode: expression:Node, keyword_loc:Location, rescue_expression:Node
+RescueNode: keyword_loc:Location, exceptions:NodeList, operator_loc:Option<Location>, reference:Option<Node>, then_keyword_loc:Option<Location>, statements:Option<StatementsNode>, subsequent:Option<RescueNode>
+RestParameterNode: is_repeated_parameter:bool, name:Option<ConstantId>, name_loc:Option<Location>, operator_loc:Location
+RetryNode: 
+ReturnNode: keyword_loc:Location, arguments:Option<ArgumentsNode>
+SelfNode: 
+ShareableConstantNode: is_literal:bool, is_experimental_everything:bool, is_experimental_copy:bool, write:Node
+SingletonClassNode: locals:ConstantList, class_keyword_loc:Location, operator_loc:Location, expression:Node, body:Option<Node>, end_keyword_loc:Location
+SourceEncodingNode: 
+SourceFileNode: is_forced_utf8_encoding:bool, is_forced_binary_encoding:bool, is_frozen:bool, is_mutable:bool, filepath:&[u8]
+SourceLineNode: 
+SplatNode: operator_loc:Location, expression:Option<Node>
+StatementsNode: body:NodeList
+StringNode: is_forced_utf8_encoding:bool, is_forced_binary_encoding:bool, is_frozen:bool, is_mutable:bool, opening_loc:Option<Location>, content_loc:Location, closing_loc:Option<Location>, unescaped:&[u8]
+SuperNode: keyword_loc:Location, lparen_loc:Option<Location>, arguments:Option<ArgumentsNode>, rparen_loc:Option<Location>, block:Option<Node>
+SymbolNode: is_forced_utf8_encoding:bool, is_forced_binary_encoding:bool, is_forced_us_ascii_encoding:bool, opening_loc:Option<Location>, value_loc:Option<Location>, closing_loc:Option<Location>, unescaped:&[u8]
+TrueNode: 
+UndefNode: names:NodeList, keyword_loc:Location
+UnlessNode: keyword_loc:Location, predicate:Node, then_keyword_loc:Option<Location>, statements:Option<StatementsNode>, else_clause:Option<ElseNode>, end_keyword_loc:Option<Location>
+UntilNode: is_begin_modifier:bool, keyword_loc:Location, do_keyword_loc:Option<Location>, closing_loc:Option<Location>, predicate:Node, statements:Option<StatementsNode>
+WhenNode: keyword_loc:Location, conditions:NodeList, then_keyword_loc:Option<Location>, statements:Option<StatementsNode>
+WhileNode: is_begin_modifier:bool, keyword_loc:Location, do_keyword_loc:Option<Location>, closing_loc:Option<Location>, predicate:Node, statements:Option<StatementsNode>
+XStringNode: is_forced_utf8_encoding:bool, is_forced_binary_encoding:bool, opening_loc:Location, content_loc:Location, closing_loc:Location, unescaped:&[u8]
+YieldNode: keyword_loc:Location, lparen_loc:Option<Location>, arguments:Option<ArgumentsNode>, rparen_loc:Option<Location>

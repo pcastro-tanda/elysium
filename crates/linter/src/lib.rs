@@ -14,7 +14,7 @@ mod settings;
 
 pub use alignment::{heredoc_bodies, shift_lines};
 
-pub use context::{CommentInfo, Context, NodeInfo};
+pub use context::{CommentInfo, CommentKind, Context, NodeInfo, GLOBAL_SPAN};
 pub use diagnostic::{Applicability, Diagnostic, Edit, Fix, Severity};
 pub use engine::{
     lint_file, lint_parsed, lint_parsed_with, lint_parsed_with_injected, FileResult,
@@ -23,7 +23,7 @@ pub use engine::{
 pub use fix::{
     apply_fixes, fix_file, fix_file_with_injected, FixOutcome, FixReport, MAX_FIX_ITERATIONS,
 };
-pub use options::{OptionError, OptionValue, PeerOptions, RuleOptions};
+pub use options::{OptionError, OptionValue, PeerOptions, RuleOptions, DEFAULT_RUBY_VERSION};
 pub use rule::{
     subscription_table, ConfigDefault, ConfigOption, Department, Dispatch, FixAvailability,
     NoRules, Rule, RuleMeta, Stability,

@@ -14,9 +14,12 @@ use linter::{
 };
 use ruby_ast::{Node, NodeKind};
 
+pub mod bundler;
 pub mod gemspec;
 pub mod layout;
 pub mod lint;
+pub mod metrics;
+pub mod migration;
 pub mod naming;
 pub mod security;
 pub mod style;
@@ -43,8 +46,11 @@ macro_rules! rule_set {
 }
 
 rule_set! {
+    bundler::gem_filename::GemFilename,
+    layout::heredoc_indentation::HeredocIndentation,
     lint::redundant_cop_disable_directive::RedundantCopDisableDirective,
     lint::binary_operator_with_identical_operands::BinaryOperatorWithIdenticalOperands,
+    lint::circular_argument_reference::CircularArgumentReference,
     style::class_and_module_children::ClassAndModuleChildren,
     style::empty_else::EmptyElse,
     style::string_concatenation::StringConcatenation,
@@ -63,15 +69,20 @@ rule_set! {
     lint::redundant_string_coercion::RedundantStringCoercion,
     lint::empty_block::EmptyBlock,
     lint::empty_expression::EmptyExpression,
+    lint::empty_file::EmptyFile,
+    lint::erb_new_arguments::ErbNewArguments,
     lint::ensure_return::EnsureReturn,
     lint::each_with_object_argument::EachWithObjectArgument,
     layout::empty_line_between_defs::EmptyLineBetweenDefs,
     layout::empty_lines_around_class_body::EmptyLinesAroundClassBody,
     layout::space_around_operators::SpaceAroundOperators,
     layout::space_inside_hash_literal_braces::SpaceInsideHashLiteralBraces,
+    layout::space_inside_parens::SpaceInsideParens,
+    layout::space_inside_string_interpolation::SpaceInsideStringInterpolation,
     style::symbol_proc::SymbolProc,
     layout::space_inside_array_literal_brackets::SpaceInsideArrayLiteralBrackets,
     layout::space_inside_block_braces::SpaceInsideBlockBraces,
+    layout::space_inside_reference_brackets::SpaceInsideReferenceBrackets,
     layout::extra_spacing::ExtraSpacing,
     layout::hash_alignment::HashAlignment,
     style::word_array::WordArray,
@@ -100,6 +111,8 @@ rule_set! {
     style::trailing_comma_in_array_literal::TrailingCommaInArrayLiteral,
     style::accessor_grouping::AccessorGrouping,
     layout::trailing_whitespace::TrailingWhitespace,
+    layout::leading_empty_lines::LeadingEmptyLines,
+    layout::space_before_comment::SpaceBeforeComment,
     style::optional_boolean_parameter::OptionalBooleanParameter,
     lint::shadowed_exception::ShadowedException,
     lint::missing_super::MissingSuper,
@@ -147,6 +160,13 @@ rule_set! {
     naming::method_name::MethodName,
     naming::variable_name::VariableName,
     lint::unreachable_code::UnreachableCode,
+    layout::space_around_equals_in_parameter_default::SpaceAroundEqualsInParameterDefault,
+    layout::empty_comment::EmptyComment,
+    layout::end_of_line::EndOfLine,
+    layout::comment_indentation::CommentIndentation,
+    layout::indentation_style::IndentationStyle,
+    layout::empty_line_after_magic_comment::EmptyLineAfterMagicComment,
+    layout::initial_indentation::InitialIndentation,
 }
 
 /// Per-rule constants derived from [`Rule::META`] at compile time.
