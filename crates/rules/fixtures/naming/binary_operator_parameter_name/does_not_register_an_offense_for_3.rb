@@ -1,0 +1,3 @@
+def <<(cop)
+  other
+end

@@ -17,6 +17,10 @@ later tag's checkout instead:
   the `hash_receiver?` whitelist).
 - `lint/interpolation_check`: RuboCop 1.91.0 (`valid_syntax?` requotes as
   `%{...}` when the source contains `"` and requires a `dstr` result).
+- `lint/safe_navigation_with_empty`: RuboCop 1.91.0 (receiver pattern
+  `(send ...)` became `!csend`).
+- `lint/useless_method_definition`: RuboCop 1.91.0 (`**kwrest` joined the
+  rest/optional exemption).
 
 A case that does not state `AllCops/TargetRubyVersion` in its `.yml` runs at
 3.3: the specs were ported with `PARSER_ENGINE=parser_prism`, where RuboCop's

@@ -1,0 +1,3 @@
+<<-SQL_CODE
+  foo
+SQL_CODE

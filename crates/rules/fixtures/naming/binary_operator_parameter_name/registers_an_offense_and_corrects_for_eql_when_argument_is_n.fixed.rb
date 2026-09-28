@@ -1,0 +1,1 @@
+def eql?(other); end

@@ -1,0 +1,2 @@
+Naming/ClassAndModuleCamelCase:
+  AllowedNames: [getter_class, setter_class]

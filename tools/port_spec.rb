@@ -69,7 +69,7 @@ abort "could not read RuboCop version from #{version_file}" unless rubocop_versi
 # etc. make that ambiguous), find the spec file whose RSpec.describe matches
 # the fully qualified class exactly and derive dept/snake from its path.
 # Anchored at line start: other specs (InternalAffairs) quote describes inside heredocs.
-describe_pattern = /^RSpec\.describe\s+RuboCop::Cop::#{Regexp.escape(cop_dept)}::#{Regexp.escape(cop_name)}\b/
+describe_pattern = /^RSpec\.describe[\s(]+RuboCop::Cop::#{Regexp.escape(cop_dept)}::#{Regexp.escape(cop_name)}\b/
 spec_root = File.join(rubocop_src, 'spec/rubocop/cop')
 spec_file = Dir.glob(File.join(spec_root, '**/*_spec.rb')).find do |f|
   File.read(f).match?(describe_pattern)

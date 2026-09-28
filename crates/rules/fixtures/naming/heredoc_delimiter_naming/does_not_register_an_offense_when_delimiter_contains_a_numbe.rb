@@ -1,0 +1,3 @@
+<<-BASE64
+  foo
+BASE64

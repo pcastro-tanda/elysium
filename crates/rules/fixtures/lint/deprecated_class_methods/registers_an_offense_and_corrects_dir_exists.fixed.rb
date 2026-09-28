@@ -1,0 +1,1 @@
+Dir.exist?(o)

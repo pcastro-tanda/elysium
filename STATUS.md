@@ -156,10 +156,10 @@ semantic cops (60 rules total).
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 185 | 0 | 1 |
+| 204 | 0 | 1 |
 
 Promotion to `stable` requires >99% corpus conformance on `discourse` and
-`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 185 of 186 rules meet
+`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 204 of 205 rules meet
 it. At `nursery`:
 
 - `Lint/RedundantCopDisableDirective` — held back per policy regardless of
@@ -291,7 +291,10 @@ cop needs: `docs/planning/default-parity.md`.
    truth is batched (`cargo xtask conformance --rule A,B,...`). Wave 4a
    (16 small Lint/Bundler cops, `Bundler/InsecureProtocolSource` through
    `Lint/RescueType`) is ported, all `stable` at 100%;
-   `Lint/InterpolationCheck` follows RuboCop 1.91's `valid_syntax?`.
+   `Lint/InterpolationCheck` follows RuboCop 1.91's `valid_syntax?`. Wave 4b
+   (19 Lint/Naming/Security cops, `docs/planning/waves/wave4b.txt`) is
+   ported, all `stable` at 100%; porters ran in per-agent git worktrees
+   so an unfinished sibling file no longer breaks everyone's build.
 3. Phase 6 `[INFERENCE — no dedicated planning doc yet, extrapolated from
    the "What does not work yet" list above]`: config/CLI hardening — a
    `ConfigValidator` (type/unknown-cop errors), a minimal ERB subset

@@ -1,0 +1,2 @@
+Lint/InheritException:
+  EnforcedStyle: runtime_error

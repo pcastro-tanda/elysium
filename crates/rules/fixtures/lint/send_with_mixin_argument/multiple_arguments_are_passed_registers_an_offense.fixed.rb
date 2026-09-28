@@ -1,0 +1,1 @@
+Foo.include Bar, Baz

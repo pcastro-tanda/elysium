@@ -1,0 +1,1 @@
+Module::YAML.load("foo")

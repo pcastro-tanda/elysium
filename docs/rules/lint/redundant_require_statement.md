@@ -1,0 +1,48 @@
+# Lint/RedundantRequireStatement
+
+Checks for unnecessary `require` statement.
+
+| | |
+| --- | --- |
+| Department | Lint |
+| Enabled by default | true |
+| Default severity | warning |
+| Fix | safe |
+| Stability | stable |
+
+The following features are unnecessary `require` statement because they are already loaded. e.g. Ruby 2.2:
+
+```
+ruby -ve 'p $LOADED_FEATURES.reject { |feature| %r|/| =~ feature }'
+ruby 2.2.8p477 (2017-09-14 revision 59906) [x86_64-darwin13]
+["enumerator.so", "rational.so", "complex.so", "thread.rb"]
+```
+
+Below are the features that each `TargetRubyVersion` targets.
+
+* 2.0+ ... `enumerator`
+* 2.1+ ... `thread`
+* 2.2+ ... Add `rational` and `complex` above
+* 2.7+ ... Add `ruby2_keywords` above
+* 3.1+ ... Add `fiber` above
+* 3.2+ ... Add `set` above
+* 4.0+ ... Add `pathname` above
+
+This cop target those features.
+
+```ruby
+# bad
+require 'unloaded_feature'
+require 'thread'
+
+# good
+require 'unloaded_feature'
+```
+
+## Options
+
+This rule has no options.
+
+## Blind spots
+
+None recorded.
