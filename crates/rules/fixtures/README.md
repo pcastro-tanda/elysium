@@ -15,6 +15,8 @@ later tag's checkout instead:
 - `style/hash_transform_keys`, `style/hash_transform_values`: RuboCop 1.91.0
   (`HashTransformMethod` switched from the `array_receiver?` blacklist to
   the `hash_receiver?` whitelist).
+- `lint/interpolation_check`: RuboCop 1.91.0 (`valid_syntax?` requotes as
+  `%{...}` when the source contains `"` and requires a `dstr` result).
 
 A case that does not state `AllCops/TargetRubyVersion` in its `.yml` runs at
 3.3: the specs were ported with `PARSER_ENGINE=parser_prism`, where RuboCop's
@@ -22,6 +24,10 @@ A case that does not state `AllCops/TargetRubyVersion` in its `.yml` runs at
 therefore only records a version when the spec asked for a different one. The
 harness (`crates/rules/tests/fixtures.rs`) injects it; the engine's own
 default for real projects stays RuboCop's 2.7.
+
+`tools/port_spec.rb` does not capture examples whose source is not valid
+UTF-8: the two `with binary encoded source` cases each of
+`lint/percent_string_array` and `lint/percent_symbol_array`.
 
 ## Deliberately removed cases
 

@@ -58,6 +58,22 @@ macro_rules! rule_set {
 }
 
 rule_set! {
+    lint::rescue_type::RescueType,
+    lint::regexp_as_condition::RegexpAsCondition,
+    lint::redundant_with_object::RedundantWithObject,
+    lint::redundant_with_index::RedundantWithIndex,
+    lint::percent_symbol_array::PercentSymbolArray,
+    lint::percent_string_array::PercentStringArray,
+    lint::parentheses_as_grouped_expression::ParenthesesAsGroupedExpression,
+    lint::multiple_comparison::MultipleComparison,
+    lint::r#loop::Loop,
+    lint::interpolation_check::InterpolationCheck,
+    lint::identity_comparison::IdentityComparison,
+    lint::empty_interpolation::EmptyInterpolation,
+    lint::duplicate_require::DuplicateRequire,
+    lint::boolean_symbol::BooleanSymbol,
+    lint::big_decimal_new::BigDecimalNew,
+    bundler::insecure_protocol_source::InsecureProtocolSource,
     lint::empty_ensure::EmptyEnsure,
     naming::file_name::FileName,
     naming::ascii_identifiers::AsciiIdentifiers,

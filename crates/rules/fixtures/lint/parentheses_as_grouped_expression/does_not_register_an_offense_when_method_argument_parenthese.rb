@@ -1,0 +1,1 @@
+transition (foo - bar) => value

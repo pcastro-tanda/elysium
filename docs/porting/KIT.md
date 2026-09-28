@@ -54,8 +54,8 @@ impl Rule for MyCop {
         summary: "…",                       // default.yml Description
         explanation: "…",                   // upstream class doc, markdown
         enabled_by_default: true,
-        severity: Severity::Warning,        // Lint = Warning, else Convention
-        fix: FixAvailability::Always,       // None | Always | Sometimes (see rule.rs)
+        severity: Severity::Warning,        // default.yml `Severity:`, else Lint = Warning, else Convention
+        fix: FixAvailability::Safe,         // None | Safe | Unsafe (see rule.rs)
         stability: Stability::Nursery,      // keep Nursery
         kinds: &[NodeKind::WhenNode],       // nodes you get enter/leave for
         config: &[ConfigOption {

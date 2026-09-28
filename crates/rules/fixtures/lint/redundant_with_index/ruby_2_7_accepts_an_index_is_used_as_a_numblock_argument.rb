@@ -1,0 +1,1 @@
+ary.each_with_index { _1; _2 }

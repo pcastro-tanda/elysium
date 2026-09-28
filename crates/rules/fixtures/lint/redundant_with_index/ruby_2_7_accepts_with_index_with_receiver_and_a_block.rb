@@ -1,0 +1,1 @@
+ary.with_index { |v| v }

@@ -1,0 +1,6 @@
+foo(
+  <<~EOS
+    foo (
+    )
+  EOS
+)

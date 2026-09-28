@@ -24,13 +24,21 @@ def snake(name)
   name.gsub(/([A-Z]+)([A-Z][a-z])/, '\1_\2').gsub(/([a-z\d])([A-Z])/, '\1_\2').downcase
 end
 
+RUST_KEYWORDS = %w[
+  as break const continue crate else enum extern false fn for if impl in let loop match mod
+  move mut pub ref return self static struct super trait true type unsafe use where while
+  async await dyn abstract become box do final macro override priv typeof unsized virtual
+  yield try gen
+].freeze
+
 def rust_str(text)
   text.to_s.gsub('\\', '\\\\\\\\').gsub('"', '\"')
 end
 
 def skeleton(cop, entry, rubocop_path)
   dept, name = cop.split('/')
-  severity = dept == 'Lint' ? 'Warning' : 'Convention'
+  default = dept == 'Lint' ? 'warning' : 'convention'
+  severity = entry.fetch('Severity', default).capitalize
   <<~RUST
     //! `#{cop}`, ported from RuboCop's
     //! `#{rubocop_path}`.
@@ -110,6 +118,8 @@ ARGV.each do |cop|
     File.write(file, skeleton(cop, entry, rubocop_path))
     puts "created #{file.delete_prefix("#{ROOT}/")}"
   end
-  register_mod(dept_dir, mod_name)
-  register_rule_set("#{dept_snake}::#{mod_name}::#{name}")
+  # Rust keywords (`Lint/Loop` -> `loop`) need raw identifiers in paths.
+  ident = RUST_KEYWORDS.include?(mod_name) ? "r##{mod_name}" : mod_name
+  register_mod(dept_dir, ident)
+  register_rule_set("#{dept_snake}::#{ident}::#{name}")
 end

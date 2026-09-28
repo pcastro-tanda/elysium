@@ -1,0 +1,1 @@
+assert_equal (0..1.9), acceleration.domain

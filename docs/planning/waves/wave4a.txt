@@ -1,0 +1,16 @@
+Bundler/InsecureProtocolSource
+Lint/BigDecimalNew
+Lint/BooleanSymbol
+Lint/DuplicateRequire
+Lint/EmptyInterpolation
+Lint/IdentityComparison
+Lint/InterpolationCheck
+Lint/Loop
+Lint/MultipleComparison
+Lint/ParenthesesAsGroupedExpression
+Lint/PercentStringArray
+Lint/PercentSymbolArray
+Lint/RedundantWithIndex
+Lint/RedundantWithObject
+Lint/RegexpAsCondition
+Lint/RescueType

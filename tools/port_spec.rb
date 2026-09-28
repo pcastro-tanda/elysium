@@ -68,7 +68,8 @@ abort "could not read RuboCop version from #{version_file}" unless rubocop_versi
 # rather than reimplementing its CamelCase->snake_case inflection (acronyms
 # etc. make that ambiguous), find the spec file whose RSpec.describe matches
 # the fully qualified class exactly and derive dept/snake from its path.
-describe_pattern = /RSpec\.describe\s+RuboCop::Cop::#{Regexp.escape(cop_dept)}::#{Regexp.escape(cop_name)}\b/
+# Anchored at line start: other specs (InternalAffairs) quote describes inside heredocs.
+describe_pattern = /^RSpec\.describe\s+RuboCop::Cop::#{Regexp.escape(cop_dept)}::#{Regexp.escape(cop_name)}\b/
 spec_root = File.join(rubocop_src, 'spec/rubocop/cop')
 spec_file = Dir.glob(File.join(spec_root, '**/*_spec.rb')).find do |f|
   File.read(f).match?(describe_pattern)
@@ -402,7 +403,15 @@ begin
     end
 
     at_exit do
-      File.write(#{captures_path.inspect}, JSON.pretty_generate(CAPTURES))
+      # Examples whose source holds non-UTF-8 bytes (e.g. `"\\xC0"` in a heredoc) can't be
+      # serialized, and the fixture harness only reads UTF-8 sources anyway.
+      captures = CAPTURES.map do |entry|
+        JSON.generate(entry)
+        entry
+      rescue JSON::GeneratorError, Encoding::UndefinedConversionError
+        { 'kind' => 'uncaptured', 'path' => entry['path'], 'reason' => 'source is not valid UTF-8' }
+      end
+      File.write(#{captures_path.inspect}, JSON.pretty_generate(captures))
     end
   RUBY
 
