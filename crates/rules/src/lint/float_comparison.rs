@@ -162,7 +162,11 @@ fn is_numeric_returning_method(call: &CallNode<'_>) -> bool {
     match name.as_slice() {
         b"angle" | b"arg" | b"phase" => {
             let source = String::from_utf8_lossy(receiver.location().as_slice());
-            source.trim().parse::<f64>().is_ok_and(|value| value.is_sign_negative() && value != 0.0)
+            source
+                .trim()
+                .replace('_', "")
+                .parse::<f64>()
+                .is_ok_and(|value| value.is_sign_negative() && value != 0.0)
         }
         b"ceil" | b"floor" | b"round" | b"truncate" => {
             first_argument(call).is_some_and(|precision| {
@@ -253,7 +257,7 @@ end
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode, NodeKind::CaseNode],
         config: &[],
         blind_spots: "\

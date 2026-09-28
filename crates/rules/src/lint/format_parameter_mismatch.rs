@@ -23,31 +23,41 @@
 //! Ruby's Onigmo engine allows the same named group (`width`, `precision`,
 //! `name`, ...) to appear more than once in one pattern under alternation;
 //! Rust's `regex` crate rejects this at compile time. Since none of those
-//! values are read (see above), every occurrence except the four "does this
+//! values are read (see above), every occurrence except the five "does this
 //! sequence have a name" sites is rewritten as a non-capturing group, and
-//! the surviving `name` sites get distinct group names (`name_a`..`name_d`)
+//! the surviving `name` sites get distinct group names (`name_a`..`name_e`)
 //! merged back into one boolean after matching.
 //!
 //! Upstream's `TEMPLATE_NAME = /(?<!\#)\{(?<name>\w+)\}/` also carries a
 //! negative lookbehind rejecting a `{` immediately after a bare `#`, which
 //! Rust's `regex` crate cannot express at all (no lookaround). This is not
 //! a cosmetic omission: `FLAG` itself matches a literal `#` (the alternate-
-//! form flag, e.g. `%#x`), so scanning `%#{padding}s` greedily consumes the
-//! `#` as one `FLAG` repetition before ever trying the width/type branch,
-//! and only the lookbehind blocks the `{padding}` that follows from being
-//! misread as a `%{name}` template with the `#` stranded as ignored text --
-//! forcing the engine to backtrack `FLAG*` down to zero reps and re-parse
-//! `#{padding}` as the width's own `#{...}` interpolation alternative
-//! instead, yielding the intended single sequence `%#{padding}s`. Confirmed
-//! against upstream directly (`FormatString.new('"%#{padding}s: %s"')`
-//! parses to two sequences, `%#{padding}s` and `%s`, matching this cop's own
-//! `'does not register an offense when an interpolated width'` fixture) --
-//! this is exactly the shape of RuboCop's `'%*.*f'`-style dynamic-width
-//! cases plus a Ruby interpolation, not a hypothetical edge case. This port
-//! uses the `fancy-regex` crate (backtracking, supports lookaround) instead
-//! of `regex` for the sequence pattern specifically to keep this lookbehind,
-//! verified against upstream's own parser for every literal format string
-//! this cop's spec exercises.
+//! form flag, e.g. `%#x`), so without the lookbehind `%#{padding}` on its
+//! own (nothing following the interpolation) would misparse as `flags=#`
+//! plus a bare `{padding}` template, a sequence upstream never matches.
+//! The lookbehind only ever *rejects* a `{` that follows a bare trailing
+//! `#` flag with no `WIDTH`/`PRECISION` in between it and the `{` -- both
+//! `NUMBER`'s own `\#\{.*?\}` interpolation alternative and `PRECISION`'s
+//! leading `.` always leave a non-`#` character right before the `{` -- so
+//! it is reproducible without lookaround by splitting the
+//! `FLAG* WIDTH? PRECISION? TEMPLATE_NAME` alternative in two: one branch
+//! (sharing the ordinary unconstrained `FLAG*` used by the type-branches)
+//! requires `WIDTH` and/or `PRECISION` to be present, and a wholly separate
+//! top-level branch handles the case where both are absent, constraining
+//! its own flag run to not end in a bare `#`
+//! (`(?:FLAG)*(?:[ 0+-]|\d+\$)` -- any FLAG run whose *last* token is one
+//! of the non-`#` flags, or no flags at all). This reproduces the
+//! lookbehind exactly for every `FLAG`/`WIDTH`/`PRECISION` combination the
+//! grammar can produce. `%#{padding}s`-style sequences (a type character
+//! *follows* the interpolation) still match through the ordinary
+//! `FLAG* NUMBER? PRECISION? NAME? TYPE` branch above: once `FLAG*` backs
+//! off to zero reps, `NUMBER`'s own `\#\{.*?\}` alternative consumes
+//! `#{padding}` directly, exactly as Onigmo's backtracking would --
+//! confirmed against upstream directly (`FormatString.new('"%#{padding}s:
+//! %s"')` parses to two sequences, `%#{padding}s` and `%s`, matching this
+//! cop's own `'does not register an offense when an interpolated width'`
+//! fixture). No lookaround is needed anywhere, so the whole pattern lives
+//! in the `regex` crate; `fancy-regex` is not a dependency.
 //!
 //! # A latent upstream crash this port does not reproduce
 //!
@@ -89,7 +99,6 @@
 
 use std::sync::LazyLock;
 
-use fancy_regex::Regex as FancyRegex;
 use linter::{
     Context, Department, FixAvailability, OptionError, Rule, RuleMeta, RuleOptions, Severity,
     Stability,
@@ -104,6 +113,11 @@ const MSG_INVALID: &str = "Format string is invalid because formatting sequence 
 
 /// `FLAG` from `format_string.rb`, minus its unused `arg_number` capture.
 const FLAG: &str = r"(?:[ #0+-]|\d+\$)";
+/// `FLAG` minus the bare `#` alternative: any flag token that cannot leave
+/// a `#` immediately before what follows it. Used to constrain a flag run
+/// that sits directly against a `{name}` template with no `WIDTH`/
+/// `PRECISION` in between (see the module doc).
+const FLAG_NON_HASH: &str = r"(?:[ 0+-]|\d+\$)";
 /// `NUMBER` (covers `WIDTH`/`PRECISION`'s shared grammar), minus captures.
 const NUMBER: &str = r"(?:\d+|\*(?:\d+\$)?|\#\{.*?\})";
 /// `PRECISION`, minus captures.
@@ -112,17 +126,19 @@ const PRECISION: &str = r"(?:\.(?:\d+|\*(?:\d+\$)?|\#\{.*?\})?)";
 const TYPE: &str = "[bBdiouxXeEfgGaAcps]";
 
 /// RuboCop's `FormatString::SEQUENCE`. See the module doc for why this
-/// keeps only the `pct`/`name_*` captures and needs `fancy-regex`.
-fn sequence_regex() -> &'static FancyRegex {
-    static RE: LazyLock<FancyRegex> = LazyLock::new(|| {
+/// keeps only the `pct`/`name_*` captures and reproduces `TEMPLATE_NAME`'s
+/// negative lookbehind without lookaround.
+fn sequence_regex() -> &'static Regex {
+    static RE: LazyLock<Regex> = LazyLock::new(|| {
         let pattern = format!(
             "%(?P<pct>%)\
              |%(?:{FLAG})*(?:(?:{NUMBER}?{PRECISION}?(?:<(?P<name_a>\\w+)>)?\
              |{NUMBER}?(?:<(?P<name_b>\\w+)>){PRECISION}?\
              |(?:<(?P<name_c>\\w+)>)(?:{FLAG})*{NUMBER}?{PRECISION}?){TYPE}\
-             |{NUMBER}?{PRECISION}?(?<!\\#)\\{{(?P<name_d>\\w+)\\}})"
+             |(?:{NUMBER}{PRECISION}?|{PRECISION})\\{{(?P<name_d>\\w+)\\}})\
+             |%(?:(?:{FLAG})*{FLAG_NON_HASH})?\\{{(?P<name_e>\\w+)\\}}"
         );
-        FancyRegex::new(&pattern).expect("valid format-sequence regex")
+        Regex::new(&pattern).expect("valid format-sequence regex")
     });
     &RE
 }
@@ -155,29 +171,24 @@ struct FormatSequence {
 fn parse_format_sequences(text: &str) -> Vec<FormatSequence> {
     let re = sequence_regex();
     let dd = digit_dollar_regex();
-    let mut out = Vec::new();
-    let mut pos = 0usize;
-    while pos <= text.len() {
-        let Ok(Some(m)) = re.find_from_pos(text, pos) else { break };
-        let matched = m.as_str();
-        let caps = re.captures(matched).ok().flatten();
-        let name = caps.as_ref().is_some_and(|c| {
-            c.name("name_a").is_some()
-                || c.name("name_b").is_some()
-                || c.name("name_c").is_some()
-                || c.name("name_d").is_some()
-        });
-        let percent = caps.as_ref().is_some_and(|c| c.name("pct").is_some());
-        let arity = u32::try_from(matched.matches('*').count()).unwrap_or(u32::MAX - 1) + 1;
-        let max_digit_dollar = dd
-            .captures_iter(matched)
-            .filter_map(|c| c.get(1))
-            .filter_map(|g| g.as_str().parse::<u32>().ok())
-            .max();
-        out.push(FormatSequence { percent, name, arity, max_digit_dollar });
-        pos = if m.end() > m.start() { m.end() } else { m.end() + 1 };
-    }
-    out
+    re.captures_iter(text)
+        .map(|caps| {
+            let matched = caps.get(0).expect("SEQUENCE always matches").as_str();
+            let name = caps.name("name_a").is_some()
+                || caps.name("name_b").is_some()
+                || caps.name("name_c").is_some()
+                || caps.name("name_d").is_some()
+                || caps.name("name_e").is_some();
+            let percent = caps.name("pct").is_some();
+            let arity = u32::try_from(matched.matches('*').count()).unwrap_or(u32::MAX - 1) + 1;
+            let max_digit_dollar = dd
+                .captures_iter(matched)
+                .filter_map(|c| c.get(1))
+                .filter_map(|g| g.as_str().parse::<u32>().ok())
+                .max();
+            FormatSequence { percent, name, arity, max_digit_dollar }
+        })
+        .collect()
 }
 
 /// One category a non-percent [`FormatSequence`] can fall into, for
@@ -373,7 +384,7 @@ fn check(call: &CallNode<'_>, ctx: &mut Context<'_>) {
     };
     let Some(source_node) = source_node else { return };
 
-    let source_text = String::from_utf8_lossy(ctx.text(source_node.span())).into_owned();
+    let source_text = String::from_utf8_lossy(ctx.text(source_node.span()));
     let sequences = parse_format_sequences(&source_text);
 
     if !is_valid(&sequences) {
@@ -447,7 +458,7 @@ format('Numbered format: %1$s and numbered %2$s', a_value, another)
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "\

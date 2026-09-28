@@ -8,7 +8,7 @@ Checks for non-local exits from iterators without a return value.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 It registers an offense under these conditions:
 
@@ -59,5 +59,6 @@ this port (the `find_each` block itself is not chained, and the search never
 reaches past `transaction`'s empty argument list to find a chained ancestor
 further out, because there is none in that example -- see the last spec
 example). `chained_send?`/`lambda?`/`define_method?` all match by bare
-method name only, with no receiver check beyond `chained_send?`'s own
-non-nil requirement, exactly like upstream.
+method name only; `chained_send?`/`define_method?` additionally require a
+`send`, not `csend`, owning call, so a safe-navigated one (`items&.each { }`,
+`obj&.define_method(:m) { }`) is excluded from both, exactly like upstream.

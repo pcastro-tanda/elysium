@@ -29,7 +29,9 @@ use regex::Regex;
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
-use super::configurable_naming::{identifier_matches, matches_style, pattern_matches, Style};
+use super::configurable_naming::{
+    compile_patterns, identifier_matches, matches_style, pattern_matches, Style,
+};
 
 /// Makes sure that all variables use the configured style, `snake_case` or
 /// camelCase, for their names.
@@ -129,7 +131,7 @@ release_v1 = true
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: KINDS,
         config: &[
             ConfigOption {
@@ -171,9 +173,9 @@ nodes and are never checked; both always satisfy `snake_case`.",
         Ok(Self {
             style: Style::parse(options.style("EnforcedStyle")?),
             allowed_identifiers: options.str_list("AllowedIdentifiers"),
-            allowed_patterns: compile(&options.str_list("AllowedPatterns")),
+            allowed_patterns: compile_patterns(&options.str_list("AllowedPatterns")),
             forbidden_identifiers: options.str_list("ForbiddenIdentifiers"),
-            forbidden_patterns: compile(&options.str_list("ForbiddenPatterns")),
+            forbidden_patterns: compile_patterns(&options.str_list("ForbiddenPatterns")),
         })
     }
 
@@ -218,10 +220,6 @@ impl VariableName {
             format!("`{}` is forbidden, use another name instead.", String::from_utf8_lossy(name)),
         );
     }
-}
-
-fn compile(patterns: &[String]) -> Vec<Regex> {
-    patterns.iter().filter_map(|p| Regex::new(p).ok()).collect()
 }
 
 const fn is_global(kind: NodeKind) -> bool {

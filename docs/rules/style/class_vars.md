@@ -8,7 +8,7 @@ Checks for uses of class variables.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for uses of class variables. Offenses
 are signaled only on assignment to class variables to

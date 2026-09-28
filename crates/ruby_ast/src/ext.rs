@@ -3,7 +3,7 @@
 //! `rubocop-ast`'s `Node`/`RuboCop::AST::MethodDispatchNode` mixins for the
 //! upstream originals.
 
-use crate::node::CallNode;
+use crate::node::{CallNode, NodeList, StatementsNode};
 use crate::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
@@ -147,6 +147,111 @@ pub fn const_name(node: &Node<'_>) -> Option<String> {
     }
 }
 
+/// `Lint::LITERAL_RECURSIVE_METHODS` (rubocop-ast's `Node`): the only
+/// `send`-node method names an expression may use and still count as a
+/// recursive basic literal -- `COMPARISON_OPERATORS + [*, !, <=>]`. Shared
+/// by `Style/HashLikeCase` and `Lint/DuplicateHashKey`, both of which port
+/// rubocop-ast's `Node#recursive_basic_literal?`.
+#[must_use]
+pub fn is_literal_recursive_method(name: &[u8]) -> bool {
+    matches!(name, b"==" | b"===" | b"!=" | b"<=" | b">=" | b">" | b"<" | b"*" | b"!" | b"<=>")
+}
+
+/// rubocop-ast's `Node#recursive_basic_literal?`, extended to also recurse
+/// through a bare `StatementsNode` -- Prism's stand-in for whitequark's
+/// `begin` node (in `LITERAL_RECURSIVE_TYPES` upstream), reached when
+/// `Style/HashLikeCase` hands this function a multi-statement `when` body
+/// directly. `Lint/DuplicateHashKey`'s own recursion never reaches a bare
+/// `StatementsNode` this way (its `ParenthesesNode`/`EmbeddedStatementsNode`
+/// arms require exactly one statement first), so that extra arm is inert
+/// for it.
+#[must_use]
+pub fn is_recursive_basic_literal(node: &Node<'_>) -> bool {
+    match node {
+        Node::NilNode { .. }
+        | Node::TrueNode { .. }
+        | Node::FalseNode { .. }
+        | Node::IntegerNode { .. }
+        | Node::FloatNode { .. }
+        | Node::StringNode { .. }
+        | Node::SymbolNode { .. }
+        | Node::RegularExpressionNode { .. } => true,
+        Node::InterpolatedRegularExpressionNode { .. } => node
+            .as_interpolated_regular_expression_node()
+            .is_some_and(|n| n.parts().iter().all(|p| is_recursive_basic_literal(&p))),
+        Node::InterpolatedStringNode { .. } => node
+            .as_interpolated_string_node()
+            .is_some_and(|n| n.parts().iter().all(|p| is_recursive_basic_literal(&p))),
+        Node::InterpolatedSymbolNode { .. } => node
+            .as_interpolated_symbol_node()
+            .is_some_and(|n| n.parts().iter().all(|p| is_recursive_basic_literal(&p))),
+        Node::ArrayNode { .. } => node
+            .as_array_node()
+            .is_some_and(|n| n.elements().iter().all(|el| is_recursive_basic_literal(&el))),
+        Node::HashNode { .. } => {
+            node.as_hash_node().is_some_and(|n| pairs_are_literal(&n.elements()))
+        }
+        Node::KeywordHashNode { .. } => {
+            node.as_keyword_hash_node().is_some_and(|n| pairs_are_literal(&n.elements()))
+        }
+        Node::AndNode { .. } => node.as_and_node().is_some_and(|n| {
+            is_recursive_basic_literal(&n.left()) && is_recursive_basic_literal(&n.right())
+        }),
+        Node::OrNode { .. } => node.as_or_node().is_some_and(|n| {
+            is_recursive_basic_literal(&n.left()) && is_recursive_basic_literal(&n.right())
+        }),
+        Node::RangeNode { .. } => node.as_range_node().is_some_and(|n| {
+            n.left().is_none_or(|side| is_recursive_basic_literal(&side))
+                && n.right().is_none_or(|side| is_recursive_basic_literal(&side))
+        }),
+        Node::CallNode { .. } => node.as_call_node().is_some_and(|n| {
+            is_literal_recursive_method(n.name().as_slice())
+                && n.receiver().is_some_and(|r| is_recursive_basic_literal(&r))
+                && match n.arguments() {
+                    Some(args) => args.arguments().iter().all(|a| is_recursive_basic_literal(&a)),
+                    None => true,
+                }
+        }),
+        Node::ParenthesesNode { .. } => node.as_parentheses_node().is_some_and(|n| {
+            n.body().and_then(|b| b.as_statements_node()).is_some_and(|stmts| {
+                single_statement(&stmts).is_some_and(|s| is_recursive_basic_literal(&s))
+            })
+        }),
+        Node::EmbeddedStatementsNode { .. } => {
+            node.as_embedded_statements_node().is_some_and(|n| {
+                n.statements().is_some_and(|stmts| {
+                    single_statement(&stmts).is_some_and(|s| is_recursive_basic_literal(&s))
+                })
+            })
+        }
+        Node::StatementsNode { .. } => node
+            .as_statements_node()
+            .is_some_and(|n| n.body().iter().all(|s| is_recursive_basic_literal(&s))),
+        _ => false,
+    }
+}
+
+/// A `StatementsNode` with exactly one statement, standing in for that
+/// statement itself.
+fn single_statement<'pr>(stmts: &StatementsNode<'pr>) -> Option<Node<'pr>> {
+    let body = stmts.body();
+    if body.len() == 1 {
+        body.first()
+    } else {
+        None
+    }
+}
+
+/// `HashNode#pairs`/`#keys`: only `AssocNode` (`pair`) elements count; a
+/// `**splat` (`AssocSplatNode`) makes the enclosing literal unrecognized.
+fn pairs_are_literal(list: &NodeList<'_>) -> bool {
+    list.iter().all(|element| {
+        element.as_assoc_node().is_some_and(|assoc| {
+            is_recursive_basic_literal(&assoc.key()) && is_recursive_basic_literal(&assoc.value())
+        })
+    })
+}
+
 #[cfg(test)]
 mod tests {
     use super::*;
@@ -265,5 +370,36 @@ mod tests {
             n.as_call_node().map(|c| call_span_excluding_block(&c))
         });
         assert_eq!(&source.bytes()[span.start as usize..span.end as usize], b"foo");
+    }
+
+    #[test]
+    fn is_recursive_basic_literal_matches_literal_shapes_rejects_others() {
+        let source = parse("[1, :a, 'b']\n");
+        let parsed = Parsed::parse(&source);
+        let array = first_where(&parsed.root(), |n| {
+            matches!(n, Node::ArrayNode { .. }).then(|| is_recursive_basic_literal(n))
+        });
+        assert!(array, "array of basic literals should be recognized");
+
+        let source = parse("1 == 2\n");
+        let parsed = Parsed::parse(&source);
+        let comparison = first_where(&parsed.root(), |n| {
+            matches!(n, Node::CallNode { .. }).then(|| is_recursive_basic_literal(n))
+        });
+        assert!(comparison, "comparison sends between literals should be recognized");
+
+        let source = parse("foo(1)\n");
+        let parsed = Parsed::parse(&source);
+        let bare_call = first_where(&parsed.root(), |n| {
+            matches!(n, Node::CallNode { .. }).then(|| is_recursive_basic_literal(n))
+        });
+        assert!(!bare_call, "a receiver-less non-literal-recursive send should be rejected");
+
+        let source = parse("1r\n");
+        let parsed = Parsed::parse(&source);
+        let rational = first_where(&parsed.root(), |n| {
+            matches!(n, Node::RationalNode { .. }).then(|| is_recursive_basic_literal(n))
+        });
+        assert!(!rational, "rational literals are not recognized, matching the documented gap");
     }
 }

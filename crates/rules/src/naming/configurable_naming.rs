@@ -82,8 +82,13 @@ pub(crate) fn matches_style(style: Style, name: &[u8]) -> bool {
 /// `AllowedIdentifiers`/`ForbiddenIdentifiers`' shared `SIGILS` constant:
 /// `@`/`@@`/`$` are stripped before an identifier is compared, so
 /// `AllowedIdentifiers: [fooBar]` also allows `@fooBar`/`@@fooBar`/`$fooBar`.
-fn strip_sigils(name: &[u8]) -> Vec<u8> {
-    name.iter().copied().filter(|&b| b != b'@' && b != b'$').collect()
+/// A sigil only ever leads an identifier, so a byte slice suffices -- no
+/// per-comparison `Vec` allocation.
+fn strip_sigils(name: &[u8]) -> &[u8] {
+    match name {
+        [b'@', b'@', rest @ ..] | [b'@' | b'$', rest @ ..] => rest,
+        _ => name,
+    }
 }
 
 /// RuboCop's `AllowedIdentifiers#allowed_identifier?`/
@@ -97,7 +102,7 @@ pub(crate) fn identifier_matches(list: &[String], name: &[u8]) -> bool {
         return false;
     }
     let stripped = strip_sigils(name);
-    list.iter().any(|candidate| candidate.as_bytes() == stripped.as_slice())
+    list.iter().any(|candidate| candidate.as_bytes() == stripped)
 }
 
 /// RuboCop's `AllowedPattern#matches_allowed_pattern?`/
@@ -111,4 +116,12 @@ pub(crate) fn pattern_matches(patterns: &[Regex], name: &[u8]) -> bool {
         Ok(s) => patterns.iter().any(|pattern| pattern.is_match(s)),
         Err(_) => false,
     }
+}
+
+/// Compiles a rule's `AllowedPattern`/`ForbiddenPattern` config list into
+/// regexes, silently dropping any entry that fails to compile (shared by
+/// `Naming::MethodName` and `Naming::VariableName`, which each read the
+/// same two config keys from their own `RuleOptions`).
+pub(crate) fn compile_patterns(patterns: &[String]) -> Vec<Regex> {
+    patterns.iter().filter_map(|p| Regex::new(p).ok()).collect()
 }

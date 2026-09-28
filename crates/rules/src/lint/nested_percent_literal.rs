@@ -85,7 +85,7 @@ attributes = {
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::ArrayNode],
         config: &[],
         blind_spots: "\
@@ -109,18 +109,18 @@ interpolated element (one containing `#{`) can never match either implementation
             return;
         }
 
-        let has_nested = array.elements().iter().any(|element| {
-            let unescaped = match &element {
-                Node::StringNode { .. } => {
-                    element.as_string_node().expect("kind matched").unescaped().to_vec()
-                }
-                Node::SymbolNode { .. } => {
-                    element.as_symbol_node().expect("kind matched").unescaped().to_vec()
-                }
-                _ => return false,
-            };
-            let text = String::from_utf8_lossy(&unescaped);
-            nested_percent_opener_re().is_match(&text)
+        let has_nested = array.elements().iter().any(|element| match &element {
+            Node::StringNode { .. } => {
+                let string_node = element.as_string_node().expect("kind matched");
+                let text = String::from_utf8_lossy(string_node.unescaped());
+                nested_percent_opener_re().is_match(&text)
+            }
+            Node::SymbolNode { .. } => {
+                let symbol_node = element.as_symbol_node().expect("kind matched");
+                let text = String::from_utf8_lossy(symbol_node.unescaped());
+                nested_percent_opener_re().is_match(&text)
+            }
+            _ => false,
         });
 
         if has_nested {

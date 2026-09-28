@@ -14,15 +14,15 @@
 //! order reproduces upstream's source order for free.
 //!
 //! A destructured block parameter (`|(a, b), *c|`) is Prism's
-//! `MultiTargetNode`, which upstream's `check` never special-cases -- its
-//! generic `arg.children.first`/`.to_s` would read the mlhs node's own
-//! first child, not a name, so a destructured parameter is only reachable
-//! through this port's own recursion into `MultiTargetNode`'s
-//! `lefts`/`rest`/`rights` (and a nested `SplatNode`'s `expression`),
-//! applying the same per-leaf checks. This is a deliberate improvement
-//! over a literal port (upstream can't meaningfully check these either,
-//! since `children.first` on an mlhs is not a name), not a documented
-//! upstream behavior; no fixture exercises it.
+//! `MultiTargetNode`. Upstream's generic `check` reads
+//! `arg.children.first.to_s` for every parameter node, and for an mlhs
+//! (`args (mlhs ...))`) node that reads the mlhs's own first child -- an
+//! AST node, not a name -- so the resulting `full_name`/comparisons never
+//! meaningfully match anything and no offense is ever issued (verified
+//! against RuboCop 1.82.1: `foo { |(a, b)| }` is never flagged). This port
+//! reproduces that by skipping `MultiTargetNode` entirely in
+//! [`visit_param`] rather than inventing a per-leaf check upstream itself
+//! can't perform.
 //!
 //! `...` (argument forwarding) becomes a `ForwardingParameterNode`
 //! (occupying the `rest` bucket), which carries no name and so is
@@ -103,8 +103,8 @@ pub(crate) fn check(
     }
 }
 
-/// Dispatches one parameter-list entry: recurses into a destructured
-/// target (see the module doc), otherwise extracts a name/range via
+/// Dispatches one parameter-list entry: skips a destructured target
+/// entirely (see the module doc), otherwise extracts a name/range via
 /// [`named_extent`] and runs upstream's `check` body on it (the `_`
 /// exemption, the leading-underscore trim, `AllowedNames`, then
 /// [`issue_offenses`]).
@@ -115,24 +115,10 @@ fn visit_param(
     ctx: &mut Context<'_>,
     meta: &RuleMeta,
 ) {
-    if let Some(target) = node.as_multi_target_node() {
-        for left in &target.lefts() {
-            visit_param(config, name_type, &left, ctx, meta);
-        }
-        if let Some(rest) = target.rest() {
-            visit_param(config, name_type, &rest, ctx, meta);
-        }
-        for right in &target.rights() {
-            visit_param(config, name_type, &right, ctx, meta);
-        }
+    if node.as_multi_target_node().is_some() {
         return;
     }
-    if let Some(splat) = node.as_splat_node() {
-        if let Some(expression) = splat.expression() {
-            visit_param(config, name_type, &expression, ctx, meta);
-        }
-        return;
-    }
+
     let Some((full_name, begin, extra)) = named_extent(node) else { return };
     // Upstream: `next if full_name == '_'`.
     if full_name == b"_" {
@@ -196,9 +182,11 @@ fn trim_leading_underscores(full_name: &[u8]) -> &[u8] {
 }
 
 /// Upstream's `issue_offenses`: forbidden-name, then case, then length,
-/// then (unless `AllowNamesEndingInNumbers`) trailing-number -- all
-/// independently evaluated, so more than one may fire for a single
-/// parameter.
+/// then (unless `AllowNamesEndingInNumbers`) trailing-number, each
+/// independently evaluated against `name` -- but the engine dedups same-rule
+/// diagnostics sharing an identical span (this rule always reports the same
+/// `span` for a given parameter), so only the first matching check actually
+/// surfaces a diagnostic for it.
 fn issue_offenses(
     config: &UncommunicativeNameConfig,
     name_type: NameType,

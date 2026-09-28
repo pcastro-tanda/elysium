@@ -8,7 +8,7 @@ Checks whether constant names are written using SCREAMING_SNAKE_CASE.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks whether constant names are written using
 SCREAMING_SNAKE_CASE.

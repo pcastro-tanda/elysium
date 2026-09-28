@@ -311,7 +311,7 @@ INCH_IN_CM = 2.54
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[
             NodeKind::ConstantWriteNode,
             NodeKind::ConstantPathWriteNode,

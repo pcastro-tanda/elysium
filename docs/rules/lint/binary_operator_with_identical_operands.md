@@ -8,7 +8,7 @@ Checks for places where binary operator has identical operands.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for places where binary operator has identical operands.
 

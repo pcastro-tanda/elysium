@@ -23,8 +23,9 @@
 //! [`UnreachableCode::flow_expression`] is a direct, non-reporting port of
 //! upstream's private `flow_expression?`: given a single statement, does it
 //! unconditionally divert control flow (a bare `return`/`next`/`break`/
-//! `redo`/`retry`, a `raise`/`fail`/`throw`/`exit`/`exit!`/`abort` call with
-//! no receiver or an explicit `Kernel`/`::Kernel` receiver, or an `if`/
+//! `redo`/`retry`, a `raise`/`fail`/`throw`/`exit`/`exit!`/`abort` `send`
+//! (never `csend`/safe-navigated) call with no receiver or an explicit
+//! `Kernel`/`::Kernel` receiver, or an `if`/
 //! `unless`/`case`/`case`-`in` whose every branch does)? Its recursion
 //! only ever descends through other pure statement-sequencing constructs
 //! (`begin`/`if`/`unless`/`case`/`case`-`in`), never through a block or
@@ -163,6 +164,9 @@ impl UnreachableCode {
     /// call shape: one of [`FLOW_METHODS`], with no receiver or an explicit
     /// bare/top-level-qualified `Kernel` receiver.
     fn is_flow_command_call(call: &CallNode<'_>) -> bool {
+        if call.is_safe_navigation() {
+            return false;
+        }
         if !FLOW_METHODS.contains(&call.name().as_slice()) {
             return false;
         }
@@ -374,7 +378,7 @@ end
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::StatementsNode, NodeKind::CallNode],
         config: &[],
         blind_spots: "\
@@ -410,11 +414,18 @@ module body is never seen, matching upstream's identical blind spot.",
             }
             NodeKind::StatementsNode => {
                 let stmts = node.as_statements_node().expect("kind matched");
-                let body: Vec<Node<'_>> = stmts.body().iter().collect();
-                for pair in body.windows(2) {
-                    if self.flow_expression(&pair[0]) {
-                        ctx.report(&Self::META, pair[1].span(), MSG);
+                let body = stmts.body();
+                if body.len() < 2 {
+                    return;
+                }
+                let mut prev: Option<Node<'_>> = None;
+                for statement in &body {
+                    if let Some(prev_stmt) = prev.take() {
+                        if self.flow_expression(&prev_stmt) {
+                            ctx.report(&Self::META, statement.span(), MSG);
+                        }
                     }
+                    prev = Some(statement);
                 }
             }
             _ => {}

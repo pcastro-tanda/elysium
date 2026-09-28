@@ -184,7 +184,7 @@ for numbers in the code (eg `1.2e4`). Different styles are supported:
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::FloatNode],
         config: &[ConfigOption {
             name: "EnforcedStyle",

@@ -8,7 +8,7 @@ Checks for loops that will have at most one iteration.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for loops that will have at most one iteration.
 
@@ -103,4 +103,4 @@ exactly(2).times { raise StandardError }
 
 ## Blind spots
 
-`conditional_continue_keyword?`'s `each_descendant(:or).to_a.last` takes the last `or` node in traversal (pre-)order, which for a chain of more than one `||` is not necessarily the last one written in source (every fixture has at most one `||`, so this never diverges in practice). A nested `begin...end` with its own `rescue`/`else`/`ensure` clause is only ever scanned through its plain `statements`, matching upstream's naive `*node` splat on a `:begin`/ `:kwbegin` AST node, which never looks inside those clauses either.
+`conditional_continue_keyword?`'s `each_descendant(:or).to_a.last` takes the last `or` node in traversal (pre-)order, which for a chain of more than one `||` is not necessarily the last one written in source (every fixture has at most one `||`, so this never diverges in practice).

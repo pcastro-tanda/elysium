@@ -397,7 +397,7 @@ end
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: linter::FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[
             NodeKind::DefNode,
             NodeKind::CallNode,

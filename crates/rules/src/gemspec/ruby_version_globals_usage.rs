@@ -10,30 +10,38 @@
 //! matching the `Gem::Specification.new do |x| ... end` pattern and returns truthy if
 //! one exists anywhere -- it does not require the flagged `RUBY_VERSION`/`Ruby::VERSION`
 //! node to be nested inside that block, only that such a block exists somewhere in the
-//! same file. This port mirrors that literally: [`RubyVersionGlobalsUsage::file_start`]
-//! scans the whole tree once for a matching block and every `RUBY_VERSION`/`Ruby::VERSION`
-//! reference anywhere in the file is flagged if it found one, regardless of nesting.
+//! same file. Rather than running a second, dedicated whole-tree walk (`each_descendant`)
+//! per file to search for the block, this port reuses the single walk the engine already
+//! performs for every subscribed node kind: [`RubyVersionGlobalsUsage::enter`] is also
+//! subscribed to `CallNode` and flips [`RubyVersionGlobalsUsage::has_gem_specification`]
+//! the first time it sees a matching block anywhere in the file, while every
+//! `RUBY_VERSION`/`Ruby::VERSION` reference is collected into
+//! [`RubyVersionGlobalsUsage::ruby_version_candidates`] regardless of nesting or of
+//! whether the block has been seen yet. [`Rule::file_end`] then reports every collected
+//! candidate iff the flag ended up set, reproducing the same file-global, order-independent
+//! semantics as the two-pass version without a second tree traversal.
 //!
 //! # Matching `RUBY_VERSION` / `Ruby::VERSION`
 //!
 //! Upstream's `ruby_version?` matcher is `{(const {cbase nil?} :RUBY_VERSION) (const (const
 //! {cbase nil?} :Ruby) :VERSION)}`: a bare or top-level-qualified `RUBY_VERSION`, or a
 //! `VERSION` constant path whose own namespace is a bare or top-level-qualified `Ruby` (and
-//! no further namespace, e.g. `Foo::Ruby::VERSION` does not match). [`ruby_ast::ext::const_name`]
-//! flattens a leading `::` (`cbase`) to nothing, so comparing its output against the literal
-//! strings `"RUBY_VERSION"` and `"Ruby::VERSION"` reproduces exactly this shape: `RUBY_VERSION`,
-//! `::RUBY_VERSION`, `Ruby::VERSION`, and `::Ruby::VERSION` all match, while `Foo::RUBY_VERSION`
-//! and `Foo::Ruby::VERSION` do not (their flattened name carries the extra segment).
+//! no further namespace, e.g. `Foo::Ruby::VERSION` does not match). [`const_name_matches`]
+//! walks a constant (path) node's segments innermost-first against an expected segment list,
+//! treating a leading `::` (`cbase`, no `parent`) as contributing no extra segment -- the same
+//! shape [`ruby_ast::ext::const_name`] flattens to a string, but compared directly against
+//! byte slices with no `String`/`Vec` allocation per node, since this runs on every constant
+//! (path) node in every file rather than only on a rare match.
 //!
 //! # `Gem::Specification.new` block shape
 //!
 //! `GemspecHelp`'s pattern is `(block (send (const (const {cbase nil?} :Gem) :Specification)
 //! :new) (args (arg $_)) ...)`: the block's owning call must be `Gem::Specification.new` (`Gem`'s
 //! own namespace bare or top-level-qualified, matched here the same way as above via
-//! `const_name` equalling `"Gem::Specification"`), and its parameter list must be exactly one
-//! required positional parameter -- no optional/rest/post/keyword/block parameters -- captured
-//! by [`is_single_required_param_block`] checking every `ParametersNode` list is empty except
-//! `requireds`, which must have length one.
+//! [`const_name_matches`] against `["Gem", "Specification"]`), and its parameter list must be
+//! exactly one required positional parameter -- no optional/rest/post/keyword/block parameters
+//! -- captured by [`is_single_required_param_block`] checking every `ParametersNode` list is
+//! empty except `requireds`, which must have length one.
 //!
 //! Message: RuboCop's `%<ruby_version>s` is filled with `node.source`, i.e. the flagged node's
 //! own exact source text (preserving a leading `::` or the `Ruby::` qualifier as written),
@@ -43,12 +51,39 @@ use linter::{
     Context, Department, FixAvailability, OptionError, Rule, RuleMeta, RuleOptions, Severity,
     Stability,
 };
-use ruby_ast::ext::const_name;
-use ruby_ast::{each_descendant, Node, NodeExt as _, NodeKind};
+use ruby_ast::{Node, NodeExt as _, NodeKind};
+use ruby_source::Span;
 
 /// RuboCop's `MSG`.
 const MSG_PREFIX: &str = "Do not use `";
 const MSG_SUFFIX: &str = "` in gemspec file.";
+
+/// Recursively compares a constant (path) node's segments, innermost-first, against `segments`
+/// with no `String`/`Vec` allocation -- see the module doc's "Matching `RUBY_VERSION` /
+/// `Ruby::VERSION`" section. `segments` lists the expected path outer-to-inner (e.g.
+/// `["Gem", "Specification"]` for `Gem::Specification`); a leading `::` (`cbase`, no `parent`)
+/// contributes nothing extra, matching upstream's `cbase_type?` special case.
+fn const_name_matches(node: &Node<'_>, segments: &[&[u8]]) -> bool {
+    match node.kind() {
+        NodeKind::ConstantReadNode => {
+            let Some(c) = node.as_constant_read_node() else { return false };
+            matches!(segments, [only] if c.name().as_slice() == *only)
+        }
+        NodeKind::ConstantPathNode => {
+            let Some(path) = node.as_constant_path_node() else { return false };
+            let Some((last, init)) = segments.split_last() else { return false };
+            let Some(short) = path.name() else { return false };
+            if short.as_slice() != *last {
+                return false;
+            }
+            match path.parent() {
+                Some(parent) => const_name_matches(&parent, init),
+                None => init.is_empty(),
+            }
+        }
+        _ => false,
+    }
+}
 
 /// Whether `node` (a `BlockNode`) is a `do |x| ... end`/`{ |x| ... }` block with exactly one
 /// required positional parameter and no other parameter kinds -- RuboCop's `(args (arg $_))`.
@@ -80,7 +115,7 @@ fn is_gem_specification_new(call_node: &Node<'_>) -> bool {
         return false;
     }
     let Some(receiver) = call.receiver() else { return false };
-    if const_name(&receiver).as_deref() != Some("Gem::Specification") {
+    if !const_name_matches(&receiver, &[b"Gem", b"Specification"]) {
         return false;
     }
     let Some(block) = call.block() else { return false };
@@ -90,7 +125,7 @@ fn is_gem_specification_new(call_node: &Node<'_>) -> bool {
 /// Whether the flagged node's flattened constant name is `RUBY_VERSION` or `Ruby::VERSION`.
 /// See the module doc's "Matching `RUBY_VERSION` / `Ruby::VERSION`" section.
 fn is_ruby_version_reference(node: &Node<'_>) -> bool {
-    matches!(const_name(node).as_deref(), Some("RUBY_VERSION" | "Ruby::VERSION"))
+    const_name_matches(node, &[b"RUBY_VERSION"]) || const_name_matches(node, &[b"Ruby", b"VERSION"])
 }
 
 /// Checks that `RUBY_VERSION` and `Ruby::VERSION` constants are not used in gemspec.
@@ -119,8 +154,11 @@ fn is_ruby_version_reference(node: &Node<'_>) -> bool {
 #[derive(Debug, Clone, Default)]
 pub struct RubyVersionGlobalsUsage {
     /// Whether the file contains a `Gem::Specification.new do |x| ... end` block anywhere,
-    /// computed once in [`Rule::file_start`] by scanning the whole tree (see the module doc).
+    /// set the first time [`Rule::enter`] sees one (see the module doc).
     has_gem_specification: bool,
+    /// Every `RUBY_VERSION`/`Ruby::VERSION` reference span seen so far this file, reported in
+    /// [`Rule::file_end`] iff `has_gem_specification` ended up set (see the module doc).
+    ruby_version_candidates: Vec<Span>,
 }
 
 impl Rule for RubyVersionGlobalsUsage {
@@ -153,8 +191,8 @@ end
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
-        kinds: &[NodeKind::ConstantReadNode, NodeKind::ConstantPathNode],
+        stability: Stability::Stable,
+        kinds: &[NodeKind::CallNode, NodeKind::ConstantReadNode, NodeKind::ConstantPathNode],
         config: &[],
         blind_spots: "\
 Upstream's `gem_specification` search does not require the flagged constant to be nested inside
@@ -170,23 +208,35 @@ rule's own logic.",
     }
 
     fn file_start(&mut self, ctx: &mut Context<'_>) {
+        let _ = ctx;
         self.has_gem_specification = false;
-        let root = ctx.parsed().root();
-        let mut found = false;
-        each_descendant(&root, &mut |node| {
-            if !found && node.kind() == NodeKind::CallNode && is_gem_specification_new(node) {
-                found = true;
-            }
-        });
-        self.has_gem_specification = found;
+        self.ruby_version_candidates.clear();
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
-        if !self.has_gem_specification || !is_ruby_version_reference(node) {
+        let _ = ctx;
+        match node.kind() {
+            NodeKind::CallNode => {
+                if !self.has_gem_specification && is_gem_specification_new(node) {
+                    self.has_gem_specification = true;
+                }
+            }
+            NodeKind::ConstantReadNode | NodeKind::ConstantPathNode
+                if is_ruby_version_reference(node) =>
+            {
+                self.ruby_version_candidates.push(node.span());
+            }
+            _ => {}
+        }
+    }
+
+    fn file_end(&mut self, ctx: &mut Context<'_>) {
+        if !self.has_gem_specification {
             return;
         }
-        let span = node.span();
-        let source = String::from_utf8_lossy(ctx.text(span)).into_owned();
-        ctx.report(&Self::META, span, format!("{MSG_PREFIX}{source}{MSG_SUFFIX}"));
+        for span in std::mem::take(&mut self.ruby_version_candidates) {
+            let source = String::from_utf8_lossy(ctx.text(span)).into_owned();
+            ctx.report(&Self::META, span, format!("{MSG_PREFIX}{source}{MSG_SUFFIX}"));
+        }
     }
 }

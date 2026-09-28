@@ -8,7 +8,7 @@ Checks block parameter names for how descriptive they are.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 It is highly configurable.
 

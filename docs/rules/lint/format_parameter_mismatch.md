@@ -8,7 +8,7 @@ Checks for a mismatch between the number of expected fields for format/sprintf/#
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for a mismatch between the number of expected fields for
 format/sprintf/#% and what is actually passed as arguments.

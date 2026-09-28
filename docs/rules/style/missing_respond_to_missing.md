@@ -8,7 +8,7 @@ Checks for the presence of `method_missing` without also defining `respond_to_mi
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for the presence of `method_missing` without also
 defining `respond_to_missing?`.
@@ -68,4 +68,11 @@ Upstream's `node.parent.parent` ancestor hop does not respect scope
 boundaries, so a `respond_to_missing?` nested inside an unrelated nested
 class/module within the same enclosing body still counts as implementing
 it; this port reproduces that faithfully via `each_descendant` rather than
-restricting the search to the immediate class/module body.
+restricting the search to the immediate class/module body. A
+`method_missing` that is its immediately enclosing scope's only statement
+searches that scope's own enclosing scope instead (matching whitequark's
+`begin`-elision quirk, see the module doc's "Scope lookup" section) --
+except when that immediately enclosing scope is already the top-level
+program (a bare top-level `method_missing`, not nested in any
+class/module/singleton class), where this port keeps searching the
+program's own subtree rather than always flagging as upstream would.

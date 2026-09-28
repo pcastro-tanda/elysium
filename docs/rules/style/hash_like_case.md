@@ -8,7 +8,7 @@ Checks for places where `case-when` represents a simple 1:1 mapping and can be r
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for places where `case-when` represents a simple 1:1
 mapping and can be replaced with a hash lookup.

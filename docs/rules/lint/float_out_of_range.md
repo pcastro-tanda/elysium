@@ -8,7 +8,7 @@ Catches floating-point literals too large or small for Ruby to represent.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Identifies `Float` literals which are, like, really really really
 really really really really big. Too big. No-one needs Floats

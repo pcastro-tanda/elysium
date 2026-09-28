@@ -6,7 +6,7 @@
 
 | Cop | Fix | Stability | Summary |
 | --- | --- | --- | --- |
-| [Gemspec/RubyVersionGlobalsUsage](gemspec/ruby_version_globals_usage.md) | none | nursery | Checks usage of RUBY_VERSION in gemspec. |
+| [Gemspec/RubyVersionGlobalsUsage](gemspec/ruby_version_globals_usage.md) | none | stable | Checks usage of RUBY_VERSION in gemspec. |
 
 ## Layout
 
@@ -35,45 +35,45 @@
 | Cop | Fix | Stability | Summary |
 | --- | --- | --- | --- |
 | [Lint/AmbiguousBlockAssociation](lint/ambiguous_block_association.md) | safe | stable | Checks for ambiguous block association with method when param passed without parentheses. |
-| [Lint/BinaryOperatorWithIdenticalOperands](lint/binary_operator_with_identical_operands.md) | none | nursery | Checks for places where binary operator has identical operands. |
-| [Lint/ConstantDefinitionInBlock](lint/constant_definition_in_block.md) | none | nursery | Checks for the definition of constants within a block. |
+| [Lint/BinaryOperatorWithIdenticalOperands](lint/binary_operator_with_identical_operands.md) | none | stable | Checks for places where binary operator has identical operands. |
+| [Lint/ConstantDefinitionInBlock](lint/constant_definition_in_block.md) | none | stable | Checks for the definition of constants within a block. |
 | [Lint/ConstantResolution](lint/constant_resolution.md) | none | stable | Checks that constants are fully qualified with `::`. |
 | [Lint/Debugger](lint/debugger.md) | none | stable | Checks for debugger calls. |
-| [Lint/DuplicateCaseCondition](lint/duplicate_case_condition.md) | none | nursery | Checks that there are no repeated conditions used in case 'when' expressions. |
-| [Lint/DuplicateElsifCondition](lint/duplicate_elsif_condition.md) | none | nursery | Checks that there are no repeated conditions used in if 'elsif'. |
+| [Lint/DuplicateCaseCondition](lint/duplicate_case_condition.md) | none | stable | Checks that there are no repeated conditions used in case 'when' expressions. |
+| [Lint/DuplicateElsifCondition](lint/duplicate_elsif_condition.md) | none | stable | Checks that there are no repeated conditions used in if 'elsif'. |
 | [Lint/DuplicateHashKey](lint/duplicate_hash_key.md) | none | stable | Checks for duplicated keys in hash literals. |
 | [Lint/DuplicateMethods](lint/duplicate_methods.md) | none | stable | Checks for duplicated instance (or singleton) method definitions. |
-| [Lint/DuplicateRescueException](lint/duplicate_rescue_exception.md) | none | nursery | Checks that there are no repeated exceptions used in `rescue` expressions. |
-| [Lint/EachWithObjectArgument](lint/each_with_object_argument.md) | none | nursery | Checks if `each_with_object` is called with an immutable argument. |
+| [Lint/DuplicateRescueException](lint/duplicate_rescue_exception.md) | none | stable | Checks that there are no repeated exceptions used in `rescue` expressions. |
+| [Lint/EachWithObjectArgument](lint/each_with_object_argument.md) | none | stable | Checks if `each_with_object` is called with an immutable argument. |
 | [Lint/ElseLayout](lint/else_layout.md) | safe | stable | Checks for odd code arrangement in an else block. |
 | [Lint/EmptyBlock](lint/empty_block.md) | none | stable | Checks for blocks without a body. |
-| [Lint/EmptyExpression](lint/empty_expression.md) | none | nursery | Checks for the presence of empty expressions. |
-| [Lint/EnsureReturn](lint/ensure_return.md) | none | nursery | Checks for `return` from an `ensure` block. |
-| [Lint/FlipFlop](lint/flip_flop.md) | none | nursery | Checks for flip-flops. |
-| [Lint/FloatComparison](lint/float_comparison.md) | none | nursery | Checks for the presence of precise comparison of floating point numbers. |
-| [Lint/FloatOutOfRange](lint/float_out_of_range.md) | none | nursery | Catches floating-point literals too large or small for Ruby to represent. |
-| [Lint/FormatParameterMismatch](lint/format_parameter_mismatch.md) | none | nursery | Checks for a mismatch between the number of expected fields for format/sprintf/#% and what is actually passed as arguments. |
-| [Lint/HashCompareByIdentity](lint/hash_compare_by_identity.md) | none | nursery | Checks for hashes being keyed by objects' `object_id`. |
+| [Lint/EmptyExpression](lint/empty_expression.md) | none | stable | Checks for the presence of empty expressions. |
+| [Lint/EnsureReturn](lint/ensure_return.md) | none | stable | Checks for `return` from an `ensure` block. |
+| [Lint/FlipFlop](lint/flip_flop.md) | none | stable | Checks for flip-flops. |
+| [Lint/FloatComparison](lint/float_comparison.md) | none | stable | Checks for the presence of precise comparison of floating point numbers. |
+| [Lint/FloatOutOfRange](lint/float_out_of_range.md) | none | stable | Catches floating-point literals too large or small for Ruby to represent. |
+| [Lint/FormatParameterMismatch](lint/format_parameter_mismatch.md) | none | stable | Checks for a mismatch between the number of expected fields for format/sprintf/#% and what is actually passed as arguments. |
+| [Lint/HashCompareByIdentity](lint/hash_compare_by_identity.md) | none | stable | Checks for hashes being keyed by objects' `object_id`. |
 | [Lint/MissingSuper](lint/missing_super.md) | none | stable | Checks for the presence of constructors and lifecycle callbacks without calls to `super`. |
-| [Lint/MixedRegexpCaptureTypes](lint/mixed_regexp_capture_types.md) | none | nursery | Checks for regexp literals that mix named and numbered captures. |
-| [Lint/NestedMethodDefinition](lint/nested_method_definition.md) | none | nursery | Checks for nested method definitions. |
-| [Lint/NestedPercentLiteral](lint/nested_percent_literal.md) | none | nursery | Checks for nested percent literals. |
-| [Lint/NextWithoutAccumulator](lint/next_without_accumulator.md) | none | nursery | Don't omit the accumulator when calling `next` in a `reduce` block. |
-| [Lint/NonLocalExitFromIterator](lint/non_local_exit_from_iterator.md) | none | nursery | Checks for non-local exits from iterators without a return value. |
+| [Lint/MixedRegexpCaptureTypes](lint/mixed_regexp_capture_types.md) | none | stable | Checks for regexp literals that mix named and numbered captures. |
+| [Lint/NestedMethodDefinition](lint/nested_method_definition.md) | none | stable | Checks for nested method definitions. |
+| [Lint/NestedPercentLiteral](lint/nested_percent_literal.md) | none | stable | Checks for nested percent literals. |
+| [Lint/NextWithoutAccumulator](lint/next_without_accumulator.md) | none | stable | Don't omit the accumulator when calling `next` in a `reduce` block. |
+| [Lint/NonLocalExitFromIterator](lint/non_local_exit_from_iterator.md) | none | stable | Checks for non-local exits from iterators without a return value. |
 | [Lint/NumberConversion](lint/number_conversion.md) | unsafe | stable | Warns the usage of unsafe number conversions. |
-| [Lint/RandOne](lint/rand_one.md) | none | nursery | Checks for `rand(1)` calls. |
+| [Lint/RandOne](lint/rand_one.md) | none | stable | Checks for `rand(1)` calls. |
 | [Lint/RedundantCopDisableDirective](lint/redundant_cop_disable_directive.md) | safe | nursery | Detects instances of rubocop:disable comments that can be removed. |
 | [Lint/RedundantStringCoercion](lint/redundant_string_coercion.md) | safe | stable | Checks for `Object#to_s` usage in string interpolation. |
-| [Lint/RequireParentheses](lint/require_parentheses.md) | none | nursery | Checks for expressions where there is a call to a predicate method with at least one argument, where no parentheses are used around the parameter list, and a boolean operator, && or ||, is used in the last argument. |
-| [Lint/RescueException](lint/rescue_exception.md) | none | nursery | Checks for `rescue` blocks targeting the `Exception` class. |
-| [Lint/ReturnInVoidContext](lint/return_in_void_context.md) | none | nursery | Checks for the use of a return with a value in a context where the value will be ignored. |
+| [Lint/RequireParentheses](lint/require_parentheses.md) | none | stable | Checks for expressions where there is a call to a predicate method with at least one argument, where no parentheses are used around the parameter list, and a boolean operator, && or ||, is used in the last argument. |
+| [Lint/RescueException](lint/rescue_exception.md) | none | stable | Checks for `rescue` blocks targeting the `Exception` class. |
+| [Lint/ReturnInVoidContext](lint/return_in_void_context.md) | none | stable | Checks for the use of a return with a value in a context where the value will be ignored. |
 | [Lint/SelfAssignment](lint/self_assignment.md) | none | stable | Checks for self-assignments. |
 | [Lint/ShadowedException](lint/shadowed_exception.md) | none | stable | Checks for a rescued exception that get shadowed by a less specific exception being rescued before a more specific exception is rescued. |
 | [Lint/ShadowingOuterLocalVariable](lint/shadowing_outer_local_variable.md) | none | stable | Do not use the same name as outer local variable for block arguments or block local variables. |
-| [Lint/StructNewOverride](lint/struct_new_override.md) | none | nursery | Checks unexpected overrides of the `Struct` built-in methods via `Struct.new`. |
-| [Lint/UnreachableCode](lint/unreachable_code.md) | none | nursery | Checks for unreachable code. |
-| [Lint/UnreachableLoop](lint/unreachable_loop.md) | none | nursery | Checks for loops that will have at most one iteration. |
-| [Lint/UriEscapeUnescape](lint/uri_escape_unescape.md) | none | nursery | Checks for places where `URI.escape`/`URI.unescape` (and their aliases) can be replaced by more specific, non-obsolete methods. |
+| [Lint/StructNewOverride](lint/struct_new_override.md) | none | stable | Checks unexpected overrides of the `Struct` built-in methods via `Struct.new`. |
+| [Lint/UnreachableCode](lint/unreachable_code.md) | none | stable | Checks for unreachable code. |
+| [Lint/UnreachableLoop](lint/unreachable_loop.md) | none | stable | Checks for loops that will have at most one iteration. |
+| [Lint/UriEscapeUnescape](lint/uri_escape_unescape.md) | none | stable | Checks for places where `URI.escape`/`URI.unescape` (and their aliases) can be replaced by more specific, non-obsolete methods. |
 | [Lint/UselessAccessModifier](lint/useless_access_modifier.md) | safe | stable | Checks for redundant access modifiers. |
 | [Lint/UselessAssignment](lint/useless_assignment.md) | safe | stable | Checks for useless assignment to a local variable. |
 
@@ -82,44 +82,44 @@
 | Cop | Fix | Stability | Summary |
 | --- | --- | --- | --- |
 | [Naming/AccessorMethodName](naming/accessor_method_name.md) | none | stable | Avoid prefixing accessor method names with `get_` or `set_`. |
-| [Naming/BlockParameterName](naming/block_parameter_name.md) | none | nursery | Checks block parameter names for how descriptive they are. |
-| [Naming/ConstantName](naming/constant_name.md) | none | nursery | Checks whether constant names are written using SCREAMING_SNAKE_CASE. |
-| [Naming/MethodName](naming/method_name.md) | none | nursery | Makes sure that all methods use the configured style, snake_case or camelCase, for their names. |
-| [Naming/MethodParameterName](naming/method_parameter_name.md) | none | nursery | Checks method parameter names for how descriptive they are. |
-| [Naming/VariableName](naming/variable_name.md) | none | nursery | Makes sure that all variables use the configured style, snake_case or camelCase, for their names. |
+| [Naming/BlockParameterName](naming/block_parameter_name.md) | none | stable | Checks block parameter names for how descriptive they are. |
+| [Naming/ConstantName](naming/constant_name.md) | none | stable | Checks whether constant names are written using SCREAMING_SNAKE_CASE. |
+| [Naming/MethodName](naming/method_name.md) | none | stable | Makes sure that all methods use the configured style, snake_case or camelCase, for their names. |
+| [Naming/MethodParameterName](naming/method_parameter_name.md) | none | stable | Checks method parameter names for how descriptive they are. |
+| [Naming/VariableName](naming/variable_name.md) | none | stable | Makes sure that all variables use the configured style, snake_case or camelCase, for their names. |
 
 ## Security
 
 | Cop | Fix | Stability | Summary |
 | --- | --- | --- | --- |
-| [Security/Eval](security/eval.md) | none | nursery | Checks for the use of `Kernel#eval` and `Binding#eval`. |
-| [Security/MarshalLoad](security/marshal_load.md) | none | nursery | Checks for the use of `Marshal` class methods which have potential security issues. |
-| [Security/Open](security/open.md) | none | nursery | Checks for the use of `Kernel#open` and `URI.open` with dynamic data. |
+| [Security/Eval](security/eval.md) | none | stable | Checks for the use of `Kernel#eval` and `Binding#eval`. |
+| [Security/MarshalLoad](security/marshal_load.md) | none | stable | Checks for the use of `Marshal` class methods which have potential security issues. |
+| [Security/Open](security/open.md) | none | stable | Checks for the use of `Kernel#open` and `URI.open` with dynamic data. |
 
 ## Style
 
 | Cop | Fix | Stability | Summary |
 | --- | --- | --- | --- |
 | [Style/AccessorGrouping](style/accessor_grouping.md) | safe | stable | Checks for grouping of accessors in `class` and `module` bodies. |
-| [Style/BeginBlock](style/begin_block.md) | none | nursery | Checks for BEGIN blocks. |
+| [Style/BeginBlock](style/begin_block.md) | none | stable | Checks for BEGIN blocks. |
 | [Style/ClassAndModuleChildren](style/class_and_module_children.md) | unsafe | stable | Checks that namespaced classes and modules are defined with a consistent style. |
-| [Style/ClassVars](style/class_vars.md) | none | nursery | Checks for uses of class variables. |
+| [Style/ClassVars](style/class_vars.md) | none | stable | Checks for uses of class variables. |
 | [Style/Documentation](style/documentation.md) | none | stable | Checks for missing top-level documentation of classes and modules. |
 | [Style/EmptyElse](style/empty_else.md) | safe | stable | Checks for empty `else`-clauses, possibly including comments and/or an explicit `nil` depending on the `EnforcedStyle`. |
-| [Style/ExponentialNotation](style/exponential_notation.md) | none | nursery | Enforces consistency when using exponential notation for numbers in the code. |
+| [Style/ExponentialNotation](style/exponential_notation.md) | none | stable | Enforces consistency when using exponential notation for numbers in the code. |
 | [Style/FrozenStringLiteralComment](style/frozen_string_literal_comment.md) | unsafe | stable | Add the frozen_string_literal comment to the top of files to help transition to frozen string literals by default. |
 | [Style/GuardClause](style/guard_clause.md) | safe | stable | Checks for conditionals that can be replaced with guard clauses. |
-| [Style/HashLikeCase](style/hash_like_case.md) | none | nursery | Checks for places where `case-when` represents a simple 1:1 mapping and can be replaced with a hash lookup. |
+| [Style/HashLikeCase](style/hash_like_case.md) | none | stable | Checks for places where `case-when` represents a simple 1:1 mapping and can be replaced with a hash lookup. |
 | [Style/HashSyntax](style/hash_syntax.md) | safe | stable | Prefer Ruby 1.9 hash syntax `{ a: 1, b: 2 }` over 1.8 syntax `{ :a => 1, :b => 2 }`. |
 | [Style/IfUnlessModifier](style/if_unless_modifier.md) | safe | stable | Favor modifier if/unless usage when you have a single-line body. |
 | [Style/IfUnlessModifierOfIfUnless](style/if_unless_modifier_of_if_unless.md) | safe | stable | Avoid modifier if/unless usage on conditionals. |
-| [Style/MissingRespondToMissing](style/missing_respond_to_missing.md) | none | nursery | Checks for the presence of `method_missing` without also defining `respond_to_missing?`. |
-| [Style/MixinUsage](style/mixin_usage.md) | none | nursery | Checks that `include`, `extend` and `prepend` statements appear inside classes and modules, not at the top level. |
-| [Style/MultilineBlockChain](style/multiline_block_chain.md) | none | nursery | Checks for chaining of a block after another block that spans multiple lines. |
+| [Style/MissingRespondToMissing](style/missing_respond_to_missing.md) | none | stable | Checks for the presence of `method_missing` without also defining `respond_to_missing?`. |
+| [Style/MixinUsage](style/mixin_usage.md) | none | stable | Checks that `include`, `extend` and `prepend` statements appear inside classes and modules, not at the top level. |
+| [Style/MultilineBlockChain](style/multiline_block_chain.md) | none | stable | Checks for chaining of a block after another block that spans multiple lines. |
 | [Style/MutableConstant](style/mutable_constant.md) | unsafe | stable | Do not assign mutable objects to constants. |
 | [Style/NumericLiteralPrefix](style/numeric_literal_prefix.md) | safe | stable | Use smallcase prefixes for numeric literals. |
 | [Style/NumericLiterals](style/numeric_literals.md) | safe | stable | Checks for big numeric literals without `_` between groups of digits in them. |
-| [Style/OptionalArguments](style/optional_arguments.md) | none | nursery | Checks for optional arguments to methods that do not come at the end of the argument list. |
+| [Style/OptionalArguments](style/optional_arguments.md) | none | stable | Checks for optional arguments to methods that do not come at the end of the argument list. |
 | [Style/OptionalBooleanParameter](style/optional_boolean_parameter.md) | none | stable | Checks for places where keyword arguments can be used instead of boolean arguments when defining methods. |
 | [Style/RedundantCondition](style/redundant_condition.md) | safe | stable | Checks for unnecessary conditional expressions. |
 | [Style/RedundantParentheses](style/redundant_parentheses.md) | safe | stable | Checks for parentheses that seem not to serve any purpose. |

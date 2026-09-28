@@ -8,7 +8,7 @@ Checks for regexp literals that mix named and numbered captures.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Do not mix named captures and numbered captures in a `Regexp` literal
 because numbered capture is ignored if they're mixed.

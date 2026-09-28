@@ -8,7 +8,7 @@ Checks for the use of `Marshal` class methods which have potential security issu
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for the use of Marshal class methods which have
 potential security issues leading to remote code execution when

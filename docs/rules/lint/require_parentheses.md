@@ -8,7 +8,7 @@ Checks for expressions where there is a call to a predicate method with at least
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for expressions where there is a call to a predicate
 method with at least one argument, where no parentheses are used around

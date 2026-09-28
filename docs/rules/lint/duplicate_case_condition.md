@@ -8,7 +8,7 @@ Checks that there are no repeated conditions used in case 'when' expressions.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks that there are no repeated conditions used in case 'when' expressions.
 

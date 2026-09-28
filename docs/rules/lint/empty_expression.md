@@ -8,7 +8,7 @@ Checks for the presence of empty expressions.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for the presence of empty expressions.
 

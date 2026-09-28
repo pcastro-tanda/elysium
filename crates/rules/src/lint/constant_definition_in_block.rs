@@ -47,7 +47,8 @@ use linter::{
     ConfigDefault, ConfigOption, Context, Department, OptionError, Rule, RuleMeta, RuleOptions,
     Severity, Stability,
 };
-use ruby_ast::{Node, NodeExt as _, NodeKind};
+use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
+use ruby_source::Span;
 
 /// RuboCop's `MSG`.
 const MSG: &str = "Do not define constants this way within a block.";
@@ -121,17 +122,18 @@ const MSG: &str = "Do not define constants this way within a block.";
 pub struct ConstantDefinitionInBlock {
     /// `AllowedMethods`.
     allowed_methods: Vec<String>,
-    /// Method names of every `CallNode` with a literal block currently being
-    /// walked into, innermost last. See the module doc's "`method_name`"
-    /// section.
-    block_owner_stack: Vec<Vec<u8>>,
+    /// Spans of the message (`message_loc`) of every `CallNode` with a
+    /// literal block currently being walked into, innermost last. Text is
+    /// read via `ctx.text` only when a constant/class/module is actually
+    /// nested. See the module doc's "`method_name`" section.
+    block_owner_stack: Vec<Span>,
 }
 
 impl ConstantDefinitionInBlock {
     /// RuboCop's `allowed_method?`, applied to the nearest enclosing block's
     /// owning method name.
-    fn allowed_method(&self, name: &[u8]) -> bool {
-        let name = String::from_utf8_lossy(name);
+    fn allowed_method(&self, ctx: &Context<'_>, span: Span) -> bool {
+        let name = String::from_utf8_lossy(ctx.text(span));
         self.allowed_methods.iter().any(|m| m == name.as_ref())
     }
 
@@ -156,7 +158,7 @@ impl ConstantDefinitionInBlock {
         if !Self::in_block_body(ctx) {
             return;
         }
-        if self.block_owner_stack.last().is_some_and(|name| self.allowed_method(name)) {
+        if self.block_owner_stack.last().is_some_and(|&span| self.allowed_method(ctx, span)) {
             return;
         }
         ctx.report(&Self::META, node.span(), MSG);
@@ -233,7 +235,7 @@ end
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: linter::FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[
             NodeKind::CallNode,
             NodeKind::ConstantWriteNode,
@@ -272,7 +274,8 @@ aliases, which upstream also merges in only via the shared, but here unused,
             NodeKind::CallNode => {
                 if Self::owns_literal_block(node) {
                     let call = node.as_call_node().expect("kind matched");
-                    self.block_owner_stack.push(call.name().as_slice().to_vec());
+                    let span = call.message_loc().map_or_else(|| node.span(), |loc| loc.span());
+                    self.block_owner_stack.push(span);
                 }
             }
             NodeKind::ConstantWriteNode | NodeKind::ClassNode | NodeKind::ModuleNode => {

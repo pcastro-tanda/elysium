@@ -8,7 +8,7 @@ Checks for the presence of precise comparison of floating point numbers.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Floating point values are inherently inaccurate, and comparing them for exact equality
 is almost never the desired semantics. Comparison via the `==`/`!=` operators checks

@@ -4,11 +4,13 @@
 //! Upstream's `id_as_hash_key?` node-matcher, `(call _ {:key? :has_key?
 //! :fetch :[] :[]=} (send _ :object_id) ...)`, only constrains the call's
 //! *method name* (via `RESTRICT_ON_SEND`, mirrored here by [`is_hash_method`])
-//! and its *first* argument: that argument must itself be a call named
-//! `object_id`, on any receiver (including none, e.g. the bare `object_id`
-//! in `hash.key?(object_id)`, which reads as an implicit-`self` call) and
-//! with any arguments of its own (the pattern's trailing `...` after the
-//! nested `(send _ :object_id)` closes that inner call, not the outer one).
+//! and its *first* argument: that argument must itself be a `send`, not
+//! `csend` (safe-navigated), call named `object_id`, on any receiver
+//! (including none, e.g. the bare `object_id` in `hash.key?(object_id)`,
+//! which reads as an implicit-`self` call) and with any arguments of its
+//! own (the pattern's trailing `...` after the nested `(send _ :object_id)`
+//! closes that inner call, not the outer one) -- so `h.key?(baz&.object_id)`
+//! is never flagged, matching the pattern's `send`-only inner shape.
 //! Everything else about the call -- its own receiver, and any arguments
 //! after the first -- is unconstrained, matching `[]=`'s shape where the
 //! first argument is the index/key and a trailing argument is the
@@ -34,9 +36,11 @@ fn is_hash_method(name: &[u8]) -> bool {
     matches!(name, b"key?" | b"has_key?" | b"fetch" | b"[]" | b"[]=")
 }
 
-/// The nested `(send _ :object_id)` half of `id_as_hash_key?`.
+/// The nested `(send _ :object_id)` half of `id_as_hash_key?`: a `send`,
+/// not `csend` (safe-navigated), call named `object_id`.
 fn is_object_id_call(node: &Node<'_>) -> bool {
-    node.as_call_node().is_some_and(|call| call.name().as_slice() == b"object_id")
+    node.as_call_node()
+        .is_some_and(|call| !call.is_safe_navigation() && call.name().as_slice() == b"object_id")
 }
 
 /// Checks for hashes being keyed by objects' `object_id`.
@@ -80,7 +84,7 @@ hash.key?(baz)
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "\

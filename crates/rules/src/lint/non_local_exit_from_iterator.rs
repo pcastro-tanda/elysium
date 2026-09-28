@@ -23,9 +23,13 @@
 //! literal-block-owning `CallNode`, precomputed with whether the block has
 //! arguments, whether the owning call is `define_method`/
 //! `define_singleton_method`, and whether the owning call has a receiver
-//! (`chained_send?`'s `(send !nil? ...)`). [`NonLocalExitFromIterator::check`]
-//! then walks the stack innermost-first, mirroring the four-way branch in
-//! upstream's loop body exactly.
+//! (`chained_send?`'s `(send !nil? ...)`). Both `chained_send?` and
+//! `define_method?` match a `send` node type only, never `csend` (Prism's
+//! safe-navigation `&.`), so a safe-navigated owning call
+//! (`items&.each { return }`, `obj&.define_method(:m) { return }`) is
+//! excluded from both checks here too.
+//! [`NonLocalExitFromIterator::check`] then walks the stack innermost-first,
+//! mirroring the four-way branch in upstream's loop body exactly.
 //!
 //! # `argument_list.empty?`
 //!
@@ -68,10 +72,11 @@ enum Frame {
     Block {
         /// RuboCop's `!node.argument_list.empty?`.
         has_arguments: bool,
-        /// RuboCop's `define_method?(node.send_node)`.
+        /// RuboCop's `define_method?(node.send_node)`: not a safe-navigated
+        /// (`csend`) call.
         is_define_method: bool,
         /// RuboCop's `chained_send?(node.send_node)`: the owning call has an
-        /// explicit receiver.
+        /// explicit receiver and is not safe-navigated (`csend`).
         is_chained: bool,
     },
 }
@@ -205,7 +210,7 @@ end
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::ReturnNode, NodeKind::CallNode, NodeKind::DefNode, NodeKind::LambdaNode],
         config: &[],
         blind_spots: "\
@@ -218,8 +223,9 @@ this port (the `find_each` block itself is not chained, and the search never
 reaches past `transaction`'s empty argument list to find a chained ancestor
 further out, because there is none in that example -- see the last spec
 example). `chained_send?`/`lambda?`/`define_method?` all match by bare
-method name only, with no receiver check beyond `chained_send?`'s own
-non-nil requirement, exactly like upstream.",
+method name only; `chained_send?`/`define_method?` additionally require a
+`send`, not `csend`, owning call, so a safe-navigated one (`items&.each { }`,
+`obj&.define_method(:m) { }`) is excluded from both, exactly like upstream.",
     };
 
     fn configure(_options: &RuleOptions) -> Result<Self, OptionError> {
@@ -247,11 +253,12 @@ non-nil requirement, exactly like upstream.",
                             .expect("owns_literal_block checked");
                         self.stack.push(Frame::Block {
                             has_arguments: block_has_arguments(&block),
-                            is_define_method: matches!(
-                                call.name().as_slice(),
-                                b"define_method" | b"define_singleton_method"
-                            ),
-                            is_chained: call.receiver().is_some(),
+                            is_define_method: !call.is_safe_navigation()
+                                && matches!(
+                                    call.name().as_slice(),
+                                    b"define_method" | b"define_singleton_method"
+                                ),
+                            is_chained: call.receiver().is_some() && !call.is_safe_navigation(),
                         });
                     }
                 }

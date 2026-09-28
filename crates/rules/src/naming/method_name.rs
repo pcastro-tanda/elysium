@@ -32,7 +32,9 @@ use ruby_ast::node::{CallNode, StringNode, SymbolNode};
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
-use super::configurable_naming::{identifier_matches, matches_style, pattern_matches, Style};
+use super::configurable_naming::{
+    compile_patterns, identifier_matches, matches_style, pattern_matches, Style,
+};
 
 /// Makes sure that all methods use the configured style, `snake_case` or
 /// camelCase, for their names.
@@ -99,7 +101,7 @@ def onSelectionBulkChange(arg); end
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::DefNode, NodeKind::CallNode, NodeKind::AliasMethodNode],
         config: &[
             ConfigOption {
@@ -133,9 +135,9 @@ def onSelectionBulkChange(arg); end
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
         Ok(Self {
             style: Style::parse(options.style("EnforcedStyle")?),
-            allowed_patterns: compile(&options.str_list("AllowedPatterns")),
+            allowed_patterns: compile_patterns(&options.str_list("AllowedPatterns")),
             forbidden_identifiers: options.str_list("ForbiddenIdentifiers"),
-            forbidden_patterns: compile(&options.str_list("ForbiddenPatterns")),
+            forbidden_patterns: compile_patterns(&options.str_list("ForbiddenPatterns")),
         })
     }
 
@@ -289,10 +291,6 @@ impl MethodName {
             ),
         );
     }
-}
-
-fn compile(patterns: &[String]) -> Vec<Regex> {
-    patterns.iter().filter_map(|p| Regex::new(p).ok()).collect()
 }
 
 /// rubocop-ast `operator_method?` / the cop's `OPERATOR_METHODS`: every

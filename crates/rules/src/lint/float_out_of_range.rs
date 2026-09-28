@@ -44,7 +44,7 @@ float = 42.9
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::FloatNode],
         config: &[],
         blind_spots: "\

@@ -8,7 +8,7 @@ Checks for `rand(1)` calls.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for `rand(1)` calls.
 Such calls always return `0`.

@@ -8,7 +8,7 @@ Checks for unreachable code.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 The check are based on the presence of flow of control
 statement in non-final position in `begin` (implicit) blocks.

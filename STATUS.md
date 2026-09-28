@@ -152,10 +152,10 @@ semantic cops (60 rules total).
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 59 | 0 | 1 |
+| 103 | 0 | 1 |
 
 Promotion to `stable` requires >99% corpus conformance on `discourse` and
-`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 59 of 60 rules meet
+`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 103 of 104 rules meet
 it. At `nursery`:
 
 - `Lint/RedundantCopDisableDirective` — held back per policy regardless of
@@ -240,8 +240,8 @@ CI needs its own recorded baseline before `--check` is a hard gate
 
 ## Next milestones
 
-**Headline gap: 56 of RuboCop 1.82.1's 394 default-enabled core cops are
-implemented (338 missing).** Phases 3 and 4 selected cops by relevance and
+**Headline gap: 100 of RuboCop 1.82.1's 394 default-enabled core cops are
+implemented (294 missing).** Phases 3 and 4 selected cops by relevance and
 by infrastructure need; no phase ever targeted the full default set, so the
 earlier roadmap jumped to extension-gem cops with 85% of core defaults
 unported. Inventory, bucketed by department and by the infrastructure each
@@ -252,15 +252,25 @@ cop needs: `docs/planning/default-parity.md`.
    `Lint/ShadowingOuterLocalVariable` both apps agree on zero offenses
    (fixtures are the only positive evidence).
 2. Phase 5: **default-cop parity**, in batches from
-   `docs/planning/default-parity.md`. Order by infrastructure: the 45
+   `docs/planning/default-parity.md`. Order by infrastructure: the
    `pure-ast` cops first (no new engine work; Security/*, Lint duplicates,
    Naming/*), then the 25 `target-ruby` cops (needs `TargetRubyVersion`
    plumbed into `Context`), the 30 `metrics` cops (a shared
    code-length/complexity utility crate), the 26 `tokens/comments` cops (a
    comment list on `Source` beyond directives), and the Layout remainder.
-   Bundler/Gemspec/Migration (10) need a Gemfile/gemspec file-type route.
+   Bundler/Gemspec/Migration (9) need a Gemfile/gemspec file-type route.
    Every batch goes through fixtures via `tools/port_spec.rb` and corpus
    conformance before promotion; ~7,300 upstream spec examples in total.
+
+   Waves 1-2 are done: 44 pure-AST cops ported (new Naming, Security, and
+   Gemspec departments stood up for them), all `stable` at 100% agreement
+   with RuboCop 1.91 on both discourse and mastodon. Conformance surfaced
+   three port bugs — `Lint/UnreachableLoop` missing the `begin`/`rescue`
+   case, `Style/ClassVars` missing compound assignment (`@@x += 1`), and
+   `Style/MultilineBlockChain` missing block-arg calls and
+   `BlockNode#multiline?` — all fixed by following RuboCop's own logic more
+   closely. A review pass afterward fixed hot-path allocations across the
+   wave. Next: wave 3 per `docs/planning/phase5-wave3.md`.
 3. Phase 6 `[INFERENCE — no dedicated planning doc yet, extrapolated from
    the "What does not work yet" list above]`: config/CLI hardening — a
    `ConfigValidator` (type/unknown-cop errors), a minimal ERB subset

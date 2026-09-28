@@ -8,7 +8,7 @@ Checks for `rescue` blocks targeting the `Exception` class.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for `rescue` blocks targeting the `Exception` class.
 

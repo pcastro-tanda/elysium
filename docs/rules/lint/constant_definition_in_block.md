@@ -8,7 +8,7 @@ Checks for the definition of constants within a block.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Do not define constants within a block, since the block's scope does not
 isolate or namespace the constant in any way.

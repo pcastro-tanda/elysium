@@ -191,8 +191,11 @@ const STRUCT_METHOD_NAMES: &[&[u8]] = &[
 pub struct StructNewOverride;
 
 /// RuboCop's `struct_new` node matcher: `Struct.new(...)`/`::Struct.new(...)`.
+/// Upstream subscribes via `on_send` only (no `on_csend` alias), so a
+/// safe-navigated `Struct&.new(...)` is excluded here too.
 fn is_struct_new(call: &CallNode<'_>) -> bool {
-    call.name().as_slice() == b"new"
+    !call.is_safe_navigation()
+        && call.name().as_slice() == b"new"
         && call.receiver().is_some_and(|receiver| {
             is_bare_or_toplevel_const(&receiver)
                 && const_name(&receiver).as_deref() == Some("Struct")
@@ -240,7 +243,7 @@ g.count #=> 2
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "\

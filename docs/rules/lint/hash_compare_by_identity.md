@@ -8,7 +8,7 @@ Checks for hashes being keyed by objects' `object_id`.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Prefer using `Hash#compare_by_identity` rather than using `object_id` for hash keys.
 

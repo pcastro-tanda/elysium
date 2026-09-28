@@ -8,7 +8,7 @@ Checks for chaining of a block after another block that spans multiple lines.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for chaining of a block after another block that spans multiple
 lines.

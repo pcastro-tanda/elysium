@@ -37,17 +37,26 @@
 //! Prism has no such elision: every non-empty body (a loop's, an
 //! `if`/`when`/`in`/`else` branch's, or a keyword `begin...end` block's) is
 //! always a [`NodeKind::StatementsNode`], holding one child or several
-//! alike -- so [`statements_of`] just reads that list directly, with no
-//! `begin_type?`-style special case needed. This also means an *explicit*
-//! `begin...end` appearing as one statement among several (or as a
-//! post-condition loop's entire body, Ruby requiring a `kwbegin` there) is
-//! its own nested [`NodeKind::BeginNode`], handled by
+//! alike -- so [`Body::from_statements`] just reads that list directly,
+//! with no `begin_type?`-style special case needed. This also means an
+//! *explicit* `begin...end` appearing as one statement among several (or
+//! as a post-condition loop's entire body, Ruby requiring a `kwbegin`
+//! there) is its own nested [`NodeKind::BeginNode`], handled by
 //! [`UnreachableLoop::is_break_statement`]'s recursive case exactly as
 //! upstream's `:begin`/`:kwbegin` branch of `break_statement?` handles it
 //! (confirmed empirically that a post-condition while's `statements()`
 //! holds exactly one child, a `BeginNode`, mirroring whitequark's `else
 //! [body]` fallback for a `kwbegin`-typed body that never matches its
-//! `begin_type?` check).
+//! `begin_type?` check) -- *unless* that `BeginNode` carries a
+//! `rescue`/`else`/`ensure` clause, in which case whitequark types it a
+//! `:rescue`/`:ensure` node instead (never `:begin`/`:kwbegin`), which
+//! `break_statement?`'s `case` has no branch for and so always answers
+//! `false` on; [`UnreachableLoop::is_break_statement`] checks for those
+//! clauses before recursing, mirroring `Lint/UnreachableCode`'s identical
+//! `BeginNode` guard. The same shape recurs in [`block_body`]'s `Single`
+//! case: a block whose sole implicit statement is a bare `do ... rescue
+//! ... end` is, again, a `BeginNode` with a `rescue_clause`, so it is
+//! likewise never treated as a break statement.
 //!
 //! [`UnreachableLoop::branch_breaks`] (upstream's shared logic between
 //! `check`'s own `statements.find`/`preceded_by_continue_statement?` pair
@@ -84,7 +93,7 @@ use linter::{
     Stability,
 };
 use regex::Regex;
-use ruby_ast::node::{CallNode, CaseMatchNode, CaseNode, IfNode, StatementsNode};
+use ruby_ast::node::{CallNode, CaseMatchNode, CaseNode, IfNode, NodeListIter, StatementsNode};
 use ruby_ast::{ext, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
@@ -196,26 +205,70 @@ fn is_continue_kind(kind: NodeKind) -> bool {
     matches!(kind, NodeKind::NextNode | NodeKind::RedoNode)
 }
 
-/// A loop's or branch's own statement list: `node.statements()`'s children,
-/// or none if the body is empty. See the module doc for why Prism needs no
-/// `begin_type?`-style unwrapping here.
-fn statements_of(stmts: Option<StatementsNode<'_>>) -> Vec<Node<'_>> {
-    stmts.map_or_else(Vec::new, |s| s.body().iter().collect())
+/// A loop's, branch's, or block's body, abstracted over the two shapes
+/// [`UnreachableLoop`] needs to scan: the common case of a
+/// [`StatementsNode`]'s children (a loop's/branch's own body -- see the
+/// module doc for why Prism needs no `begin_type?`-style unwrapping here),
+/// or a lone non-`StatementsNode` node ([`BlockNode`]'s own body, when it
+/// holds exactly one statement that is itself e.g. a `BeginNode` with
+/// rescue clauses attached -- RuboCop-AST's analogous "body, or single
+/// implicit statement" distinction the other node kinds don't need one
+/// of, since Prism never wraps a block's *own* body in an extra layer).
+/// `Copy`, so scanning it twice (once to find a break statement, once for
+/// the statements preceding it) just re-derives a fresh, pointer-cheap
+/// iterator each time rather than collecting a `Vec` up front.
+#[derive(Clone, Copy)]
+enum Body<'pr> {
+    Empty,
+    Stmts(StatementsNode<'pr>),
+    Single(Node<'pr>),
 }
 
-/// `BlockNode::body` is a generic `Node`, not a `StatementsNode`: RuboCop-AST's
-/// analogous "body, or single implicit statement" distinction the other
-/// node kinds don't need one of, since Prism never wraps a block's *own*
-/// body in an extra layer. `Some(other)` covers a body that is itself a
-/// single, non-`StatementsNode` node (e.g. a lone `BeginNode` with rescue
-/// clauses attached).
-fn block_statements(body: Option<Node<'_>>) -> Vec<Node<'_>> {
-    match body {
-        None => Vec::new(),
-        Some(Node::StatementsNode { .. }) => {
-            statements_of(body.and_then(|b| b.as_statements_node()))
+impl<'pr> Body<'pr> {
+    /// `stmts.body()`'s children, or none if the body is empty.
+    fn from_statements(stmts: Option<StatementsNode<'pr>>) -> Self {
+        stmts.map_or(Self::Empty, Self::Stmts)
+    }
+
+    fn iter(self) -> BodyIter<'pr> {
+        match self {
+            Self::Empty => BodyIter::Empty,
+            Self::Stmts(s) => BodyIter::Stmts(s.body().iter()),
+            Self::Single(n) => BodyIter::Single(std::iter::once(n)),
         }
-        Some(other) => vec![other],
+    }
+}
+
+/// [`Body::iter`]'s iterator: a real [`NodeListIter`] for the common case,
+/// or a zero-/one-element iterator for the rest -- no allocation either
+/// way.
+enum BodyIter<'pr> {
+    Empty,
+    Stmts(NodeListIter<'pr>),
+    Single(std::iter::Once<Node<'pr>>),
+}
+
+impl<'pr> Iterator for BodyIter<'pr> {
+    type Item = Node<'pr>;
+
+    fn next(&mut self) -> Option<Node<'pr>> {
+        match self {
+            Self::Empty => None,
+            Self::Stmts(it) => it.next(),
+            Self::Single(it) => it.next(),
+        }
+    }
+}
+
+/// `BlockNode::body`'s "body, or single implicit statement" shape -- see
+/// [`Body`]'s doc.
+fn block_body(body: Option<Node<'_>>) -> Body<'_> {
+    match body {
+        None => Body::Empty,
+        Some(Node::StatementsNode { .. }) => {
+            Body::from_statements(body.and_then(|b| b.as_statements_node()))
+        }
+        Some(other) => Body::Single(other),
     }
 }
 
@@ -348,10 +401,14 @@ impl UnreachableLoop {
     }
 
     /// RuboCop's `preceded_by_continue_statement?`.
-    fn preceded_by_continue(&self, siblings: &[Node<'_>], ctx: &Context<'_>) -> bool {
+    fn preceded_by_continue<'pr>(
+        &self,
+        siblings: impl Iterator<Item = Node<'pr>>,
+        ctx: &Context<'_>,
+    ) -> bool {
         siblings
-            .iter()
-            .any(|sibling| !self.is_loop_sibling(sibling, ctx) && has_continue_descendant(sibling))
+            .filter(|sibling| !self.is_loop_sibling(sibling, ctx))
+            .any(|sibling| has_continue_descendant(&sibling))
     }
 
     /// The shared "does this statement list unconditionally break" check:
@@ -361,12 +418,11 @@ impl UnreachableLoop {
     /// `if`/`when`/`in`/`else` branch body (see the module doc for why a
     /// single-statement Prism branch degenerates to the same un-wrapped
     /// case upstream special-cases).
-    fn branch_breaks(&self, children: &[Node<'_>], ctx: &Context<'_>) -> bool {
-        let Some(idx) = children.iter().position(|child| self.is_break_statement(child, ctx))
-        else {
+    fn branch_breaks(&self, body: Body<'_>, ctx: &Context<'_>) -> bool {
+        let Some(idx) = body.iter().position(|child| self.is_break_statement(&child, ctx)) else {
             return false;
         };
-        !self.preceded_by_continue(&children[..idx], ctx)
+        !self.preceded_by_continue(body.iter().take(idx), ctx)
     }
 
     /// RuboCop's `break_statement?`.
@@ -377,7 +433,17 @@ impl UnreachableLoop {
         match node.kind() {
             NodeKind::BeginNode => {
                 let begin = node.as_begin_node().expect("kind matched");
-                self.branch_breaks(&statements_of(begin.statements()), ctx)
+                if begin.rescue_clause().is_some()
+                    || begin.else_clause().is_some()
+                    || begin.ensure_clause().is_some()
+                {
+                    // Not a `:begin`/`:kwbegin` node upstream at all --
+                    // whitequark types this a `:rescue`/`:ensure` node,
+                    // which `break_statement?`'s `case` has no branch for.
+                    false
+                } else {
+                    self.branch_breaks(Body::from_statements(begin.statements()), ctx)
+                }
             }
             NodeKind::IfNode => self.check_if(&node.as_if_node().expect("kind matched"), ctx),
             NodeKind::CaseNode => self.check_case(&node.as_case_node().expect("kind matched"), ctx),
@@ -390,7 +456,7 @@ impl UnreachableLoop {
 
     /// RuboCop's `check_if`.
     fn check_if(&self, node: &IfNode<'_>, ctx: &Context<'_>) -> bool {
-        if !self.branch_breaks(&statements_of(node.statements()), ctx) {
+        if !self.branch_breaks(Body::from_statements(node.statements()), ctx) {
             return false;
         }
         match node.subsequent() {
@@ -398,7 +464,7 @@ impl UnreachableLoop {
                 .check_if(&node.subsequent().and_then(|n| n.as_if_node()).expect("matched"), ctx),
             Some(Node::ElseNode { .. }) => {
                 let else_node = node.subsequent().and_then(|n| n.as_else_node()).expect("matched");
-                self.branch_breaks(&statements_of(else_node.statements()), ctx)
+                self.branch_breaks(Body::from_statements(else_node.statements()), ctx)
             }
             _ => false,
         }
@@ -407,24 +473,24 @@ impl UnreachableLoop {
     /// RuboCop's `check_case`, applied to a `case`/`when` node.
     fn check_case(&self, node: &CaseNode<'_>, ctx: &Context<'_>) -> bool {
         let Some(else_node) = node.else_clause() else { return false };
-        if !self.branch_breaks(&statements_of(else_node.statements()), ctx) {
+        if !self.branch_breaks(Body::from_statements(else_node.statements()), ctx) {
             return false;
         }
         node.conditions().iter().all(|cond| {
             let when = cond.as_when_node().expect("case conditions are WhenNode");
-            self.branch_breaks(&statements_of(when.statements()), ctx)
+            self.branch_breaks(Body::from_statements(when.statements()), ctx)
         })
     }
 
     /// RuboCop's `check_case`, applied to a `case`/`in` node.
     fn check_case_match(&self, node: &CaseMatchNode<'_>, ctx: &Context<'_>) -> bool {
         let Some(else_node) = node.else_clause() else { return false };
-        if !self.branch_breaks(&statements_of(else_node.statements()), ctx) {
+        if !self.branch_breaks(Body::from_statements(else_node.statements()), ctx) {
             return false;
         }
         node.conditions().iter().all(|cond| {
             let in_pattern = cond.as_in_node().expect("case/in conditions are InNode");
-            self.branch_breaks(&statements_of(in_pattern.statements()), ctx)
+            self.branch_breaks(Body::from_statements(in_pattern.statements()), ctx)
         })
     }
 
@@ -432,14 +498,13 @@ impl UnreachableLoop {
     /// whose own span already covers the whole `keyword ... end`
     /// construct) or, for a loop-like block, the *owning call*'s span (see
     /// the module doc for why that differs from the `BlockNode`'s own).
-    fn check(&self, children: &[Node<'_>], report_span: Span, ctx: &mut Context<'_>) {
-        let Some(idx) = children.iter().position(|child| self.is_break_statement(child, ctx))
-        else {
+    fn check(&self, body: Body<'_>, report_span: Span, ctx: &mut Context<'_>) {
+        let Some(idx) = body.iter().position(|child| self.is_break_statement(&child, ctx)) else {
             return;
         };
-        let break_statement = &children[idx];
-        if self.preceded_by_continue(&children[..idx], ctx)
-            || conditional_continue_keyword(break_statement)
+        let break_statement = body.iter().nth(idx).expect("idx came from this same body");
+        if self.preceded_by_continue(body.iter().take(idx), ctx)
+            || conditional_continue_keyword(&break_statement)
         {
             return;
         }
@@ -478,13 +543,23 @@ fn is_break_command(node: &Node<'_>) -> bool {
     }
 }
 
-/// RuboCop's `sibling.each_descendant(*CONTINUE_KEYWORDS).any?`.
-fn has_continue_descendant(node: &Node<'_>) -> bool {
+/// Pre-order search for a descendant matching `pred`: unlike
+/// [`ruby_ast::each_descendant`] (which unconditionally visits every node
+/// in the subtree), this returns as soon as a match is found, skipping the
+/// rest of the subtree at every level still left to visit.
+fn any_descendant<'pr>(node: &Node<'pr>, pred: &impl Fn(&Node<'pr>) -> bool) -> bool {
     let mut found = false;
-    ruby_ast::each_descendant(node, &mut |child| {
-        found |= is_continue_kind(child.kind());
+    ruby_ast::for_each_child(node, |child| {
+        if !found {
+            found = pred(child) || any_descendant(child, pred);
+        }
     });
     found
+}
+
+/// RuboCop's `sibling.each_descendant(*CONTINUE_KEYWORDS).any?`.
+fn has_continue_descendant(node: &Node<'_>) -> bool {
+    any_descendant(node, &|child| is_continue_kind(child.kind()))
 }
 
 /// RuboCop's `conditional_continue_keyword?`: the last `or` node anywhere
@@ -594,7 +669,7 @@ exactly(2).times { raise StandardError }
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[
             NodeKind::WhileNode,
             NodeKind::UntilNode,
@@ -613,10 +688,7 @@ exactly(2).times { raise StandardError }
 `conditional_continue_keyword?`'s `each_descendant(:or).to_a.last` takes the \
 last `or` node in traversal (pre-)order, which for a chain of more than one \
 `||` is not necessarily the last one written in source (every fixture has \
-at most one `||`, so this never diverges in practice). A nested `begin...end` \
-with its own `rescue`/`else`/`ensure` clause is only ever scanned through its \
-plain `statements`, matching upstream's naive `*node` splat on a `:begin`/ \
-`:kwbegin` AST node, which never looks inside those clauses either.",
+at most one `||`, so this never diverges in practice).",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
@@ -632,15 +704,15 @@ plain `statements`, matching upstream's naive `*node` splat on a `:begin`/ \
         match node.kind() {
             NodeKind::WhileNode => {
                 let n = node.as_while_node().expect("kind matched");
-                self.check(&statements_of(n.statements()), node.span(), ctx);
+                self.check(Body::from_statements(n.statements()), node.span(), ctx);
             }
             NodeKind::UntilNode => {
                 let n = node.as_until_node().expect("kind matched");
-                self.check(&statements_of(n.statements()), node.span(), ctx);
+                self.check(Body::from_statements(n.statements()), node.span(), ctx);
             }
             NodeKind::ForNode => {
                 let n = node.as_for_node().expect("kind matched");
-                self.check(&statements_of(n.statements()), node.span(), ctx);
+                self.check(Body::from_statements(n.statements()), node.span(), ctx);
             }
             NodeKind::CallNode => {
                 let call = node.as_call_node().expect("kind matched");
@@ -653,7 +725,7 @@ plain `statements`, matching upstream's naive `*node` splat on a `:begin`/ \
             NodeKind::BlockNode => {
                 if let Some(&Some(report_span)) = self.block_call_stack.last() {
                     let n = node.as_block_node().expect("kind matched");
-                    self.check(&block_statements(n.body()), report_span, ctx);
+                    self.check(block_body(n.body()), report_span, ctx);
                 }
             }
             _ => {}

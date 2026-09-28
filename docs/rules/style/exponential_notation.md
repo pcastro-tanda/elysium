@@ -8,7 +8,7 @@ Enforces consistency when using exponential notation for numbers in the code.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Enforces consistency when using exponential notation
 for numbers in the code (eg `1.2e4`). Different styles are supported:

@@ -8,7 +8,7 @@ Checks for the use of `Kernel#eval` and `Binding#eval`.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for the use of `Kernel#eval` and `Binding#eval`.
 

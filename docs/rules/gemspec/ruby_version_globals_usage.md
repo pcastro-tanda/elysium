@@ -8,7 +8,7 @@ Checks usage of RUBY_VERSION in gemspec.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks that `RUBY_VERSION` and `Ruby::VERSION` constants are not used in gemspec.
 

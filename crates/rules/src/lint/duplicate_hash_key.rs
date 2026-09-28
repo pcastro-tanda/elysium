@@ -119,13 +119,6 @@ fn report_span(key: &Node<'_>) -> Span {
     }
 }
 
-/// `Lint::LITERAL_RECURSIVE_METHODS` (rubocop-ast's `Node`): the only
-/// `send`-node method names a key expression may use and still count as a
-/// recursive basic literal -- `COMPARISON_OPERATORS + [*, !, <=>]`.
-fn is_literal_recursive_method(name: &[u8]) -> bool {
-    matches!(name, b"==" | b"===" | b"!=" | b"<=" | b">=" | b">" | b"<" | b"*" | b"!" | b"<=>")
-}
-
 /// A structural, value-based fingerprint of one hash key expression,
 /// mirroring `Parser::AST::Node#eql?`'s `[type, children]` comparison (not
 /// source text): `'a'` and `"a"` compare equal; `1` and `1.0` do not
@@ -166,8 +159,14 @@ fn key_value(node: &Node<'_>) -> Option<Key> {
     recursive_basic_literal(node).or_else(|| const_key(node))
 }
 
-/// rubocop-ast's `Node#recursive_basic_literal?`.
+/// rubocop-ast's `Node#recursive_basic_literal?`, gated on
+/// [`ruby_ast::ext::is_recursive_basic_literal`] (this cop's own descent
+/// below builds the actual [`Key`] fingerprint on top of that shared
+/// recognition check).
 fn recursive_basic_literal(node: &Node<'_>) -> Option<Key> {
+    if !ruby_ast::ext::is_recursive_basic_literal(node) {
+        return None;
+    }
     match node {
         Node::NilNode { .. } => Some(Key::Nil),
         Node::TrueNode { .. } => Some(Key::True),
@@ -239,7 +238,7 @@ fn recursive_basic_literal(node: &Node<'_>) -> Option<Key> {
         Node::CallNode { .. } => {
             let n = node.as_call_node()?;
             let name = n.name();
-            if !is_literal_recursive_method(name.as_slice()) {
+            if !ruby_ast::ext::is_literal_recursive_method(name.as_slice()) {
                 return None;
             }
             let receiver = recursive_basic_literal(&n.receiver()?)?;

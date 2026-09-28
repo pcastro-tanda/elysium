@@ -2,7 +2,9 @@
 //! `lib/rubocop/cop/lint/uri_escape_unescape.rb`.
 //!
 //! Upstream's node pattern `(send (const ${nil? cbase} :URI) ${:escape
-//! :encode :unescape :decode} ...)` requires the receiver to be exactly a
+//! :encode :unescape :decode} ...)` is a `send`, not `csend`, pattern (no
+//! `on_csend` alias registered), so a safe-navigated `URI&.escape(...)` is
+//! never flagged; it also requires the receiver to be exactly a
 //! bare `URI` or top-level `::URI` constant (rubocop-ast's `{nil? cbase}`
 //! shape) -- `Foo::URI.escape(...)` or a `URI` local variable never match.
 //! [`ruby_ast::ext::is_bare_or_toplevel_const`] checks that shape; the name
@@ -107,7 +109,7 @@ URI.decode_www_form_component(enc_uri)
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "\
@@ -126,8 +128,13 @@ Only matches a receiver that is exactly a bare `URI` or top-level `::URI` consta
     }
 }
 
-/// RuboCop's `on_send`, guarded by `RESTRICT_ON_SEND`.
+/// RuboCop's `on_send`, guarded by `RESTRICT_ON_SEND`. Upstream subscribes
+/// via `on_send` only (no `on_csend` alias), so a safe-navigated
+/// `URI&.escape(...)` is excluded here too.
 fn check(call: &CallNode<'_>, ctx: &mut Context<'_>) {
+    if call.is_safe_navigation() {
+        return;
+    }
     let method = call.name();
     let method_bytes = method.as_slice();
     if !matches!(method_bytes, b"escape" | b"encode" | b"unescape" | b"decode") {

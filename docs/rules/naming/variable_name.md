@@ -8,7 +8,7 @@ Makes sure that all variables use the configured style, snake_case or camelCase,
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 ```ruby
 # EnforcedStyle: snake_case (default)

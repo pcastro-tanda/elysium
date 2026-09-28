@@ -8,7 +8,7 @@ Don't omit the accumulator when calling `next` in a `reduce` block.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Don't omit the accumulator when calling `next` in a `reduce` block.
 

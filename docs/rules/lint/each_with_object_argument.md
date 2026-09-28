@@ -8,7 +8,7 @@ Checks if `each_with_object` is called with an immutable argument.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks if each_with_object is called with an immutable
 argument. Since the argument is the object that the given block shall

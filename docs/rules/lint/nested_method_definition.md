@@ -8,7 +8,7 @@ Checks for nested method definitions.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 `bar` definition actually produces methods in the same scope as the outer
 `foo` method. Furthermore, the `bar` method will be redefined every time

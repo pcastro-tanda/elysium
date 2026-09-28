@@ -47,15 +47,17 @@ use linter::{
     Stability,
 };
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
+use ruby_source::Span;
 
 /// One enclosing `def`, computed once on entry and reused for every
 /// `return` found in its body (including in nested blocks and lambdas).
-#[derive(Debug, Clone)]
+#[derive(Debug, Clone, Copy)]
 struct DefFrame {
     /// RuboCop-AST's `DefNode#void_context?`.
     void_context: bool,
-    /// The def's own name, e.g. `initialize` or `foo=`, for the message.
-    method_name: Vec<u8>,
+    /// Span of the def's own name (`name_loc`), e.g. `initialize` or
+    /// `foo=`, read via `ctx.text` only on the report path.
+    name_span: Span,
 }
 
 /// RuboCop-AST's `MethodIdentifierPredicates#assignment_method?`:
@@ -133,7 +135,7 @@ impl ReturnInVoidContext {
         if self.block_stack.iter().any(|&scope_changing| scope_changing) {
             return;
         }
-        let method = String::from_utf8_lossy(&def_frame.method_name);
+        let method = String::from_utf8_lossy(ctx.text(def_frame.name_span));
         ctx.report(
             &Self::META,
             ret.keyword_loc().span(),
@@ -177,7 +179,7 @@ end
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::DefNode, NodeKind::ReturnNode, NodeKind::CallNode, NodeKind::LambdaNode],
         config: &[],
         blind_spots: "\
@@ -203,10 +205,11 @@ upstream, never distinguished from one directly wrapping the `return`.",
             NodeKind::DefNode => {
                 let def = node.as_def_node().expect("kind matched");
                 let name = def.name();
-                let name = name.as_slice().to_vec();
+                let name = name.as_slice();
                 let void_context = (def.receiver().is_none() && name == b"initialize")
-                    || is_assignment_method(&name);
-                self.def_stack.push(DefFrame { void_context, method_name: name });
+                    || is_assignment_method(name);
+                let name_span = def.name_loc().span();
+                self.def_stack.push(DefFrame { void_context, name_span });
             }
             NodeKind::CallNode => {
                 if owns_literal_block(node) {

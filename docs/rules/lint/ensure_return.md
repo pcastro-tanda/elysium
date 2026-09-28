@@ -8,7 +8,7 @@ Checks for `return` from an `ensure` block.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for `return` from an `ensure` block. `return` from an ensure block is a dangerous code
 smell as it will take precedence over any exception being raised, and the exception will be

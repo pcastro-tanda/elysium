@@ -8,7 +8,7 @@ Checks unexpected overrides of the `Struct` built-in methods via `Struct.new`.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks unexpected overrides of the `Struct` built-in methods
 via `Struct.new`.

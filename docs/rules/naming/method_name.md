@@ -8,7 +8,7 @@ Makes sure that all methods use the configured style, snake_case or camelCase, f
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Method names matching `AllowedPatterns` are always allowed, and
 `ForbiddenIdentifiers`/`ForbiddenPatterns` are always flagged. Operator

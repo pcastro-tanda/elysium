@@ -8,7 +8,7 @@ Checks that there are no repeated exceptions used in `rescue` expressions.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks that there are no repeated exceptions
 used in `rescue` expressions.

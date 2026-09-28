@@ -10,9 +10,16 @@
 //! wrapper: a call's block (however its parameters are spelled) is just the
 //! `block` field of the same [`NodeKind::CallNode`] that names the method,
 //! and that same `CallNode` is what appears as another call's `receiver`.
-//! So `receiver.any_block_type?` here is "receiver is a `CallNode` with a
-//! `block`", and no separate handling is needed for numbered/`it` params --
-//! Prism folds all three of upstream's node kinds into one.
+//! Prism's `block` field is also where a `&blk`/`&:sym` block-pass argument
+//! shows up, as a `BlockArgumentNode` rather than a `BlockNode` -- upstream
+//! only ever visits real `:block`/`:numblock`/`:itblock` literals (never a
+//! block-pass), so both the visited call and any receiver-chain "has a
+//! block" check here must additionally confirm `block.kind() ==
+//! NodeKind::BlockNode`, i.e. that it downcasts via `as_block_node`. So
+//! `receiver.any_block_type?` here is "receiver is a `CallNode` whose
+//! `block` is a `BlockNode`", and no separate handling is needed for
+//! numbered/`it` params -- Prism folds all three of upstream's node kinds
+//! into one.
 //!
 //! Upstream visits every `:block`/`:numblock`/`:itblock` node once (via
 //! `on_block`/its aliases) and, for *that* node's own `send_node`, walks
@@ -34,7 +41,16 @@
 //! `foo(bar do end.baz) do end`) is not reachable through this simplified
 //! walk; see `blind_spots`.
 //!
-//! # Offense range
+//! # Offense condition and range
+//!
+//! The guard is `receiver.multiline?`, and `rubocop-ast`'s
+//! `BlockNode#multiline?` is overridden to compare `loc.begin.line` (the
+//! opening `do`/`{`) against `loc.end.line` (the closing `end`/`}`) of the
+//! block itself, not the generic `Node#multiline?`'s whole-node first/last
+//! line (which would also count a multi-line receiver call before the
+//! block even opens). So this checks the receiver block's own
+//! `opening_loc`/`closing_loc` lines, not [`Context::is_single_line`] over
+//! the receiver call's whole span.
 //!
 //! `range_between(receiver.loc.end.begin_pos, node.send_node.source_range
 //! .end_pos)`: from the start of the receiver block's closing `end`/`}` to
@@ -49,7 +65,7 @@ use linter::{
     Stability,
 };
 use ruby_ast::ext::call_span_excluding_block;
-use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
+use ruby_ast::{LocationExt as _, Node, NodeKind};
 use ruby_source::Span;
 
 /// RuboCop's `MSG`.
@@ -88,7 +104,7 @@ end
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "\
@@ -106,7 +122,7 @@ corpus exercises this.",
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
         let Some(call) = node.as_call_node() else { return };
-        if call.block().is_none() {
+        if call.block().and_then(|b| b.as_block_node()).is_none() {
             return;
         }
 
@@ -118,7 +134,9 @@ corpus exercises this.",
                 current = receiver_call;
                 continue;
             };
-            if !ctx.is_single_line(receiver_call.as_node().span()) {
+            let block_span =
+                Span::new(block.opening_loc().span().start, block.closing_loc().span().end);
+            if !ctx.is_single_line(block_span) {
                 let range = Span::new(
                     block.closing_loc().span().start,
                     call_span_excluding_block(&call).end,

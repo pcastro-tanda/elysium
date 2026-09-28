@@ -8,7 +8,7 @@ Checks for flip-flops.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Looks for uses of flip-flop operator based on the Ruby Style Guide.
 

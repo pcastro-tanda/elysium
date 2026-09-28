@@ -8,7 +8,7 @@ Checks for optional arguments to methods that do not come at the end of the argu
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for optional arguments to methods
 that do not come at the end of the argument list.

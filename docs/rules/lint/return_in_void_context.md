@@ -8,7 +8,7 @@ Checks for the use of a return with a value in a context where the value will be
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks for the use of a return with a value in a context
 where the value will be ignored. (initialize and setter methods)

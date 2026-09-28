@@ -79,7 +79,7 @@ named captures.
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::RegularExpressionNode],
         config: &[],
         blind_spots: "\

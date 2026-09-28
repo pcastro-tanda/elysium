@@ -8,7 +8,7 @@ Checks for the use of `Kernel#open` and `URI.open` with dynamic data.
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 `Kernel#open` and `URI.open` enable not only file access but also process
 invocation by prefixing a pipe symbol (e.g., `open("| ls")`).

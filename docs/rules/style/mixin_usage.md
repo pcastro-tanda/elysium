@@ -8,7 +8,7 @@ Checks that `include`, `extend` and `prepend` statements appear inside classes a
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Checks that `include`, `extend` and `prepend` statements appear
 inside classes and modules, not at the top level, so as to not affect

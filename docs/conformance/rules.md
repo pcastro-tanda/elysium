@@ -6,6 +6,8 @@ text differs (RuboCop versions word some messages differently).
 
 | rule | app | rubocop | truth | ours | missing | extra | message mismatch | agreement | date |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
+| Gemspec/RubyVersionGlobalsUsage | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Gemspec/RubyVersionGlobalsUsage | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Layout/ArgumentAlignment | discourse | 1.91.0 | 119 | 119 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Layout/ArgumentAlignment | forem | 1.63.4 | 52 | 52 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Layout/ArgumentAlignment | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
@@ -66,34 +68,78 @@ text differs (RuboCop versions word some messages differently).
 | Lint/AmbiguousBlockAssociation | discourse | 1.91.0 | 1301 | 1301 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/AmbiguousBlockAssociation | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 | [^fixed-ambigblock] |
 | Lint/AmbiguousBlockAssociation | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 | [^fixed-ambigblock] |
+| Lint/BinaryOperatorWithIdenticalOperands | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/BinaryOperatorWithIdenticalOperands | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/ConstantDefinitionInBlock | discourse | 1.91.0 | 158 | 158 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/ConstantDefinitionInBlock | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Lint/ConstantResolution | discourse | 1.91.0 | 163058 | 163058 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/ConstantResolution | mastodon | 1.91.0 | 19540 | 19540 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/Debugger | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/Debugger | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/Debugger | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/DuplicateCaseCondition | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/DuplicateCaseCondition | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/DuplicateElsifCondition | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/DuplicateElsifCondition | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Lint/DuplicateHashKey | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/DuplicateHashKey | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/DuplicateHashKey | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/DuplicateMethods | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/DuplicateMethods | forem | 1.63.4 | 4 | 4 | 0 | 0 | 4 | 100.0% | 2026-09-24 |  |
 | Lint/DuplicateMethods | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/DuplicateRescueException | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/DuplicateRescueException | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/EachWithObjectArgument | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/EachWithObjectArgument | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Lint/ElseLayout | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/ElseLayout | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/ElseLayout | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/EmptyBlock | discourse | 1.91.0 | 105 | 105 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/EmptyBlock | forem | 1.63.4 | 4 | 4 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/EmptyBlock | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/EmptyExpression | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/EmptyExpression | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/EnsureReturn | discourse | 1.91.0 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/EnsureReturn | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/FlipFlop | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/FlipFlop | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/FloatComparison | discourse | 1.91.0 | 112 | 112 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/FloatComparison | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/FloatOutOfRange | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/FloatOutOfRange | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/FormatParameterMismatch | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/FormatParameterMismatch | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/HashCompareByIdentity | discourse | 1.91.0 | 4 | 4 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/HashCompareByIdentity | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Lint/MissingSuper | discourse | 1.91.0 | 113 | 113 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/MissingSuper | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/MissingSuper | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
+| Lint/MixedRegexpCaptureTypes | discourse | 1.91.0 | 18 | 18 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/MixedRegexpCaptureTypes | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/NestedMethodDefinition | discourse | 1.91.0 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/NestedMethodDefinition | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/NestedPercentLiteral | discourse | 1.91.0 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/NestedPercentLiteral | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/NextWithoutAccumulator | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/NextWithoutAccumulator | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/NonLocalExitFromIterator | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/NonLocalExitFromIterator | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Lint/NumberConversion | discourse | 1.91.0 | 3150 | 3150 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/NumberConversion | mastodon | 1.91.0 | 204 | 204 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
+| Lint/RandOne | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/RandOne | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Lint/RedundantCopDisableDirective | discourse | 1.91.0 | 0 | 69 | 0 | 69 | 0 | 0.0% | 2026-09-24 | [^rcdd] |
 | Lint/RedundantCopDisableDirective | forem | 1.63.4 | 6 | 241 | 1 | 236 | 0 | 2.1% | 2026-09-24 | [^rcdd] |
 | Lint/RedundantCopDisableDirective | mastodon | 1.91.0 | 0 | 131 | 0 | 131 | 0 | 0.0% | 2026-09-24 | [^rcdd] |
 | Lint/RedundantStringCoercion | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/RedundantStringCoercion | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Lint/RedundantStringCoercion | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Lint/RequireParentheses | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/RequireParentheses | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/RescueException | discourse | 1.91.0 | 24 | 24 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/RescueException | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/ReturnInVoidContext | discourse | 1.91.0 | 5 | 5 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/ReturnInVoidContext | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Lint/SelfAssignment | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/SelfAssignment | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/SelfAssignment | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
@@ -105,30 +151,64 @@ text differs (RuboCop versions word some messages differently).
 | Lint/ShadowingOuterLocalVariable | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/ShadowingOuterLocalVariable | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/ShadowingOuterLocalVariable | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
+| Lint/StructNewOverride | discourse | 1.91.0 | 4 | 4 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/StructNewOverride | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/UnreachableCode | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/UnreachableCode | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/UnreachableLoop | discourse | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/UnreachableLoop | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/UriEscapeUnescape | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Lint/UriEscapeUnescape | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Lint/UselessAccessModifier | discourse | 1.91.0 | 77 | 77 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/UselessAccessModifier | mastodon (defaults) | 1.91.0 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/UselessAccessModifier | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/UselessAssignment | discourse | 1.91.0 | 551 | 551 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/UselessAssignment | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Lint/UselessAssignment | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
+| Naming/AccessorMethodName | discourse | 1.91.0 | 133 | 133 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Naming/AccessorMethodName | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Naming/BlockParameterName | discourse | 1.91.0 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Naming/BlockParameterName | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Naming/ConstantName | discourse | 1.91.0 | 112 | 112 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Naming/ConstantName | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Naming/MethodName | discourse | 1.91.0 | 28 | 28 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Naming/MethodName | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Naming/MethodParameterName | discourse | 1.91.0 | 175 | 175 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Naming/MethodParameterName | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Naming/VariableName | discourse | 1.91.0 | 94 | 94 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Naming/VariableName | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Security/Eval | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Security/Eval | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Security/MarshalLoad | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Security/MarshalLoad | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Security/Open | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Security/Open | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Style/AccessorGrouping | discourse | 1.91.0 | 166 | 166 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/AccessorGrouping | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/AccessorGrouping | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/BeginBlock | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Style/BeginBlock | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Style/ClassAndModuleChildren | discourse | 1.91.0 | 612 | 612 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/ClassAndModuleChildren | forem | 1.63.4 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/ClassAndModuleChildren | mastodon | 1.91.0 | 708 | 708 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/ClassVars | discourse | 1.91.0 | 116 | 116 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Style/ClassVars | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Style/Documentation | discourse | 1.91.0 | 7141 | 7141 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
 | Style/Documentation | forem | 1.63.4 | 1184 | 1185 | 0 | 1 | 0 | 99.9% | 2026-09-23 |  |
 | Style/Documentation | mastodon | 1.91.0 | 2045 | 2045 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
 | Style/EmptyElse | discourse | 1.91.0 | 65 | 65 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/EmptyElse | forem | 1.63.4 | 6 | 6 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/EmptyElse | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/ExponentialNotation | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Style/ExponentialNotation | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Style/FrozenStringLiteralComment | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
 | Style/FrozenStringLiteralComment | forem | 1.63.4 | 18 | 13 | 5 | 0 | 0 | 72.2% | 2026-09-23 |  |
 | Style/FrozenStringLiteralComment | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/GuardClause | discourse | 1.91.0 | 993 | 993 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
 | Style/GuardClause | forem | 1.63.4 | 55 | 54 | 1 | 0 | 54 | 98.2% | 2026-09-23 |  |
 | Style/GuardClause | mastodon | 1.91.0 | 24 | 24 | 0 | 0 | 24 | 100.0% | 2026-09-23 |  |
+| Style/HashLikeCase | discourse | 1.91.0 | 19 | 19 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Style/HashLikeCase | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Style/HashSyntax | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
 | Style/HashSyntax | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
 | Style/HashSyntax | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
@@ -138,6 +218,12 @@ text differs (RuboCop versions word some messages differently).
 | Style/IfUnlessModifierOfIfUnless | discourse | 1.91.0 | 2 | 2 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/IfUnlessModifierOfIfUnless | forem | 1.63.4 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/IfUnlessModifierOfIfUnless | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/MissingRespondToMissing | discourse | 1.91.0 | 7 | 7 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Style/MissingRespondToMissing | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Style/MixinUsage | discourse | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Style/MixinUsage | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Style/MultilineBlockChain | discourse | 1.91.0 | 89 | 89 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Style/MultilineBlockChain | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Style/MutableConstant | discourse | 1.91.0 | 606 | 607 | 0 | 1 | 0 | 99.8% | 2026-09-23 |  |
 | Style/MutableConstant | forem | 1.63.4 | 30 | 25 | 5 | 0 | 0 | 83.3% | 2026-09-23 |  |
 | Style/MutableConstant | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-23 |  |
@@ -147,6 +233,8 @@ text differs (RuboCop versions word some messages differently).
 | Style/NumericLiterals | discourse | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/NumericLiterals | forem | 1.63.4 | 23 | 23 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/NumericLiterals | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| Style/OptionalArguments | discourse | 1.91.0 | 2 | 2 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Style/OptionalArguments | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Style/OptionalBooleanParameter | discourse | 1.91.0 | 63 | 63 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Style/OptionalBooleanParameter | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |
 | Style/OptionalBooleanParameter | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-25 |

@@ -8,7 +8,7 @@ Checks for places where `URI.escape`/`URI.unescape` (and their aliases) can be r
 | Enabled by default | true |
 | Default severity | warning |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Identifies places where `URI.escape` can be replaced by `CGI.escape`,
 `URI.encode_www_form`, or `URI.encode_www_form_component` depending on your
