@@ -1,0 +1,1 @@
+Tip::Top.some_method[3]

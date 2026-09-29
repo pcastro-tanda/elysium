@@ -1,0 +1,4 @@
+Layout/LineLength:
+  Enabled: true
+  Max: 40
+  AllowURI: false

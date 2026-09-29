@@ -1,0 +1,1 @@
+Tip::Top::SOME_CONST
