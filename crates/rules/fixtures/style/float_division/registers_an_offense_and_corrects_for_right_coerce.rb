@@ -1,0 +1,2 @@
+a / b.to_f
+^^^^^^^^^^ Prefer using `.to_f` on the left side.

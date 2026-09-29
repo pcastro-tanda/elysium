@@ -1,0 +1,1 @@
+obj.attr1, ary[0] = ary[0], obj.attr1

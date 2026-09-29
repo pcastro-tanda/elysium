@@ -1,0 +1,6 @@
+Style/SafeNavigation:
+  ConvertCodeThatCanStartToReturnNil: true
+  AllowedMethods: ~
+  MaxChainLength: ~
+Lint/SafeNavigationChain:
+  Enabled: false

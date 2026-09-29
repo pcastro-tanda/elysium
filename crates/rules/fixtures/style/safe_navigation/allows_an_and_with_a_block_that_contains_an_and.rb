@@ -1,0 +1,3 @@
+x? && y? do |b|
+  b.foo? && b.bar?
+end

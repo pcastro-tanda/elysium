@@ -1,0 +1,8 @@
+AllCops:
+  TargetRubyVersion: 3.4
+Style/BlockDelimiters:
+  EnforcedStyle: semantic
+  ProceduralMethods: [tap]
+  FunctionalMethods: [let]
+  AllowedMethods: [lambda]
+  AllowedPatterns: [test]

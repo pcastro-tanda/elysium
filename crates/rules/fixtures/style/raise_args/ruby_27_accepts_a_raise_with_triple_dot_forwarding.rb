@@ -1,0 +1,1 @@
+def foo(...) raise MyCustomError.new(...) end

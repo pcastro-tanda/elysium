@@ -1,0 +1,1 @@
+format('%e %s', foo, bar)

@@ -1,0 +1,1 @@
+hash.fetch(:key) { :"value_#{value}" }

@@ -1,0 +1,6 @@
+Style/FormatStringToken:
+  EnforcedStyle: annotated
+  SupportedStyles: [annotated, template, unannotated]
+  MaxUnannotatedPlaceholdersAllowed: 0
+  AllowedMethods: [redirect]
+  Mode: aggressive

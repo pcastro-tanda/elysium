@@ -1,8 +1,8 @@
 # Default-cop parity inventory
 Generated from RuboCop 1.82.1 `config/default.yml` (`Enabled: true` only; `pending` cops excluded) minus the rules registered in `docs/rules/`. Regenerate with the script in this file's git history / `tools/` once ported there.
-**110 default-enabled cops missing of 393** (283 implemented). `Style/DoubleCopDisableDirective` is excluded: RuboCop 1.91.0, the corpus truth, removed it.
+**59 default-enabled cops missing of 393** (334 implemented). `Style/DoubleCopDisableDirective` is excluded: RuboCop 1.91.0, the corpus truth, removed it.
 ## By department
-- Style: 52
+- Style: 1
 - Layout: 49
 - Lint: 1
 - Naming: 0
@@ -85,55 +85,4 @@ Coarse, from mixins/API usage in the cop source. `pure-ast` = only node callback
 | Metrics/ModuleLength | 62 | 21 | metrics |
 | Metrics/ParameterLists | 147 | 16 | config-options |
 | Metrics/PerceivedComplexity | 59 | 31 | metrics |
-| Style/Alias | 158 | 26 | autocorrect |
-| Style/AndOr | 158 | 50 | autocorrect |
-| Style/BlockDelimiters | 503 | 123 | autocorrect, metrics, config-options |
-| Style/CaseLikeIf | 277 | 38 | autocorrect, metrics |
-| Style/ClassEqualityComparison | 134 | 22 | autocorrect |
-| Style/CombinableLoops | 131 | 20 | autocorrect, metrics |
-| Style/CommandLiteral | 181 | 35 | autocorrect, config-options |
 | Style/ConditionalAssignment | 670 | 0 | autocorrect, metrics, config-options |
-| Style/DoubleNegation | 159 | 43 | autocorrect |
-| Style/EachWithObject | 138 | 15 | autocorrect |
-| Style/EmptyCaseCondition | 117 | 11 | tokens/comments, autocorrect, metrics |
-| Style/EmptyLiteral | 151 | 40 | autocorrect |
-| Style/EvalWithLocation | 229 | 27 | autocorrect |
-| Style/ExpandPathArguments | 191 | 16 | autocorrect |
-| Style/ExplicitBlockArgument | 166 | 21 | autocorrect |
-| Style/FloatDivision | 169 | 31 | autocorrect |
-| Style/FormatString | 154 | 46 | autocorrect |
-| Style/FormatStringToken | 255 | 42 | autocorrect, config-options |
-| Style/HashEachMethods | 221 | 62 | autocorrect |
-| Style/IdenticalConditionalBranches | 273 | 48 | autocorrect, metrics |
-| Style/IfInsideElse | 152 | 21 | autocorrect, metrics, config-options |
-| Style/IfWithSemicolon | 132 | 28 | autocorrect |
-| Style/InfiniteLoop | 127 | 17 | semantic, autocorrect |
-| Style/InverseMethods | 200 | 40 | autocorrect, config-options |
-| Style/Lambda | 126 | 41 | autocorrect |
-| Style/MethodCallWithoutArgsParentheses | 120 | 40 | autocorrect, metrics |
-| Style/MethodDefParentheses | 180 | 25 | autocorrect |
-| Style/MixinGrouping | 135 | 18 | autocorrect |
-| Style/ModuleFunction | 170 | 11 | autocorrect |
-| Style/MultipleComparison | 164 | 34 | autocorrect, metrics |
-| Style/Next | 277 | 44 | autocorrect |
-| Style/NonNilCheck | 158 | 21 | autocorrect, config-options |
-| Style/OneLineConditional | 156 | 38 | autocorrect, config-options |
-| Style/ParallelAssignment | 302 | 55 | autocorrect |
-| Style/ParenthesesAroundCondition | 136 | 26 | autocorrect, config-options |
-| Style/PercentLiteralDelimiters | 118 | 49 | autocorrect |
-| Style/PerlBackrefs | 127 | 14 | autocorrect |
-| Style/RaiseArgs | 160 | 35 | autocorrect, config-options |
-| Style/RandomWithOffset | 153 | 29 | autocorrect |
-| Style/RedundantAssignment | 114 | 11 | autocorrect, metrics |
-| Style/RedundantFetchBlock | 113 | 15 | autocorrect, config-options |
-| Style/RedundantSort | 209 | 50 | autocorrect |
-| Style/RegexpLiteral | 231 | 57 | autocorrect, config-options |
-| Style/RescueStandardError | 126 | 37 | autocorrect |
-| Style/SafeNavigation | 427 | 170 | tokens/comments, target-ruby, autocorrect, metrics, config-options |
-| Style/Sample | 144 | 3 | autocorrect, metrics |
-| Style/Semicolon | 188 | 33 | tokens/comments, autocorrect, file-level, metrics, config-options |
-| Style/SignalException | 217 | 27 | autocorrect |
-| Style/TrailingUnderscoreVariable | 152 | 34 | autocorrect, config-options |
-| Style/TrivialAccessors | 254 | 38 | autocorrect, config-options |
-| Style/YodaCondition | 185 | 69 | autocorrect, metrics |
-| Style/ZeroLengthPredicate | 154 | 59 | autocorrect |

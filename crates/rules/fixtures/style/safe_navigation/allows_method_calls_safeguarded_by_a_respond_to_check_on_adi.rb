@@ -1,0 +1,1 @@
+foo.bar if baz.respond_to?(:bar)

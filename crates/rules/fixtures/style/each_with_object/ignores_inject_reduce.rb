@@ -1,0 +1,1 @@
+array.reduce(0) { |a, e| a }

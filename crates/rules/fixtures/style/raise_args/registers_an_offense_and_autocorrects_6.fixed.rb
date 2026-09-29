@@ -1,0 +1,1 @@
+bar || raise(Ex, 'error')

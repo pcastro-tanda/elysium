@@ -1,0 +1,1 @@
+loop { break if something }

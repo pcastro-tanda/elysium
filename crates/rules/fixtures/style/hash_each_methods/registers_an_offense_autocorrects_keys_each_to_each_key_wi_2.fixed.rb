@@ -1,0 +1,1 @@
+{}&.each_key(&:bar)

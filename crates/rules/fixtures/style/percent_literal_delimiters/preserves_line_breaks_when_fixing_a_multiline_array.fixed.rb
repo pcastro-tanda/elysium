@@ -1,0 +1,4 @@
+%w[
+some
+words
+]

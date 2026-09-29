@@ -1,0 +1,1 @@
+__FILE__ != $PROGRAM_NAME

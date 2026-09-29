@@ -1,0 +1,1 @@
+raise Ex1.new

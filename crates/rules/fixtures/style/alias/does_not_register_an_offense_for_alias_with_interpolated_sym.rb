@@ -1,0 +1,1 @@
+alias :"string#{interpolation}" :symbol

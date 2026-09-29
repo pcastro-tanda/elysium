@@ -1,0 +1,1 @@
+[1, 2, 3].shuffle(random: Random.new)[2, 3]

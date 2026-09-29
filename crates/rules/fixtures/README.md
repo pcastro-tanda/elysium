@@ -66,6 +66,30 @@ later tag's checkout instead:
   `style/nested_modifier`, `style/case_equality`,
   `style/redundant_self_assignment`, `style/redundant_percent_q`,
   `style/rescue_modifier`, `style/empty_method`.
+- Phase 5 wave 8 (all ported from 1.91.0 source directly):
+  `style/alias`, `style/and_or`, `style/block_delimiters`,
+  `style/case_like_if`, `style/class_equality_comparison`,
+  `style/combinable_loops`, `style/command_literal`, `style/double_negation`,
+  `style/each_with_object`, `style/empty_case_condition`,
+  `style/empty_literal`, `style/eval_with_location`,
+  `style/expand_path_arguments`, `style/explicit_block_argument`,
+  `style/float_division`, `style/format_string`, `style/format_string_token`,
+  `style/hash_each_methods`, `style/identical_conditional_branches`,
+  `style/if_inside_else`, `style/if_with_semicolon`, `style/infinite_loop`,
+  `style/inverse_methods`, `style/lambda`,
+  `style/method_call_without_args_parentheses`,
+  `style/method_def_parentheses`, `style/mixin_grouping`,
+  `style/module_function`, `style/multiple_comparison`, `style/next`,
+  `style/non_nil_check`, `style/one_line_conditional`,
+  `style/parallel_assignment`, `style/parentheses_around_condition`,
+  `style/percent_literal_delimiters`, `style/perl_backrefs`,
+  `style/raise_args`, `style/random_with_offset`,
+  `style/redundant_assignment`, `style/redundant_fetch_block`,
+  `style/redundant_sort`, `style/regexp_literal`,
+  `style/rescue_standard_error`, `style/safe_navigation`, `style/sample`,
+  `style/semicolon`, `style/signal_exception`,
+  `style/trailing_underscore_variable`, `style/trivial_accessors`,
+  `style/yoda_condition`, `style/zero_length_predicate`.
 
 A case that does not state `AllCops/TargetRubyVersion` in its `.yml` runs at
 3.3: the specs were ported with `PARSER_ENGINE=parser_prism`, where RuboCop's
@@ -99,6 +123,45 @@ after regeneration:
 - `style/rescue_modifier/excluded_file_processes_excluded_files_with_issue`: the
   case sets the cop's `Exclude`, which the fixture harness does not apply (the
   CLI does, before rules run).
+- `style/percent_literal_delimiters`: 7 cases
+  (`autocorrect_escape_characters_corrects_r_with_n_in_it`,
+  `..._r_with_t_in_it`,
+  `does_not_register_an_offense_for_other_delimiters_when_con_6`,
+  `does_not_register_an_offense_for_preferred_delimiters_6`,
+  `registers_an_offense_for_a_regular_expression_with_option`,
+  `registers_an_offense_for_other_delimiters_4`,
+  `registers_an_offense_for_other_delimiters_when_containing__4`): the spec's
+  bare `PreferredDelimiters: {default: '[]'}` is not merged with `default.yml`;
+  the real loader merges, so `'%r': '{}'` wins (same as the `style/empty_else`
+  precedent).
+- `style/if_inside_else`: `handles_a_nested_if_then_end`,
+  `handles_a_nested_if_then_elsif_end`,
+  `handles_a_nested_multiline_if_then_elsif_else_end`,
+  `handles_a_deep_nested_multiline_if_then_elsif_else_end`: upstream
+  `ignore_node` state persists across the spec's correction rounds; `rubocop -A`
+  on the same snippets converges fully.
+- `style/one_line_conditional`:
+  `registers_and_corrects_an_offense_with_ternary_operator_fo_4` / `_5`:
+  upstream `ignore_node` state persists across the spec's correction rounds
+  (nested one-line `if` in the else branch).
+- `style/parallel_assignment`:
+  `registers_an_offense_when_a_lambda_with_parallel_assignment`: upstream
+  `ignore_node` state persists across the spec's correction rounds (stale byte-
+  offset coincidence).
+- `style/if_with_semicolon`: 6 nested-if cases
+  (`registers_an_offense_and_corrects_when_using_nested_if_end_i`,
+  `..._nested_single_2`/`_3`/`_4`/`_l`,
+  `registers_an_offense_when_a_nested_if_with_a_semicolon_is_us`): upstream
+  `ignore_node` state persists across the spec's correction rounds.
+- `style/parentheses_around_condition`:
+  `does_not_accept_variable_assignment_in_condition_surrounded` /
+  `does_not_accept_element_assignment_in_condition_surrounded_w`: the spec's
+  isolated config has no `Lint/AssignmentInCondition` entry; the real loader
+  supplies its `AllowSafeAssignment: true` default, which exempts the case
+  (checked against `rubocop` 1.91.0 CLI).
+- `style/block_delimiters`: `autocorrects_adjacent_curly_braces_correctly` /
+  `registers_an_offense_for_nested_multi_line_blocks_with_trail`: upstream
+  `ignore_node` state persists across the spec's correction rounds.
 - `style/word_array/registers_an_offense_for_arrays_of_unicode_word_characters_2`:
   the spec sets `Encoding.default_external` to US-ASCII; elysium assumes UTF-8.
 - `lint/debugger/does_not_register_an_offense_for_a_pry_debugger_call` and

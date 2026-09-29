@@ -1,0 +1,1 @@
+%w[string] + %i[string]

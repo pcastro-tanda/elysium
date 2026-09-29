@@ -1,0 +1,1 @@
+hash.fetch(:key) { |k| "missing-#{k}" }

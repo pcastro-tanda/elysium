@@ -1,0 +1,1 @@
+puts { Array.new { 1 } }

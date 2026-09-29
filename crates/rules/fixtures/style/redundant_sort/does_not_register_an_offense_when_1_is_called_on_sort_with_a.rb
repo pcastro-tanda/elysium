@@ -1,0 +1,1 @@
+mongo_client["users"].find.sort(_id: 1)[-1]

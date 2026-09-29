@@ -1,0 +1,1 @@
+node = last_node.parent

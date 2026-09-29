@@ -1,0 +1,1 @@
+!FOO::BAR || FOO::BAR.bar { |e| e.qux }

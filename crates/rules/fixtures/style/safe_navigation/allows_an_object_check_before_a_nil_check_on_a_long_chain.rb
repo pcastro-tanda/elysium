@@ -1,0 +1,1 @@
+user && user.thing.plus.some.other_thing.nil?

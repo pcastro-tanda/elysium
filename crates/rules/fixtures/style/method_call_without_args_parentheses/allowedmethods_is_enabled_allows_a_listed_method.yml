@@ -1,0 +1,2 @@
+Style/MethodCallWithoutArgsParentheses:
+  AllowedMethods: [s]

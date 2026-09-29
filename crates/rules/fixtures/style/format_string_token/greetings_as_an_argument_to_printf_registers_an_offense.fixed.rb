@@ -1,0 +1,1 @@
+printf('%<greetings>s', *vars)

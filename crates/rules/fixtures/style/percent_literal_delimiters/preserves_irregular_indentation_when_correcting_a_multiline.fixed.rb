@@ -1,0 +1,4 @@
+  array = %w[
+    first
+  second
+]

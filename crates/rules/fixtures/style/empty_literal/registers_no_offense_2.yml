@@ -1,0 +1,4 @@
+AllCops:
+  StringLiteralsFrozenByDefault: true
+Style/FrozenStringLiteralComment:
+  Enabled: false

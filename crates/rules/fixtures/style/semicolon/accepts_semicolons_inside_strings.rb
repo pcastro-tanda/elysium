@@ -1,0 +1,2 @@
+string = ";
+multi-line string"

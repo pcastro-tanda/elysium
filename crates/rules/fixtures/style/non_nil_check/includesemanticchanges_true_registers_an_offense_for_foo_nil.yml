@@ -1,0 +1,4 @@
+Style/NonNilCheck:
+  IncludeSemanticChanges: true
+Style/NilComparison:
+  EnforcedStyle: comparison

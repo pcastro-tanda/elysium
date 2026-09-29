@@ -1,0 +1,4 @@
+Style/CommandLiteral:
+  EnforcedStyle: mixed
+Style/PercentLiteralDelimiters:
+  PreferredDelimiters: {"%x": "()"}

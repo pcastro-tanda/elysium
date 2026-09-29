@@ -1,0 +1,4 @@
+AllCops:
+  TargetRubyVersion: 3.4
+Style/InverseMethods:
+  InverseMethods: {any?: none?, even?: odd?, present?: blank?, include?: exclude?, "==": "!=", "=~": "!~", "<": ">=", ">": "<="}

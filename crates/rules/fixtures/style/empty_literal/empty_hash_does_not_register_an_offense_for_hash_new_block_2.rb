@@ -1,0 +1,1 @@
+test = ::Hash.new { block }

@@ -1,0 +1,5 @@
+Style/FormatStringToken:
+  EnforcedStyle: template
+  SupportedStyles: [annotated, template, unannotated]
+  MaxUnannotatedPlaceholdersAllowed: 0
+  Mode: aggressive

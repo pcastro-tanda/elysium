@@ -1,0 +1,3 @@
+map { |x|
+  x
+}.inspect

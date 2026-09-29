@@ -1,0 +1,1 @@
+format('%<hit_rate>6.2f%%', hit_rate: 12.34)
