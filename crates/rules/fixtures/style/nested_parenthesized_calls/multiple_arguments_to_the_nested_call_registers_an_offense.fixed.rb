@@ -1,0 +1,1 @@
+puts(compute(first, second))

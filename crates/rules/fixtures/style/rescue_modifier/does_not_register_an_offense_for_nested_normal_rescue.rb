@@ -1,0 +1,9 @@
+begin
+  begin
+    test
+  rescue
+    handle_inner
+  end
+rescue
+  handle_outer
+end

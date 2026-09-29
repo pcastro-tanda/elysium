@@ -1,0 +1,1 @@
+$stdin = SOME_CONST

@@ -1,0 +1,39 @@
+# Style/EachForSimpleLoop
+
+Use `Integer#times` for a simple loop which iterates a fixed number of times.
+
+| | |
+| --- | --- |
+| Department | Style |
+| Enabled by default | true |
+| Default severity | convention |
+| Fix | safe |
+| Stability | stable |
+
+Checks for loops which iterate a constant number of times,
+using a `Range` literal and `#each`. This can be done more readably using
+`Integer#times`.
+
+This check only applies if the block takes no parameters.
+
+```ruby
+# bad
+(1..5).each { }
+
+# good
+5.times { }
+
+# bad
+(0...10).each {}
+
+# good
+10.times {}
+```
+
+## Options
+
+This rule has no options.
+
+## Blind spots
+
+None recorded.

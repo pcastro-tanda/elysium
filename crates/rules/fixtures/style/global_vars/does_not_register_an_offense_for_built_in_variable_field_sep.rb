@@ -1,0 +1,1 @@
+puts $FIELD_SEPARATOR

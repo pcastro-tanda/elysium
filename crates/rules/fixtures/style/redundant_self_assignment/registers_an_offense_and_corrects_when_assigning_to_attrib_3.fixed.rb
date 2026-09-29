@@ -1,0 +1,1 @@
+other&.foo&.concat(ary)

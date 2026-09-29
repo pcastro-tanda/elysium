@@ -1,0 +1,1 @@
+expect(obj).to(be true)

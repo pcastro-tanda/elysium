@@ -166,6 +166,21 @@ begin
         end
       end
 
+      # Specs that build their own `subject(:cop)` without the shared `config`
+      # context (e.g. Style::NegatedIf/NegatedUnless) define neither `cop_class`
+      # nor `cop_config`.
+      def port_cop_class
+        respond_to?(:cop_class) ? cop_class : described_class
+      end
+
+      def port_cop_config
+        respond_to?(:cop_config) ? cop_config : {}
+      end
+
+      def port_other_cops
+        respond_to?(:other_cops) ? other_cops : {}
+      end
+
       # Only the keys the spec's *effective* config actually changes relative to RuboCop's real
       # default configuration for this cop. Most specs build their config via the shared :config
       # context (defaults.merge(cop_config)), so diffing the raw `cop_config` let value already
@@ -174,8 +189,8 @@ begin
       # non-default effective value; diffing the cop's actual merged config against real defaults
       # (skipping doc-only and test-harness-synthetic keys already covered by `raw`) catches those.
       def cop_config_overrides
-        real_defaults = RuboCop::ConfigLoader.default_configuration.for_cop(cop_class)
-        cop_config.empty? ? {} : diff_against_defaults(cop_config, real_defaults)
+        real_defaults = RuboCop::ConfigLoader.default_configuration.for_cop(port_cop_class)
+        port_cop_config.empty? ? {} : diff_against_defaults(port_cop_config, real_defaults)
       end
 
       # Supplemental diff against the cop's actual merged config, computed only after the real
@@ -189,8 +204,8 @@ begin
       # makes `raw` (built from the `cop_config` let) stale for every key, so the effective,
       # actually-applied value must win on conflict — callers merge as `raw.merge(extra)`.
       def effective_cop_config_extra(raw)
-        real_defaults = RuboCop::ConfigLoader.default_configuration.for_cop(cop_class)
-        effective = cop.config.for_cop(cop_class)
+        real_defaults = RuboCop::ConfigLoader.default_configuration.for_cop(port_cop_class)
+        effective = cop.config.for_cop(port_cop_class)
         diff_against_defaults(
           effective, real_defaults,
           exclude: DOC_ONLY_KEYS + SYNTHETIC_KEYS,
@@ -230,7 +245,7 @@ begin
             next
           end
           next unless key.include?('/')
-          next if key == cop_class.cop_name
+          next if key == port_cop_class.cop_name
 
           cop_effective = effective.for_cop(key)
           real_defaults = default_config.for_cop(key)
@@ -276,7 +291,7 @@ begin
           'path' => current_path,
           'file' => file,
           'cop_config' => raw,
-          'other_cops' => other_cops,
+          'other_cops' => port_other_cops,
           'ruby_version' => ruby_version
         }
         result = super
@@ -337,7 +352,7 @@ begin
             'path' => current_path,
             'file' => nil,
             'cop_config' => raw.merge(effective_cop_config_extra(raw)),
-            'other_cops' => effective_peer_overrides.merge(other_cops),
+            'other_cops' => effective_peer_overrides.merge(port_other_cops),
             'offenses' => injected_offenses,
             'ruby_version' => ruby_version,
             'annotated' => annotated
@@ -367,7 +382,7 @@ begin
           'file' => file,
           'source' => source,
           'cop_config' => raw,
-          'other_cops' => other_cops,
+          'other_cops' => port_other_cops,
           'ruby_version' => ruby_version
         }
         result = super

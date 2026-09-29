@@ -1,0 +1,5 @@
+Foo::STDOUT.puts('hello')
+Foo::Bar::STDOUT.puts('hello')
+::Foo::STDOUT.puts('hello')
+::Foo::BaR::STDOUT.puts('hello')
+foo::STDOUT.puts('hello')

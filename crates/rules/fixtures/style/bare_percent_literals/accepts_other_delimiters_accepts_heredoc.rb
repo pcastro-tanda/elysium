@@ -1,0 +1,3 @@
+func <<HEREDOC
+hi
+HEREDOC
