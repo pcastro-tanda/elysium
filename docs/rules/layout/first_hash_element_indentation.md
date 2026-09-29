@@ -86,7 +86,7 @@ and_now_for_something = {
 
 ## Blind spots
 
-RuboCop's `each_argument_node` resolves the governing call for a hash argument via a fully generic recursive `on_node` search that descends through *any* wrapper node type (arrays, ternaries, boolean connectives, splats, method chains, ...) stopping only at a nested `send`/`csend`. This port narrows that search to hash-literal/keyword-hash-literal pair chains only (`eager_check_call_hash`/`eager_check_pairs`): a hash argument buried inside e.g. an array literal or a ternary is treated as an ordinary top-level hash literal (checked against the start of its own line) rather than against the call's parenthesis, a false-negative-only divergence for the `special_inside_parentheses`/`consistent` distinction in that shape.
+RuboCop's `each_argument_node` finds hash arguments with `on_node(:hash, arg, :send)`. Prism has no separate `block`/`csend` nodes, so this port treats a plain call as opaque except for its attached `do`/`{}` block, and descends into `&.` calls, which is how parser's tree shapes `on_node` in those cases.
 
 RuboCop's `MultilineElementIndentation#right_sibling` is the pair's true next AST sibling regardless of type; this port's sibling lookahead (`record_facts_one_level`/`eager_check_pairs`) matches that (it looks at the next raw hash/keyword-hash element, not the next *pair*, so a `**splat` between two pairs is not skipped over).
 

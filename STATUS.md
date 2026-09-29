@@ -165,10 +165,11 @@ it. At `nursery`:
 - `Lint/RedundantCopDisableDirective` — held back per policy regardless of
   measured agreement (see above).
 Known sub-100% residue among `stable` rules (all above the 99% bar):
-`Layout/HeredocIndentation` misses 1 of 1,266 on discourse's own config;
-under RuboCop defaults only, `Layout/FirstHashElementIndentation` (6
-missing on discourse), `Style/IfUnlessModifier` (1-2 extra) and
-`Layout/LineLength` (1 missing on mastodon).
+`Layout/HeredocIndentation` misses 1 of 1,266 on discourse's own config.
+The corpus workflow (`ci/corpus/run.sh`) compares every stable cop in two
+passes per app, under the app's own config (only the cops it enables) and
+under RuboCop defaults; both passes match RuboCop exactly on discourse and
+mastodon.
 
 `Lint/Syntax` is built into the engine and is not counted.
 

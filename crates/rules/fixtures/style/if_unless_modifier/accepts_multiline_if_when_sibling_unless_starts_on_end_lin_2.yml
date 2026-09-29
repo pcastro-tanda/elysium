@@ -1,0 +1,6 @@
+Layout/LineLength:
+  Enabled: true
+  Max: 80
+  AllowURI: true
+  AllowCopDirectives: true
+  URISchemes: [http, https]

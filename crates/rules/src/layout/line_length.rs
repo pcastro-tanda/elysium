@@ -205,18 +205,7 @@ is a complete port.",
         } else {
             let alternation =
                 uri_schemes.iter().map(|s| regex::escape(s)).collect::<Vec<_>>().join("|");
-            // `\S+` alone over-matches: RuboCop's `URI::DEFAULT_PARSER` regex
-            // stops at characters that are not valid URI syntax (unescaped
-            // quotes, angle brackets, backslash, braces, ...), which commonly
-            // delimit an embedded URL from surrounding Ruby/HTML/JSON source
-            // on the same line. Excluding them keeps adjacent URIs on one
-            // line as separate matches instead of one giant match spanning
-            // both -- `find_uri_range` only uses the *last* match, so which
-            // one that is (and where it starts) has to agree with RuboCop's.
-            // The opaque part is `*`, not `+`: `URI.parse("http:")` doesn't
-            // raise, so a bare `scheme:` immediately followed by a delimiter
-            // (e.g. an escaped `\/` in a JSON-ish string) is still a match.
-            Regex::new(&format!(r#"(?i)(?:{alternation}):[^\s"<>\\^`{{}}|\[\]]*"#)).ok()
+            Regex::new(&URI_PATTERN.replace("SCHEMES", &format!("(?:{alternation})"))).ok()
         };
         let qualified_name_regex =
             Regex::new(r"\b(?:[A-Z][A-Za-z0-9_]*::)+[A-Za-z_][A-Za-z0-9_]*\b")
@@ -450,6 +439,16 @@ impl LineLength {
         }
     }
 }
+
+/// RuboCop's `uri_regexp`: `URI::RFC2396_PARSER.make_regexp(URISchemes)`
+/// (Ruby's `X_ABS_URI`), mechanically translated for the `regex` crate.
+/// `SCHEMES` is replaced with the escaped scheme alternation, matched
+/// case-sensitively as RuboCop 1.91 does. Ruby's two lookarounds are dropped
+/// without changing any match: the leading `(?=scheme:)` becomes the literal
+/// scheme, and `(?!//)` only guards the path-only alternative, which
+/// leftmost-first priority never reaches when the (fully optional)
+/// `//authority` branch can match. `\d`/`\h` are spelled as ASCII classes.
+const URI_PATTERN: &str = r"SCHEMES:(?:((?:[\-_.!~*'()a-zA-Z[0-9];?:@&=+$,]|%[a-fA-F[0-9]]{2})(?:[\-_.!~*'()a-zA-Z[0-9];/?:@&=+$,\[\]]|%[a-fA-F[0-9]]{2})*)|(?:(?://(?:(?:(?:((?:[\-_.!~*'()a-zA-Z[0-9];:&=+$,]|%[a-fA-F[0-9]]{2})*)@)?(?:((?:(?:[a-zA-Z0-9\-.]|%[0-9a-fA-F][0-9a-fA-F])+|[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}|\[(?:(?:[a-fA-F[0-9]]{1,4}:)*(?:[a-fA-F[0-9]]{1,4}|[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3})|(?:(?:[a-fA-F[0-9]]{1,4}:)*[a-fA-F[0-9]]{1,4})?::(?:(?:[a-fA-F[0-9]]{1,4}:)*(?:[a-fA-F[0-9]]{1,4}|[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}\.[0-9]{1,3}))?)\]))(?::([0-9]*))?))?|((?:[\-_.!~*'()a-zA-Z[0-9]$,;:@&=+]|%[a-fA-F[0-9]]{2})+))|)(/(?:[\-_.!~*'()a-zA-Z[0-9]:@&=+$,]|%[a-fA-F[0-9]]{2})*(?:;(?:[\-_.!~*'()a-zA-Z[0-9]:@&=+$,]|%[a-fA-F[0-9]]{2})*)*(?:/(?:[\-_.!~*'()a-zA-Z[0-9]:@&=+$,]|%[a-fA-F[0-9]]{2})*(?:;(?:[\-_.!~*'()a-zA-Z[0-9]:@&=+$,]|%[a-fA-F[0-9]]{2})*)*)*)?)(?:\?((?:[\-_.!~*'()a-zA-Z[0-9];/?:@&=+$,\[\]]|%[a-fA-F[0-9]]{2})*))?)(?:\#((?:[\-_.!~*'()a-zA-Z[0-9];/?:@&=+$,\[\]]|%[a-fA-F[0-9]]{2})*))?";
 
 /// RuboCop's `allowed_position?`.
 fn allowed_position(range: (i64, i64), length: i64, max: i64) -> bool {

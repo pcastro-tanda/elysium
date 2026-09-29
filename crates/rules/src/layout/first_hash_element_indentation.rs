@@ -227,16 +227,11 @@ and_now_for_something = {
             },
         ],
         blind_spots: "\
-RuboCop's `each_argument_node` resolves the governing call for a hash \
-argument via a fully generic recursive `on_node` search that descends \
-through *any* wrapper node type (arrays, ternaries, boolean connectives, \
-splats, method chains, ...) stopping only at a nested `send`/`csend`. This \
-port narrows that search to hash-literal/keyword-hash-literal pair chains \
-only (`eager_check_call_hash`/`eager_check_pairs`): a hash argument buried \
-inside e.g. an array literal or a ternary is treated as an ordinary \
-top-level hash literal (checked against the start of its own line) rather \
-than against the call's parenthesis, a false-negative-only divergence for \
-the `special_inside_parentheses`/`consistent` distinction in that shape.
+RuboCop's `each_argument_node` finds hash arguments with \
+`on_node(:hash, arg, :send)`. Prism has no separate `block`/`csend` nodes, so \
+this port treats a plain call as opaque except for its attached `do`/`{}` \
+block, and descends into `&.` calls, which is how parser's tree shapes \
+`on_node` in those cases.
 
 RuboCop's `MultilineElementIndentation#right_sibling` is the pair's true \
 next AST sibling regardless of type; this port's sibling lookahead \
@@ -338,7 +333,7 @@ impl FirstHashElementIndentation {
     /// RuboCop's `each_argument_node`/`on_node(:hash, arg, :send)`: finds
     /// every explicit-brace hash literal reachable from `node` without
     /// crossing into a nested call's own arguments (see `META.blind_spots`
-    /// for how this narrows RuboCop's fully generic recursive search), and
+    /// for how parser's `block`/`csend` shapes map onto Prism), and
     /// -- for each one whose own opening brace shares `open_line` with the
     /// enclosing call's opening parenthesis -- `check`s it eagerly with
     /// `parent_fact` as its precomputed `:parent_hash_key` basis, marking it
@@ -362,6 +357,24 @@ impl FirstHashElementIndentation {
         }
         if let Some(kw) = node.as_keyword_hash_node() {
             self.eager_check_pairs(ctx, &kw.elements(), open_span, open_line);
+            return;
+        }
+        // `on_node(:hash, arg, :send)` descends through every other node
+        // type and stops only at a `send`. Prism folds parser's `block`
+        // wrapper into its call and `csend` into `CallNode`, so: a plain call
+        // is opaque except for its block (parser's `block` node, whose
+        // `send` child is the excluded part), and a `&.` call is descended.
+        let mut children = Vec::new();
+        match node.as_call_node() {
+            Some(call) if !call.is_safe_navigation() => {
+                if let Some(block) = call.block().filter(|b| b.as_block_node().is_some()) {
+                    ruby_ast::for_each_child(&block, |child| children.push(*child));
+                }
+            }
+            _ => ruby_ast::for_each_child(node, |child| children.push(*child)),
+        }
+        for child in &children {
+            self.eager_check_call_hash(ctx, child, open_span, open_line, None);
         }
     }
 

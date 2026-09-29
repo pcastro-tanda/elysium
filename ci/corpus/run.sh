@@ -1,7 +1,8 @@
 #!/usr/bin/env bash
 # Clones one corpus app at its pinned commit, runs real RuboCop and elysium
-# over it with the same `--only` list -- the stable cops in rules.txt that
-# the app's own config enables (enabled_cops.rb) -- times both, and diffs their
+# over it with `--only` in two passes -- `app`: the stable cops in rules.txt
+# that the app's own config enables (enabled_cops.rb); `defaults`: every
+# stable cop under RuboCop's default config -- times both, and diffs their
 # offenses via compare.py. Used by .github/workflows/corpus.yml; runnable
 # locally the same way.
 #
@@ -58,34 +59,6 @@ else
   git -C "$work" checkout --quiet "$COMMIT"
 fi
 
-# `--only` force-enables every listed cop, even ones the app's config turns
-# off, so narrow the list to what the app really runs.
-rules="$(
-  cd "$work"
-  BUNDLE_GEMFILE="$app_dir/Gemfile" bundle exec ruby "$script_dir/enabled_cops.rb" "$script_dir/rules.txt"
-)"
-echo "== comparing $(tr ',' '\n' <<<"$rules" | wc -l | tr -d ' ') cops enabled by $app's config ==" >&2
-
-rubocop_json="$work/rubocop.json"
-elysium_json="$work/elysium.json"
-
-echo "== running rubocop over $app ==" >&2
-SECONDS=0
-(
-  cd "$work"
-  BUNDLE_GEMFILE="$app_dir/Gemfile" bundle exec rubocop \
-    --cache false --only "$rules" --format json --out "$rubocop_json" .
-) && rc_exit=0 || rc_exit=$?
-rc_wall=$SECONDS
-# RuboCop exits 1 when it finds offenses -- that's expected, not a failure.
-# Only exit 2+ means RuboCop itself errored.
-if [[ $rc_exit -gt 1 ]]; then
-  echo "error: rubocop exited $rc_exit" >&2
-  exit 2
-fi
-
-echo "== running elysium over $app ==" >&2
-SECONDS=0
 # elysium's `inherit_gem`/plugin-default lookup walks `vendor/bundle/**` under
 # the directory it lints (here, $work -- the app checkout) plus GEM_HOME,
 # GEM_PATH, and BUNDLE_PATH from its environment. `bundle install`'s cache
@@ -98,50 +71,98 @@ gem_path="$(
   BUNDLE_GEMFILE="$app_dir/Gemfile" bundle exec ruby -e 'print Gem.path.join(":")'
 )"
 echo "gem_path=$gem_path" >&2
-(
-  cd "$work"
-  # $work (the app checkout) commonly ships its own Gemfile.lock that also
-  # happens to list the same plugin gems (e.g. rubocop-rails) at a version
-  # unrelated to the one actually installed under $gem_path -- elysium
-  # resolves gem versions against $BUNDLE_GEMFILE's own lockfile in
-  # preference to that unrelated one when the variable is set, so export it
-  # here too, not just for the `bundle exec` calls above.
-  BUNDLE_GEMFILE="$app_dir/Gemfile" GEM_PATH="$gem_path" \
-    "$elysium_bin" check --only "$rules" -f json . > "$elysium_json"
-) && el_exit=0 || el_exit=$?
-el_wall=$SECONDS
-# Same convention as RuboCop: exit 1 = offenses found, not a failure.
-if [[ $el_exit -gt 1 ]]; then
-  echo "error: elysium exited $el_exit" >&2
-  exit 2
-fi
 
 read_summary_field() {
   python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['summary'][sys.argv[2]])" "$1" "$2"
 }
 
-rc_files=$(read_summary_field "$rubocop_json" inspected_file_count)
-rc_offenses=$(read_summary_field "$rubocop_json" offense_count)
-el_files=$(read_summary_field "$elysium_json" inspected_file_count)
-el_offenses=$(read_summary_field "$elysium_json" offense_count)
+# run_pass <pass> <rules-csv> [--defaults]
+#
+# Runs RuboCop and elysium over $work with `--only <rules-csv>`, writes
+# $work/{rubocop,elysium}.<pass>.json and $work/compare.<pass>.txt, and
+# returns compare.py's status (0 = exact match). With --defaults both tools
+# ignore the app's config (`--force-default-config` / `--no-config`).
+run_pass() {
+  local pass="$1" rules="$2" defaults="${3:-}"
+  local rc_flags=() el_flags=()
+  if [[ "$defaults" == --defaults ]]; then
+    rc_flags=(--force-default-config)
+    el_flags=(--no-config)
+  fi
+  local rubocop_json="$work/rubocop.$pass.json" elysium_json="$work/elysium.$pass.json"
+  local rc_exit el_exit rc_wall el_wall
 
-table="$(cat <<TABLE
-### corpus: $app
+  echo "== [$pass] running rubocop over $app ($(tr ',' '\n' <<<"$rules" | wc -l | tr -d ' ') cops) ==" >&2
+  SECONDS=0
+  (
+    cd "$work"
+    BUNDLE_GEMFILE="$app_dir/Gemfile" bundle exec rubocop ${rc_flags[@]+"${rc_flags[@]}"} \
+      --cache false --only "$rules" --format json --out "$rubocop_json" .
+  ) && rc_exit=0 || rc_exit=$?
+  rc_wall=$SECONDS
+  # RuboCop exits 1 when it finds offenses -- that's expected, not a failure.
+  # Only exit 2+ means RuboCop itself errored.
+  if [[ $rc_exit -gt 1 ]]; then
+    echo "error: rubocop exited $rc_exit" >&2
+    exit 2
+  fi
+
+  echo "== [$pass] running elysium over $app ==" >&2
+  SECONDS=0
+  (
+    cd "$work"
+    # $work (the app checkout) commonly ships its own Gemfile.lock that also
+    # happens to list the same plugin gems (e.g. rubocop-rails) at a version
+    # unrelated to the one actually installed under $gem_path -- elysium
+    # resolves gem versions against $BUNDLE_GEMFILE's own lockfile in
+    # preference to that unrelated one when the variable is set, so export it
+    # here too, not just for the `bundle exec` calls above.
+    BUNDLE_GEMFILE="$app_dir/Gemfile" GEM_PATH="$gem_path" \
+      "$elysium_bin" check ${el_flags[@]+"${el_flags[@]}"} --only "$rules" -f json . > "$elysium_json"
+  ) && el_exit=0 || el_exit=$?
+  el_wall=$SECONDS
+  # Same convention as RuboCop: exit 1 = offenses found, not a failure.
+  if [[ $el_exit -gt 1 ]]; then
+    echo "error: elysium exited $el_exit" >&2
+    exit 2
+  fi
+
+  local table
+  table="$(cat <<TABLE
+### corpus: $app ($pass)
 
 | tool | wall s | files | offenses |
 | --- | ---: | ---: | ---: |
-| rubocop | $rc_wall | $rc_files | $rc_offenses |
-| elysium | $el_wall | $el_files | $el_offenses |
+| rubocop | $rc_wall | $(read_summary_field "$rubocop_json" inspected_file_count) | $(read_summary_field "$rubocop_json" offense_count) |
+| elysium | $el_wall | $(read_summary_field "$elysium_json" inspected_file_count) | $(read_summary_field "$elysium_json" offense_count) |
 TABLE
 )"
+  if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
+    { echo "$table"; echo; } >> "$GITHUB_STEP_SUMMARY"
+  else
+    echo
+    echo "$table"
+    echo
+  fi
 
-if [[ -n "${GITHUB_STEP_SUMMARY:-}" ]]; then
-  { echo "$table"; echo; } >> "$GITHUB_STEP_SUMMARY"
-else
-  echo
-  echo "$table"
-  echo
-fi
+  echo "== [$pass] comparing offenses ==" >&2
+  python3 "$script_dir/compare.py" "$rubocop_json" "$elysium_json" | tee "$work/compare.$pass.txt"
+}
 
-echo "== comparing offenses ==" >&2
-python3 "$script_dir/compare.py" "$rubocop_json" "$elysium_json" | tee "$work/compare.txt"
+all_rules="$(grep -v '^#' "$script_dir/rules.txt" | grep -v '^[[:space:]]*$' | paste -sd, -)"
+# `--only` force-enables every listed cop, even ones the app's config turns
+# off, so the `app` pass narrows the list to what the app really runs: its
+# offense count is the app's real lint result for these cops.
+app_rules="$(
+  cd "$work"
+  BUNDLE_GEMFILE="$app_dir/Gemfile" bundle exec ruby "$script_dir/enabled_cops.rb" "$script_dir/rules.txt"
+)"
+
+# Apps are typically lint-clean under their own config, so the `app` pass
+# mostly proves elysium adds no false positives. The `defaults` pass runs
+# every stable cop under RuboCop's default config, where the app has real
+# offenses to find, so it also catches offenses elysium misses.
+status=0
+run_pass app "$app_rules" || status=1
+run_pass defaults "$all_rules" --defaults || status=1
+exit "$status"

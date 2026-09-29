@@ -2,8 +2,9 @@ name: corpus
 
 # Real-world conformance: builds elysium once, then for each corpus app
 # clones it at a pinned commit and checks that elysium's offenses match real
-# RuboCop's over the stable cops in ci/corpus/rules.txt that the app's own
-# config enables (ci/corpus/enabled_cops.rb). Workflow
+# RuboCop's in two passes: the stable cops in ci/corpus/rules.txt that the
+# app's own config enables (ci/corpus/enabled_cops.rb), then every stable cop
+# under RuboCop's default config. Workflow
 # logic lives in ci/corpus/*.sh so it can be run the same way locally; this
 # file just wires up runners, caching, and artifact handoff.
 
@@ -89,6 +90,6 @@ jobs:
           name: corpus-${{ matrix.app }}
           retention-days: 30
           path: |
-            ${{ runner.temp }}/corpus-${{ matrix.app }}/rubocop.json
-            ${{ runner.temp }}/corpus-${{ matrix.app }}/elysium.json
-            ${{ runner.temp }}/corpus-${{ matrix.app }}/compare.txt
+            ${{ runner.temp }}/corpus-${{ matrix.app }}/rubocop.*.json
+            ${{ runner.temp }}/corpus-${{ matrix.app }}/elysium.*.json
+            ${{ runner.temp }}/corpus-${{ matrix.app }}/compare.*.txt

@@ -110,3 +110,6 @@ interpolated-string heredocs are recognized as a call's last argument.
 extension; it accepts the same URIs in the common case (a bare URI running
 to the end of the line) but does not replicate the `{<uri> <title>}` or
 trailing-word extensions.
+
+`self.autocorrect_incompatible_with` (`Style::Next`/`Style::SoleNestedConditional`)
+is not ported: this port has no cross-rule autocorrect-conflict mechanism.

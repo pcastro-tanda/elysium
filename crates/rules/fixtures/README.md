@@ -21,6 +21,10 @@ later tag's checkout instead:
   `(send ...)` became `!csend`).
 - `lint/useless_method_definition`: RuboCop 1.91.0 (`**kwrest` joined the
   rest/optional exemption).
+- `style/if_unless_modifier`: RuboCop 1.91.0 (skips nodes inside string
+  interpolation, `MSG_USE_MODIFIER_PARENS` when the modifier form would need
+  parens, and the `multiline_inside_collection?`/
+  `another_modifier_if_on_same_line?` array/call/hash-literal guards).
 
 A case that does not state `AllCops/TargetRubyVersion` in its `.yml` runs at
 3.3: the specs were ported with `PARSER_ENGINE=parser_prism`, where RuboCop's

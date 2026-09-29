@@ -10,12 +10,17 @@ use linter::{
 };
 use regex::Regex;
 use ruby_ast::node::{CallNode, Location, StatementsNode};
-use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
+use ruby_ast::{each_descendant, for_each_child, LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::{char_len, Span};
 
 /// RuboCop's `MSG_USE_MODIFIER`.
 const MSG_USE_MODIFIER: &str = "Favor modifier `{keyword}` usage when having a single-line body. \
 Another good alternative is the usage of control flow `&&`/`||`.";
+
+/// RuboCop's `MSG_USE_MODIFIER_PARENS`.
+const MSG_USE_MODIFIER_PARENS: &str = "Favor modifier `{keyword}` usage when having a \
+single-line body. Wrap the expression in parentheses to keep the current behavior, as it is \
+part of a larger expression.";
 
 /// RuboCop's `MSG_USE_NORMAL`.
 const MSG_USE_NORMAL: &str = "Modifier form of `{keyword}` makes the line too long.";
@@ -231,7 +236,10 @@ interpolated-string heredocs are recognized as a call's last argument.
 `URI::DEFAULT_PARSER.make_regexp` plus RuboCop's YARD-link end-position
 extension; it accepts the same URIs in the common case (a bare URI running
 to the end of the line) but does not replicate the `{<uri> <title>}` or
-trailing-word extensions.",
+trailing-word extensions.
+
+`self.autocorrect_incompatible_with` (`Style::Next`/`Style::SoleNestedConditional`)
+is not ported: this port has no cross-rule autocorrect-conflict mechanism.",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
@@ -330,12 +338,11 @@ trailing-word extensions.",
                 // RuboCop's `non_eligible_condition?` (`lvasgn_type?`) also
                 // matches these: whitequark desugars every compound local
                 // assignment (`+=`/`&&=`/`||=`) into the same bare `lvasgn`
-                // node as plain `=`. Unlike `LocalVariableWriteNode`, these
-                // aren't added to `paren_targets`: that tracking is only for
-                // the fix's parenthesization/left-siblings reconstruction,
-                // already documented in `blind_spots` as accepting operator
-                // assignment as a false-negative-only gap there.
+                // node as plain `=`.
                 self.lvasgn_spans.push(node.span());
+                if let Some(value) = assignment_value(node) {
+                    self.paren_targets.insert(value.span());
+                }
             }
             Node::LocalVariableTargetNode { .. } => {
                 // whitequark represents each target of a multiple
@@ -344,22 +351,6 @@ trailing-word extensions.",
                 // per target; Prism groups them under `MultiWriteNode`, so
                 // this is the equivalent per-target node to record.
                 self.lvasgn_spans.push(node.span());
-            }
-            Node::InstanceVariableWriteNode { .. } => {
-                let n = node.as_instance_variable_write_node().expect("kind matched");
-                self.paren_targets.insert(n.value().span());
-            }
-            Node::ClassVariableWriteNode { .. } => {
-                let n = node.as_class_variable_write_node().expect("kind matched");
-                self.paren_targets.insert(n.value().span());
-            }
-            Node::GlobalVariableWriteNode { .. } => {
-                let n = node.as_global_variable_write_node().expect("kind matched");
-                self.paren_targets.insert(n.value().span());
-            }
-            Node::ConstantWriteNode { .. } => {
-                let n = node.as_constant_write_node().expect("kind matched");
-                self.paren_targets.insert(n.value().span());
             }
             Node::MatchPredicateNode { .. } | Node::MatchRequiredNode { .. } => {
                 self.match_pattern_spans.push(node.span());
@@ -387,10 +378,13 @@ trailing-word extensions.",
             Node::IfNode { .. } | Node::UnlessNode { .. } => {
                 self.conditional_spans.push(node.span());
             }
-            _ => {}
+            _ => {
+                if let Some(value) = assignment_value(node) {
+                    self.paren_targets.insert(value.span());
+                }
+            }
         }
     }
-
     /// Runs the actual `if`/`unless` checks after the node's own condition
     /// and body -- including any nested conditionals, pattern matches,
     /// local-variable writes, and `defined?` calls they contain, recorded
@@ -462,7 +456,7 @@ impl IfUnlessModifier {
             return;
         }
         let condition = if_node.predicate();
-        if self.top_level_guard(&condition, if_node.statements().as_ref(), node.span()) {
+        if self.top_level_guard(ctx, &condition, if_node.statements().as_ref(), node.span()) {
             return;
         }
         let is_modifier_form = if_node.end_keyword_loc().is_none();
@@ -498,7 +492,7 @@ impl IfUnlessModifier {
         let unless_node = node.as_unless_node().expect("kind matched");
         let keyword_span = unless_node.keyword_loc().span();
         let condition = unless_node.predicate();
-        if self.top_level_guard(&condition, unless_node.statements().as_ref(), node.span()) {
+        if self.top_level_guard(ctx, &condition, unless_node.statements().as_ref(), node.span()) {
             return;
         }
         let is_modifier_form = unless_node.end_keyword_loc().is_none();
@@ -530,15 +524,20 @@ impl IfUnlessModifier {
         }
     }
 
-    /// RuboCop's top-of-`on_if` guards, common to both branches: an
-    /// endless-method body, or a `defined?`/pattern-matching condition that
-    /// would change meaning in modifier form.
+    /// RuboCop's top-of-`on_if` guards, common to both branches: the node
+    /// (or an ancestor) is inside a string interpolation, an endless-method
+    /// body, or a `defined?`/pattern-matching condition that would change
+    /// meaning in modifier form.
     fn top_level_guard(
         &self,
+        ctx: &Context<'_>,
         condition: &Node<'_>,
         body: Option<&StatementsNode<'_>>,
         own_span: Span,
     ) -> bool {
+        if ctx.ancestors().iter().any(|a| a.kind == NodeKind::InterpolatedStringNode) {
+            return true;
+        }
         if is_endless_def_body(body) {
             return true;
         }
@@ -597,6 +596,14 @@ impl IfUnlessModifier {
             return;
         }
         let message = MSG_USE_NORMAL.replace("{keyword}", keyword);
+        if another_modifier_if_on_same_line(ctx, node_span, first_line) {
+            // RuboCop's `next if another_modifier_if_on_same_line?(node)`:
+            // report but skip the fix, since converting only this one to
+            // block form would strand its sibling modifier-form `if` mid
+            // expression.
+            ctx.report(&Self::META, keyword_span, message);
+            return;
+        }
         let indent = " ".repeat(ctx.line_col(node_span.start).column as usize);
         let fix = self.modifier_too_long_fix(
             ctx, node_span, keyword, condition, body_stmt, first_line, &indent,
@@ -773,6 +780,9 @@ impl IfUnlessModifier {
             return;
         }
         let last_line = ctx.line_col(end_loc.span().start).line;
+        if multiline_inside_collection(ctx, node_span, last_line) {
+            return;
+        }
         if ctx.comments().iter().any(|c| c.line == last_line) {
             return;
         }
@@ -811,7 +821,17 @@ impl IfUnlessModifier {
         if condition_has_match_write(condition) {
             return;
         }
-        let message = MSG_USE_MODIFIER.replace("{keyword}", keyword);
+        let message = if self.paren_targets.contains(&node_span) {
+            MSG_USE_MODIFIER_PARENS.replace("{keyword}", keyword)
+        } else {
+            MSG_USE_MODIFIER.replace("{keyword}", keyword)
+        };
+        if another_modifier_if_on_same_line(ctx, node_span, first_line) {
+            // RuboCop's `next if another_modifier_if_on_same_line?(node)`:
+            // report but skip the fix.
+            ctx.report(&Self::META, keyword_span, message);
+            return;
+        }
         let fix = self.to_modifier_form_fix(ctx, node_span, keyword, condition, stmt);
         ctx.report_with_fix(&Self::META, keyword_span, message, fix);
     }
@@ -1079,4 +1099,232 @@ fn trim_end_newline(bytes: &[u8]) -> &[u8] {
     } else {
         bytes
     }
+}
+
+/// RuboCop's `find_containing_collection`/`collection_from_ancestor`: the
+/// span of the nearest enclosing array/call/hash literal for which the
+/// current node (per [`Context::ancestors`]) is a direct element,
+/// argument, or hash-pair value -- skipping the `StatementsNode`/
+/// `ParenthesesNode` wrapper an explicit `(...)` grouping adds in Prism
+/// (whitequark's single `begin_type?` node) and Prism's own
+/// `ArgumentsNode` wrapper (absent from whitequark's `send` children).
+fn containing_collection_span(ctx: &Context<'_>) -> Option<(NodeKind, Span)> {
+    let ancestors = ctx.ancestors();
+    let mut i = ancestors.len().checked_sub(1)?;
+    while matches!(
+        ancestors[i].kind,
+        NodeKind::StatementsNode | NodeKind::ParenthesesNode | NodeKind::ArgumentsNode
+    ) {
+        i = i.checked_sub(1)?;
+    }
+    match ancestors[i].kind {
+        NodeKind::ArrayNode | NodeKind::CallNode => Some((ancestors[i].kind, ancestors[i].span)),
+        NodeKind::AssocNode => {
+            let parent = ancestors.get(i.checked_sub(1)?)?;
+            matches!(parent.kind, NodeKind::HashNode | NodeKind::KeywordHashNode)
+                .then_some((parent.kind, parent.span))
+        }
+        _ => None,
+    }
+}
+
+/// Finds the node of kind `kind` whose own span is exactly `target`,
+/// descending from `node` only into children whose span contains it --
+/// bounded by tree depth, not file size. Matching on both kind and span
+/// (not span alone) matters because an outer wrapper (e.g. the whole
+/// file's `ProgramNode`, when the target collection is its only
+/// statement) can share the exact same byte range.
+fn node_at_span<'pr>(node: &Node<'pr>, kind: NodeKind, target: Span) -> Option<Node<'pr>> {
+    let span = node.span();
+    if target.start < span.start || target.end > span.end {
+        return None;
+    }
+    if node.kind() == kind && span == target {
+        return Some(*node);
+    }
+    let mut found = None;
+    for_each_child(node, |child| {
+        if found.is_none() {
+            found = node_at_span(child, kind, target);
+        }
+    });
+    found
+}
+
+/// RuboCop's `collection.children` for the collections
+/// [`containing_collection_span`] recognizes: an array's elements, a
+/// call's receiver and arguments, or a hash's (or keyword hash's) pairs.
+fn collection_children<'pr>(collection: &Node<'pr>) -> Vec<Node<'pr>> {
+    match collection {
+        Node::ArrayNode { .. } => {
+            collection.as_array_node().expect("kind matched").elements().iter().collect()
+        }
+        Node::CallNode { .. } => {
+            let call = collection.as_call_node().expect("kind matched");
+            let mut children: Vec<Node<'pr>> = call.receiver().into_iter().collect();
+            if let Some(arguments) = call.arguments() {
+                children.extend(arguments.arguments().iter());
+            }
+            children
+        }
+        Node::HashNode { .. } => {
+            collection.as_hash_node().expect("kind matched").elements().iter().collect()
+        }
+        Node::KeywordHashNode { .. } => {
+            collection.as_keyword_hash_node().expect("kind matched").elements().iter().collect()
+        }
+        _ => Vec::new(),
+    }
+}
+
+/// RuboCop's `unwrap_begin` plus the pair-value unwrap
+/// `multiline_inside_collection?` folds into it: a hash pair's value,
+/// then -- for an explicit `(...)` grouping -- its first statement
+/// (matching whitequark's `begin` node exposing all of its statements as
+/// direct children, of which `unwrap_begin` takes only `children.first`).
+fn unwrap_collection_child(node: Node<'_>) -> Option<Node<'_>> {
+    let node = match &node {
+        Node::AssocNode { .. } => node.as_assoc_node().expect("kind matched").value(),
+        _ => node,
+    };
+    match &node {
+        Node::ParenthesesNode { .. } => {
+            let body = node.as_parentheses_node().expect("kind matched").body()?;
+            match &body {
+                Node::StatementsNode { .. } => {
+                    body.as_statements_node().expect("kind matched").body().iter().next()
+                }
+                _ => Some(body),
+            }
+        }
+        _ => Some(node),
+    }
+}
+
+/// Whether `node` is an `if`/`unless` (RuboCop's `if_type?`, which
+/// whitequark gives to both), and if so: its first line, its `end`
+/// keyword's line (`None` for modifier form), and whether it is a
+/// ternary (no `if_keyword_loc` -- ternaries are always excluded from
+/// these collection checks).
+fn conditional_shape(ctx: &Context<'_>, node: &Node<'_>) -> Option<(u32, Option<u32>, bool)> {
+    let (end_keyword_loc, is_ternary) = match node {
+        Node::IfNode { .. } => {
+            let n = node.as_if_node().expect("kind matched");
+            (n.end_keyword_loc(), n.if_keyword_loc().is_none())
+        }
+        Node::UnlessNode { .. } => {
+            (node.as_unless_node().expect("kind matched").end_keyword_loc(), false)
+        }
+        _ => return None,
+    };
+    let first_line = ctx.line_col(node.span().start).line;
+    let end_line = end_keyword_loc.map(|l| ctx.line_col(l.span().start).line);
+    Some((first_line, end_line, is_ternary))
+}
+
+/// RuboCop's `multiline_inside_collection?`: `node_span` (a block-form
+/// `if`/`unless` being considered for the modifier-form offense, whose
+/// `end` keyword is on `node_end_kw_line`) is a direct element/argument/
+/// hash-pair-value of an array/call/hash literal with another
+/// (non-ternary) `if`/`unless` sibling that shares a line with it --
+/// converting would misplace the two on one source line.
+fn multiline_inside_collection(ctx: &Context<'_>, node_span: Span, node_end_kw_line: u32) -> bool {
+    let Some((kind, collection_span)) = containing_collection_span(ctx) else { return false };
+    let root = ctx.parsed().root();
+    let Some(collection) = node_at_span(&root, kind, collection_span) else { return false };
+    let node_first_line = ctx.line_col(node_span.start).line;
+    collection_children(&collection).into_iter().any(|child| {
+        let Some(inner) = unwrap_collection_child(child) else { return false };
+        if inner.span() == node_span {
+            return false;
+        }
+        let Some((inner_first, inner_end, is_ternary)) = conditional_shape(ctx, &inner) else {
+            return false;
+        };
+        !is_ternary && (inner_first == node_end_kw_line || inner_end == Some(node_first_line))
+    })
+}
+
+/// RuboCop's `another_modifier_if_on_same_line?`: whether the containing
+/// array/call/hash literal has another modifier-form `if`/`unless`
+/// anywhere inside it (at any depth) starting on `node_first_line` --
+/// autocorrecting `node_span` would then place two on one line.
+fn another_modifier_if_on_same_line(
+    ctx: &Context<'_>,
+    node_span: Span,
+    node_first_line: u32,
+) -> bool {
+    let Some((kind, collection_span)) = containing_collection_span(ctx) else { return false };
+    let root = ctx.parsed().root();
+    let Some(collection) = node_at_span(&root, kind, collection_span) else { return false };
+    let mut found = false;
+    each_descendant(&collection, &mut |n: &Node<'_>| {
+        if found || n.span() == node_span {
+            return;
+        }
+        if let Some((first, end_line, is_ternary)) = conditional_shape(ctx, n) {
+            if !is_ternary && end_line.is_none() && first == node_first_line {
+                found = true;
+            }
+        }
+    });
+    found
+}
+
+/// The assigned value of every node rubocop-ast's `assignment?` matches
+/// (`equals_asgn?` -- `lvasgn`/`ivasgn`/`cvasgn`/`gvasgn`/`casgn`/`masgn` --
+/// or `shorthand_asgn?` -- `op_asgn`/`or_asgn`/`and_asgn`), in Prism terms.
+/// Attribute/index setters (`a.b = x`, `a[i] = x`) are plain `send`s there
+/// and already covered by the call-argument tracking.
+fn assignment_value<'pr>(node: &Node<'pr>) -> Option<Node<'pr>> {
+    Some(match node {
+        Node::LocalVariableWriteNode { .. } => node.as_local_variable_write_node()?.value(),
+        Node::LocalVariableOperatorWriteNode { .. } => {
+            node.as_local_variable_operator_write_node()?.value()
+        }
+        Node::LocalVariableAndWriteNode { .. } => node.as_local_variable_and_write_node()?.value(),
+        Node::LocalVariableOrWriteNode { .. } => node.as_local_variable_or_write_node()?.value(),
+        Node::InstanceVariableWriteNode { .. } => node.as_instance_variable_write_node()?.value(),
+        Node::InstanceVariableOperatorWriteNode { .. } => {
+            node.as_instance_variable_operator_write_node()?.value()
+        }
+        Node::InstanceVariableAndWriteNode { .. } => {
+            node.as_instance_variable_and_write_node()?.value()
+        }
+        Node::InstanceVariableOrWriteNode { .. } => {
+            node.as_instance_variable_or_write_node()?.value()
+        }
+        Node::ClassVariableWriteNode { .. } => node.as_class_variable_write_node()?.value(),
+        Node::ClassVariableOperatorWriteNode { .. } => {
+            node.as_class_variable_operator_write_node()?.value()
+        }
+        Node::ClassVariableAndWriteNode { .. } => node.as_class_variable_and_write_node()?.value(),
+        Node::ClassVariableOrWriteNode { .. } => node.as_class_variable_or_write_node()?.value(),
+        Node::GlobalVariableWriteNode { .. } => node.as_global_variable_write_node()?.value(),
+        Node::GlobalVariableOperatorWriteNode { .. } => {
+            node.as_global_variable_operator_write_node()?.value()
+        }
+        Node::GlobalVariableAndWriteNode { .. } => {
+            node.as_global_variable_and_write_node()?.value()
+        }
+        Node::GlobalVariableOrWriteNode { .. } => node.as_global_variable_or_write_node()?.value(),
+        Node::ConstantWriteNode { .. } => node.as_constant_write_node()?.value(),
+        Node::ConstantOperatorWriteNode { .. } => node.as_constant_operator_write_node()?.value(),
+        Node::ConstantAndWriteNode { .. } => node.as_constant_and_write_node()?.value(),
+        Node::ConstantOrWriteNode { .. } => node.as_constant_or_write_node()?.value(),
+        Node::ConstantPathWriteNode { .. } => node.as_constant_path_write_node()?.value(),
+        Node::ConstantPathOperatorWriteNode { .. } => {
+            node.as_constant_path_operator_write_node()?.value()
+        }
+        Node::ConstantPathAndWriteNode { .. } => node.as_constant_path_and_write_node()?.value(),
+        Node::ConstantPathOrWriteNode { .. } => node.as_constant_path_or_write_node()?.value(),
+        Node::IndexOperatorWriteNode { .. } => node.as_index_operator_write_node()?.value(),
+        Node::IndexAndWriteNode { .. } => node.as_index_and_write_node()?.value(),
+        Node::IndexOrWriteNode { .. } => node.as_index_or_write_node()?.value(),
+        Node::CallOperatorWriteNode { .. } => node.as_call_operator_write_node()?.value(),
+        Node::CallAndWriteNode { .. } => node.as_call_and_write_node()?.value(),
+        Node::CallOrWriteNode { .. } => node.as_call_or_write_node()?.value(),
+        Node::MultiWriteNode { .. } => node.as_multi_write_node()?.value(),
+        _ => return None,
+    })
 }
