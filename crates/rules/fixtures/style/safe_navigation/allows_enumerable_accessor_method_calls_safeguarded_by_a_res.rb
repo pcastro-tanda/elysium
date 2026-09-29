@@ -1,0 +1,1 @@
+foo[0] if foo.respond_to?(:[])

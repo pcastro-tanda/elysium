@@ -1,0 +1,5 @@
+Style/CommandLiteral:
+  EnforcedStyle: mixed
+  AllowInnerBackticks: true
+Style/PercentLiteralDelimiters:
+  PreferredDelimiters: {"%x": "()"}

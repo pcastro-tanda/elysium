@@ -1,0 +1,1 @@
+0 < (first_line - second_line)

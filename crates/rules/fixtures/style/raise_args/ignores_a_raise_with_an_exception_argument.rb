@@ -1,0 +1,1 @@
+raise Ex.new(entity), message

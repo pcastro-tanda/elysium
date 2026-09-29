@@ -1,0 +1,1 @@
+raise error_class, msg

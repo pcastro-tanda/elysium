@@ -1,0 +1,4 @@
+Style/OneLineConditional:
+  AlwaysCorrectToMultiline: true
+Layout/IndentationWidth:
+  Width: 4

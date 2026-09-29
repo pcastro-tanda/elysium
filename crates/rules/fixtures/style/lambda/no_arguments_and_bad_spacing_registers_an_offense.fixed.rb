@@ -1,0 +1,3 @@
+lambda do
+  x
+end

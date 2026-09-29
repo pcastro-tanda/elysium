@@ -1,0 +1,1 @@
+obj.do_something unless obj

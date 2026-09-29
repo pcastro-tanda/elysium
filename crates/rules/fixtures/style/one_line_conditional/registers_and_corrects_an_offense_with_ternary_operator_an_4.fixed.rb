@@ -1,0 +1,1 @@
+a <=> (cond ? run : dont)

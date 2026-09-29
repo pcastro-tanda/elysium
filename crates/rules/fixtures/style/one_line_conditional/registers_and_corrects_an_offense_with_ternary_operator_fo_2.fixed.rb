@@ -1,0 +1,1 @@
+cond ? nil : dont

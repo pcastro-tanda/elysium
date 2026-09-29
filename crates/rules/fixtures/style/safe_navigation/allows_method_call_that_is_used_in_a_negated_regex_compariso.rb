@@ -1,0 +1,1 @@
+foo.bar !~ /baz/ if foo

@@ -1,0 +1,1 @@
+return if any? { |x| x }

@@ -1,0 +1,1 @@
+format("%<a>s", a: foo)

@@ -1,0 +1,1 @@
+foo.each { |(_, k), v| do_something(k, v) }

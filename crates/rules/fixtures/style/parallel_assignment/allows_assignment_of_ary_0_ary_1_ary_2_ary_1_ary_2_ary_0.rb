@@ -1,0 +1,1 @@
+ary[0], ary[1], ary[2] = ary[1], ary[2], ary[0]

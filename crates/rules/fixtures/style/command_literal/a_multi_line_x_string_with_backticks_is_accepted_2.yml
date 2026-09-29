@@ -1,0 +1,4 @@
+Style/CommandLiteral:
+  EnforcedStyle: percent_x
+Style/PercentLiteralDelimiters:
+  PreferredDelimiters: {"%x": "()"}

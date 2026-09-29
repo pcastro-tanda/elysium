@@ -1,0 +1,1 @@
+foo ? foo[index] : nil

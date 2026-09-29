@@ -1,0 +1,3 @@
+x = <<~TEXT
+  text
+TEXT

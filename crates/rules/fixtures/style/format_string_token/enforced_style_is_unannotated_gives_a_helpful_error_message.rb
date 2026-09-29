@@ -1,0 +1,2 @@
+"%{foo}"
+ ^^^^^^ Prefer unannotated tokens (like `%s`) over template tokens (like `%{foo}`).

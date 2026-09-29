@@ -1,0 +1,1 @@
+a, b = Float::INFINITY

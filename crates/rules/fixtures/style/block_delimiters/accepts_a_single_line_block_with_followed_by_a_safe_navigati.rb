@@ -1,0 +1,1 @@
+ary.map { |e| foo(e) }&.bar

@@ -1,0 +1,4 @@
+if /(?<name>.*)/.match?(foo)
+^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Convert `if-elsif` to `case-when`.
+elsif foo == 123
+end

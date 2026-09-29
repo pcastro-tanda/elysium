@@ -1,0 +1,1 @@
+raise Ex1.new(arg1, arg2)

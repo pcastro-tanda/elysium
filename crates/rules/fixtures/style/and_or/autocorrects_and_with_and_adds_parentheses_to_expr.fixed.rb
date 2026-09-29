@@ -1,0 +1,1 @@
+b && method(a,b)

@@ -1,0 +1,6 @@
+AllCops:
+  TargetRubyVersion: 3.4
+Style/BlockDelimiters:
+  EnforcedStyle: always_braces
+  AllowedMethods: [proc]
+  AllowedPatterns: [test]

@@ -1,0 +1,1 @@
+test = Hash.new(3)

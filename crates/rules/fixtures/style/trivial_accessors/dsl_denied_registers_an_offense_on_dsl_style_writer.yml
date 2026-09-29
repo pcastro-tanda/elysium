@@ -1,0 +1,2 @@
+Style/TrivialAccessors:
+  AllowDSLWriters: false

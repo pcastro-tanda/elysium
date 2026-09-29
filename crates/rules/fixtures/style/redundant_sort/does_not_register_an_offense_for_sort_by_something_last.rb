@@ -1,0 +1,1 @@
+[1, 2, 3].sort_by!(&:something).last

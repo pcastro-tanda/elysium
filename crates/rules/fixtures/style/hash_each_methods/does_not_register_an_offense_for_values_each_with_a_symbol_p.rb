@@ -1,0 +1,1 @@
+values.each(&:bar)

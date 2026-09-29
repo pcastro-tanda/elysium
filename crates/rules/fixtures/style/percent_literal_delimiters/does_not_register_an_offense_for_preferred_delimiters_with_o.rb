@@ -1,0 +1,1 @@
+%w(only closing delimiter character\))

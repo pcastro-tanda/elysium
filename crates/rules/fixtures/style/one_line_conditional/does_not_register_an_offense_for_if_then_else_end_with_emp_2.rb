@@ -1,0 +1,1 @@
+if cond then run else end

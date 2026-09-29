@@ -1,0 +1,1 @@
+test = ::Array.new { 1 }

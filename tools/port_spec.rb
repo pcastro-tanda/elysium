@@ -46,6 +46,7 @@ OptionParser.new do |opts|
   opts.on('--cop COP', 'Cop name, e.g. Style/TrailingCommaInArguments') { |v| options[:cop] = v }
   opts.on('--rubocop-src PATH', 'Path to a full RuboCop source checkout (has lib/ and spec/)') { |v| options[:rubocop_src] = v }
   opts.on('--out DIR', 'Fixture root (default crates/rules/fixtures)') { |v| options[:out] = v }
+  opts.on('--spec FILE', 'Port only this spec file (default: every spec describing the cop)') { |v| options[:spec] = v }
 end.parse!
 
 abort 'missing --cop Dept/Name' unless options[:cop]
@@ -71,12 +72,32 @@ abort "could not read RuboCop version from #{version_file}" unless rubocop_versi
 # Anchored at line start: other specs (InternalAffairs) quote describes inside heredocs.
 describe_pattern = /^RSpec\.describe[\s(]+RuboCop::Cop::#{Regexp.escape(cop_dept)}::#{Regexp.escape(cop_name)}\b/
 spec_root = File.join(rubocop_src, 'spec/rubocop/cop')
-spec_file = Dir.glob(File.join(spec_root, '**/*_spec.rb')).find do |f|
+spec_files = Dir.glob(File.join(spec_root, '**/*_spec.rb')).select do |f|
   File.read(f).match?(describe_pattern)
-end
-abort "no spec file under #{spec_root} describes RuboCop::Cop::#{cop_dept}::#{cop_name}" unless spec_file
+end.sort
+abort "no spec file under #{spec_root} describes RuboCop::Cop::#{cop_dept}::#{cop_name}" if spec_files.empty?
 
-dept_snake = spec_file.delete_prefix("#{spec_root}/").delete_suffix('_spec.rb')
+# Some cops split their spec across files (Style/ConditionalAssignment has
+# `_assign_in_condition_spec.rb` and `_assign_to_condition_spec.rb`): port each
+# into the cop's one fixture dir, case names prefixed by the file's extra stem.
+if spec_files.size > 1 && !options[:spec]
+  spec_files.each do |f|
+    system(RbConfig.ruby, __FILE__, '--cop', options[:cop], '--rubocop-src', rubocop_src,
+           '--out', options[:out], '--spec', f) || abort("porting #{f} failed")
+  end
+  exit
+end
+spec_file = options[:spec] ? File.expand_path(options[:spec]) : spec_files.first
+
+spec_dept = File.dirname(spec_file.delete_prefix("#{spec_root}/"))
+cop_source = Dir.glob(File.join(rubocop_src, 'lib/rubocop/cop', spec_dept, '*.rb')).find do |f|
+  File.read(f).match?(/^\s*class #{Regexp.escape(cop_name)} < /)
+end
+abort "no cop source under lib/rubocop/cop/#{spec_dept} defines #{cop_name}" unless cop_source
+cop_stem = File.basename(cop_source, '.rb')
+spec_stem = File.basename(spec_file, '_spec.rb')
+case_prefix = spec_stem == cop_stem ? '' : spec_stem.delete_prefix(cop_stem).delete_prefix('_')
+dept_snake = File.join(spec_dept, cop_stem)
 out_dir = File.expand_path(File.join(options[:out], dept_snake))
 FileUtils.mkdir_p(out_dir)
 
@@ -496,10 +517,11 @@ begin
     tokens = rest.map { |seg| slugify(seg.sub(LEADING_CONNECTORS, '')) }.reject(&:empty?)
     desc_slug = slugify(desc)
     parts = tokens.dup
-    name = (parts + [desc_slug]).join('_')
+    lead = case_prefix.empty? ? [] : [case_prefix]
+    name = (lead + parts + [desc_slug]).join('_')
     while name.length > 60 && !parts.empty?
       parts.shift
-      name = (parts + [desc_slug]).join('_')
+      name = (lead + parts + [desc_slug]).join('_')
     end
     name = name[0, 60] if name.length > 60
     name = name.gsub(/_+/, '_').gsub(/\A_|_\z/, '')

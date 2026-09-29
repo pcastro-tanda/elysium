@@ -1,0 +1,7 @@
+[].each do |o|
+  unless o == 1
+    puts o
+  else
+    puts 'no'
+  end
+end

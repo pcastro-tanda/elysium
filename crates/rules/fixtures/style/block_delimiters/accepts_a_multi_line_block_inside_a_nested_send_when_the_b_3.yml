@@ -1,0 +1,4 @@
+Style/BlockDelimiters:
+  EnforcedStyle: braces_for_chaining
+  AllowedMethods: [proc]
+  AllowedPatterns: [test]

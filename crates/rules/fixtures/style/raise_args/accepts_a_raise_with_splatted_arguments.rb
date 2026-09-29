@@ -1,0 +1,1 @@
+raise MyCustomError.new(*args)

@@ -1,0 +1,1 @@
+user && user.thing.plus.another { |a| a}.other_thing

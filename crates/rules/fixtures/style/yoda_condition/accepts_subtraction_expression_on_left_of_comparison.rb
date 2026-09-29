@@ -1,0 +1,1 @@
+(first_line - second_line) > 0

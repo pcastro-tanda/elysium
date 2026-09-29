@@ -1,0 +1,1 @@
+a, b = foo.map { |e| e.id }

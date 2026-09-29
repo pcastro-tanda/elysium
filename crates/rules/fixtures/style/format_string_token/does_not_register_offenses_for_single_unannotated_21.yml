@@ -1,0 +1,4 @@
+Style/FormatStringToken:
+  EnforcedStyle: annotated
+  SupportedStyles: [annotated, template, unannotated]
+  Mode: aggressive

@@ -1,0 +1,1 @@
+format('%G', foo)

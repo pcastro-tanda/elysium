@@ -1,0 +1,1 @@
+obj.attr1, obj.attr2 = obj.attr2, obj.attr1

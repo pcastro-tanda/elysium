@@ -1,0 +1,1 @@
+raise FooError.new(message)

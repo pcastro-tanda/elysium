@@ -1,0 +1,8 @@
+Style/RegexpLiteral:
+  AllowInnerSlashes: true
+  Preview: ~
+Style/PercentLiteralDelimiters:
+  PreferredDelimiters: {"%r": "{}"}
+Style/MethodCallWithArgsParentheses:
+  Enabled: true
+  IgnoreMacros: false

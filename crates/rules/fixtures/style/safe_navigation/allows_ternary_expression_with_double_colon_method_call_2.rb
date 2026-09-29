@@ -1,0 +1,1 @@
+FOO ? FOO::foo : nil

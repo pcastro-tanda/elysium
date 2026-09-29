@@ -1,0 +1,1 @@
+foo.bar if foo.respond_to?(:foobar)
