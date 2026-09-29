@@ -1,0 +1,2 @@
+foo.tap do
+end

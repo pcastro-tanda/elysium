@@ -1,0 +1,4 @@
+->(arg1, arg2, *others) { 1 }
+                ^^^^^^ Unused block argument - `others`. If it's necessary, use `_` or `_others` as an argument name to indicate that it won't be used. Also consider using a proc without arguments instead of a lambda if you want it to accept any arguments but don't care about them.
+         ^^^^ Unused block argument - `arg2`. If it's necessary, use `_` or `_arg2` as an argument name to indicate that it won't be used. Also consider using a proc without arguments instead of a lambda if you want it to accept any arguments but don't care about them.
+   ^^^^ Unused block argument - `arg1`. If it's necessary, use `_` or `_arg1` as an argument name to indicate that it won't be used. Also consider using a proc without arguments instead of a lambda if you want it to accept any arguments but don't care about them.

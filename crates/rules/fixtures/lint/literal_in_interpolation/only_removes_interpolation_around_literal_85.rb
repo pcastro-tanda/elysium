@@ -1,0 +1,2 @@
+"this is #{{ single_quot_symbol_in_space: { key: :"single_quot_in_symbol: " } }} with #{a} now"
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Literal interpolation detected.

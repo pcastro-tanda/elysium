@@ -1,0 +1,2 @@
+Lint/RedundantSafeNavigation:
+  AllowedMethods: [instance_of?, kind_of?, is_a?, eql?, equal?]

@@ -1,0 +1,3 @@
+Naming/VariableNumber:
+  AllowedIdentifiers: [capture3]
+  EnforcedStyle: snake_case

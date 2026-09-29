@@ -1,0 +1,1 @@
+OpenSSL::Cipher.new('bf')

@@ -1,0 +1,4 @@
+array = [
+  'abc'\
+  'def'
+]

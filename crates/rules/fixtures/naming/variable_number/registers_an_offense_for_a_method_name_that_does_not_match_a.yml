@@ -1,0 +1,4 @@
+Naming/VariableNumber:
+  AllowedIdentifiers: []
+  AllowedPatterns: [_v\d+\z, allow_me]
+  EnforcedStyle: snake_case

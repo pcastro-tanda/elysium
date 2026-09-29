@@ -1,0 +1,2 @@
+foo.present?
+foo&.bar

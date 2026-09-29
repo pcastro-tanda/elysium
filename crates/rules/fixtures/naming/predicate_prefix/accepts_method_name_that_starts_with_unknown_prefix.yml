@@ -1,0 +1,3 @@
+Naming/PredicatePrefix:
+  NamePrefix: [has_, is_]
+  ForbiddenPrefixes: [has_, is_]

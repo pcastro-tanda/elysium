@@ -1,0 +1,2 @@
+Lint/SafeNavigationConsistency:
+  AllowedMethods: [present?, blank?, try, presence]

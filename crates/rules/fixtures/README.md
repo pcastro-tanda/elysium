@@ -25,6 +25,16 @@ later tag's checkout instead:
   interpolation, `MSG_USE_MODIFIER_PARENS` when the modifier form would need
   parens, and the `multiline_inside_collection?`/
   `another_modifier_if_on_same_line?` array/call/hash-literal guards).
+- Phase 5 wave 5 (all ported from 1.91.0 source directly):
+  `lint/assignment_in_condition`, `lint/deprecated_open_ssl_constant`,
+  `lint/implicit_string_concatenation`, `lint/ineffective_access_modifier`,
+  `lint/literal_as_condition`, `lint/literal_in_interpolation`,
+  `lint/redundant_safe_navigation`, `lint/redundant_splat_expansion`,
+  `lint/safe_navigation_consistency`, `lint/shadowed_argument`,
+  `lint/underscore_prefixed_variable_name`, `lint/unused_block_argument`,
+  `lint/unused_method_argument`, `lint/useless_setter_call`, `lint/void`,
+  `naming/memoized_instance_variable_name`, `naming/predicate_prefix`,
+  `naming/rescued_exceptions_variable_name`, `naming/variable_number`.
 
 A case that does not state `AllCops/TargetRubyVersion` in its `.yml` runs at
 3.3: the specs were ported with `PARSER_ENGINE=parser_prism`, where RuboCop's

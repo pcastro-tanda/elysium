@@ -1,11 +1,11 @@
 # Default-cop parity inventory
 Generated from RuboCop 1.82.1 `config/default.yml` (`Enabled: true` only; `pending` cops excluded) minus the rules registered in `docs/rules/`. Regenerate with the script in this file's git history / `tools/` once ported there.
-**194 default-enabled cops missing of 394** (200 implemented).
+**175 default-enabled cops missing of 394** (219 implemented).
 ## By department
 - Style: 117
 - Layout: 49
-- Lint: 16
-- Naming: 4
+- Lint: 1
+- Naming: 0
 - Metrics: 8
 - Bundler: 0
 - Gemspec: 0
@@ -76,22 +76,7 @@ Coarse, from mixins/API usage in the cop source. `pure-ast` = only node callback
 | Layout/SpaceInsideArrayPercentLiteral | 46 | 9 | autocorrect |
 | Layout/SpaceInsidePercentLiteralDelimiters | 94 | 15 | autocorrect |
 | Layout/SpaceInsideRangeLiteral | 54 | 7 | autocorrect |
-| Lint/AssignmentInCondition | 107 | 37 | autocorrect |
-| Lint/DeprecatedOpenSSLConstant | 0 | 0 | ? |
-| Lint/ImplicitStringConcatenation | 112 | 12 | autocorrect, metrics |
-| Lint/IneffectiveAccessModifier | 114 | 8 | metrics |
-| Lint/LiteralAsCondition | 283 | 65 | autocorrect, metrics |
-| Lint/LiteralInInterpolation | 210 | 38 | autocorrect, metrics |
-| Lint/RedundantSafeNavigation | 259 | 70 | autocorrect, config-options |
-| Lint/RedundantSplatExpansion | 216 | 40 | autocorrect |
-| Lint/SafeNavigationConsistency | 160 | 43 | autocorrect, metrics |
-| Lint/ShadowedArgument | 177 | 54 | semantic, config-options |
 | Lint/Syntax | 49 | 7 | pure-ast |
-| Lint/UnderscorePrefixedVariableName | 80 | 14 | semantic, config-options |
-| Lint/UnusedBlockArgument | 172 | 30 | semantic, autocorrect, config-options |
-| Lint/UnusedMethodArgument | 137 | 41 | semantic, autocorrect, config-options |
-| Lint/UselessSetterCall | 158 | 16 | autocorrect |
-| Lint/Void | 279 | 98 | autocorrect, metrics, config-options |
 | Metrics/AbcSize | 56 | 22 | config-options |
 | Metrics/BlockLength | 88 | 36 | metrics |
 | Metrics/ClassLength | 77 | 34 | metrics |
@@ -100,10 +85,6 @@ Coarse, from mixins/API usage in the cop source. `pure-ast` = only node callback
 | Metrics/ModuleLength | 62 | 21 | metrics |
 | Metrics/ParameterLists | 147 | 16 | config-options |
 | Metrics/PerceivedComplexity | 59 | 31 | metrics |
-| Naming/MemoizedInstanceVariableName | 294 | 72 | autocorrect |
-| Naming/PredicatePrefix | 204 | 21 | config-options |
-| Naming/RescuedExceptionsVariableName | 172 | 36 | autocorrect |
-| Naming/VariableNumber | 155 | 45 | config-options |
 | Style/Alias | 158 | 26 | autocorrect |
 | Style/AndOr | 158 | 50 | autocorrect |
 | Style/ArrayJoin | 39 | 5 | autocorrect |

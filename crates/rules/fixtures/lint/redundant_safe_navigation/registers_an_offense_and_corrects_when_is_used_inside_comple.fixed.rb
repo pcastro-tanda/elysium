@@ -1,0 +1,1 @@
+do_something if foo.respond_to?(:bar) && !foo.respond_to?(:baz)

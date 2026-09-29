@@ -1,0 +1,4 @@
+sig { returns(T::Boolean) }
+# Comment here.
+def is_attr; end
+    ^^^^^^^ Rename `is_attr` to `is_attr?`.

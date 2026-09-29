@@ -1,0 +1,4 @@
+Naming/PredicatePrefix:
+  NamePrefix: [is_, has_]
+  ForbiddenPrefixes: []
+  UseSorbetSigs: 'true'

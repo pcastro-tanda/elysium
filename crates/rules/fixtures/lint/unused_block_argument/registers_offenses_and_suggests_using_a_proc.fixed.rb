@@ -1,0 +1,1 @@
+-> (_foo, _bar) { do_something }

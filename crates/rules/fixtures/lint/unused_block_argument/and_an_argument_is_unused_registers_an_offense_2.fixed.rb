@@ -1,0 +1,1 @@
+-> (_foo, bar) { puts bar }

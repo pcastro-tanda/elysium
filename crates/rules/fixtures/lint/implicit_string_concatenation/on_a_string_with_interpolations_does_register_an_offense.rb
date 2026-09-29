@@ -1,0 +1,1 @@
+array = ["abc#{something}def#{something_else}"]

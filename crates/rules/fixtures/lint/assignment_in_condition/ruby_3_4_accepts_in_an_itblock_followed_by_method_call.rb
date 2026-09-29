@@ -1,0 +1,1 @@
+return 1 if any_errors? { o = it }.present?
