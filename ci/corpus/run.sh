@@ -1,6 +1,7 @@
 #!/usr/bin/env bash
 # Clones one corpus app at its pinned commit, runs real RuboCop and elysium
-# over it with the same 49-cop `--only` list, times both, and diffs their
+# over it with the same `--only` list -- the stable cops in rules.txt that
+# the app's own config enables (enabled_cops.rb) -- times both, and diffs their
 # offenses via compare.py. Used by .github/workflows/corpus.yml; runnable
 # locally the same way.
 #
@@ -35,8 +36,6 @@ source "$app_dir/app.env"
 : "${REPO:?$app_dir/app.env must set REPO}"
 : "${COMMIT:?$app_dir/app.env must set COMMIT}"
 
-rules="$(grep -v '^#' "$script_dir/rules.txt" | grep -v '^[[:space:]]*$' | paste -sd, -)"
-
 elysium_bin="${ELYSIUM_BIN:-$repo_root/target/release/elysium}"
 if [[ ! -x "$elysium_bin" ]]; then
   echo "error: elysium binary not found or not executable at $elysium_bin" >&2
@@ -58,6 +57,14 @@ else
   git -C "$work" fetch --quiet --filter=blob:none --depth 1 origin "$COMMIT"
   git -C "$work" checkout --quiet "$COMMIT"
 fi
+
+# `--only` force-enables every listed cop, even ones the app's config turns
+# off, so narrow the list to what the app really runs.
+rules="$(
+  cd "$work"
+  BUNDLE_GEMFILE="$app_dir/Gemfile" bundle exec ruby "$script_dir/enabled_cops.rb" "$script_dir/rules.txt"
+)"
+echo "== comparing $(tr ',' '\n' <<<"$rules" | wc -l | tr -d ' ') cops enabled by $app's config ==" >&2
 
 rubocop_json="$work/rubocop.json"
 elysium_json="$work/elysium.json"

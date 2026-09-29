@@ -2,7 +2,8 @@ name: corpus
 
 # Real-world conformance: builds elysium once, then for each corpus app
 # clones it at a pinned commit and checks that elysium's offenses match real
-# RuboCop's over the same 49-cop rule set (ci/corpus/rules.txt). Workflow
+# RuboCop's over the stable cops in ci/corpus/rules.txt that the app's own
+# config enables (ci/corpus/enabled_cops.rb). Workflow
 # logic lives in ci/corpus/*.sh so it can be run the same way locally; this
 # file just wires up runners, caching, and artifact handoff.
 
