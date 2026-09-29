@@ -35,6 +35,21 @@ later tag's checkout instead:
   `lint/unused_method_argument`, `lint/useless_setter_call`, `lint/void`,
   `naming/memoized_instance_variable_name`, `naming/predicate_prefix`,
   `naming/rescued_exceptions_variable_name`, `naming/variable_number`.
+- Phase 5 wave 6 (all ported from 1.91.0 source directly):
+  `style/percent_q_literals`, `style/end_block`, `style/symbol_literal`,
+  `style/colon_method_definition`, `style/proc`, `style/when_then`,
+  `style/array_join`, `style/negated_while`,
+  `style/trailing_body_on_module`, `style/trailing_body_on_class`,
+  `style/empty_lambda_parameter`, `style/multiline_if_then`,
+  `style/variable_interpolation`, `style/strip`, `style/colon_method_call`,
+  `style/def_with_parentheses`, `style/redundant_capital_w`,
+  `style/empty_block_parameter`, `style/while_until_do`,
+  `style/while_until_modifier`, `style/class_methods`, `style/class_check`,
+  `style/trailing_body_on_method_definition`, `style/even_odd`,
+  `style/unless_else`, `style/character_literal`, `style/stderr_puts`,
+  `style/multiline_if_modifier`, `style/multiline_when_then`,
+  `style/redundant_file_extension_in_require`,
+  `style/trailing_method_end_statement`, `style/nested_ternary_operator`.
 
 A case that does not state `AllCops/TargetRubyVersion` in its `.yml` runs at
 3.3: the specs were ported with `PARSER_ENGINE=parser_prism`, where RuboCop's
@@ -52,6 +67,10 @@ UTF-8: the two `with binary encoded source` cases each of
 Cases that depend on Ruby process state elysium does not model are deleted
 after regeneration:
 
+- `style/unless_else/registers_offenses_for_both_but_corrects_only_the_outer_unle`:
+  upstream keeps one cop instance across the correction loop, so
+  `ignore_node` state from round 1 (stale offsets) still suppresses the inner
+  `unless` in round 2; elysium starts every round with a fresh rule.
 - `style/word_array/registers_an_offense_for_arrays_of_unicode_word_characters_2`:
   the spec sets `Encoding.default_external` to US-ASCII; elysium assumes UTF-8.
 - `lint/debugger/does_not_register_an_offense_for_a_pry_debugger_call` and

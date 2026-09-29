@@ -1,0 +1,1 @@
+while cond do something end

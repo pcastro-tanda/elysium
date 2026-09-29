@@ -156,10 +156,10 @@ semantic cops (60 rules total).
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 223 | 0 | 1 |
+| 255 | 0 | 1 |
 
 Promotion to `stable` requires >99% corpus conformance on `discourse` and
-`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 223 of 224 rules meet
+`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 255 of 256 rules meet
 it. At `nursery`:
 
 - `Lint/RedundantCopDisableDirective` — held back per policy regardless of
@@ -298,8 +298,10 @@ cop needs: `docs/planning/default-parity.md`.
    so an unfinished sibling file no longer breaks everyone's build. Wave 5
    (the last 19 default-enabled Lint/Naming cops, `docs/planning/waves/wave5.txt`)
    is ported from RuboCop 1.91.0 source directly, all `stable` at 100%;
-   175 default-enabled cops remain (Style, Layout, Metrics, and
-   `Lint/Syntax`, which the engine provides built in).
+   Wave 6 (32 small Style cops, `docs/planning/waves/wave6.txt`) is ported
+   the same way, all `stable` at 100%. 142 default-enabled cops remain
+   (Style, Layout, Metrics, and `Lint/Syntax`, which the engine provides
+   built in).
 3. Phase 6 `[INFERENCE — no dedicated planning doc yet, extrapolated from
    the "What does not work yet" list above]`: config/CLI hardening — a
    `ConfigValidator` (type/unknown-cop errors), a minimal ERB subset
