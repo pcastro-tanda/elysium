@@ -50,6 +50,22 @@ later tag's checkout instead:
   `style/multiline_if_modifier`, `style/multiline_when_then`,
   `style/redundant_file_extension_in_require`,
   `style/trailing_method_end_statement`, `style/nested_ternary_operator`.
+- Phase 5 wave 7 (all ported from 1.91.0 source directly):
+  `style/min_max`, `style/single_argument_dig`,
+  `style/preferred_hash_methods`, `style/bare_percent_literals`,
+  `style/not`, `style/string_literals_in_interpolation`,
+  `style/global_vars`, `style/global_std_stream`, `style/lambda_call`,
+  `style/nested_parenthesized_calls`, `style/redundant_sort_by`,
+  `style/stabby_lambda_parentheses`, `style/struct_inheritance`,
+  `style/attr`, `style/keyword_parameters_order`,
+  `style/redundant_conditional`, `style/redundant_exception`,
+  `style/each_for_simple_loop`, `style/nil_comparison`,
+  `style/negated_unless`, `style/for`, `style/or_assignment`,
+  `style/self_assignment`, `style/multiline_memoization`,
+  `style/negated_if`, `style/hash_as_last_array_item`,
+  `style/nested_modifier`, `style/case_equality`,
+  `style/redundant_self_assignment`, `style/redundant_percent_q`,
+  `style/rescue_modifier`, `style/empty_method`.
 
 A case that does not state `AllCops/TargetRubyVersion` in its `.yml` runs at
 3.3: the specs were ported with `PARSER_ENGINE=parser_prism`, where RuboCop's
@@ -71,6 +87,18 @@ after regeneration:
   upstream keeps one cop instance across the correction loop, so
   `ignore_node` state from round 1 (stale offsets) still suppresses the inner
   `unless` in round 2; elysium starts every round with a fresh rule.
+- `style/nested_parenthesized_calls/backslash_newline_in_method_call_registers_an_offense`
+  and `style/redundant_conditional/registers_an_offense_for_if_elsif_else_with_boolean_results`
+  / `..._with_negated_boolean`:
+  the offense message contains a raw newline, which the one-line `^^^`
+  annotation format cannot express.
+- `style/lambda_call/style_is_set_to_call_registers_an_offense_for_x_3` and
+  `..._4`, and `style/single_argument_dig/registers_and_corrects_an_offense`: like `style/unless_else` above, upstream relies on `ignore_node` state
+  persisting across correction rounds, so the chained inner call stays
+  uncorrected; elysium starts every round with a fresh rule.
+- `style/rescue_modifier/excluded_file_processes_excluded_files_with_issue`: the
+  case sets the cop's `Exclude`, which the fixture harness does not apply (the
+  CLI does, before rules run).
 - `style/word_array/registers_an_offense_for_arrays_of_unicode_word_characters_2`:
   the spec sets `Encoding.default_external` to US-ASCII; elysium assumes UTF-8.
 - `lint/debugger/does_not_register_an_offense_for_a_pry_debugger_call` and

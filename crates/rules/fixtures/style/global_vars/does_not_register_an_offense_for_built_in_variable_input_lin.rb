@@ -1,0 +1,1 @@
+puts $INPUT_LINE_NUMBER

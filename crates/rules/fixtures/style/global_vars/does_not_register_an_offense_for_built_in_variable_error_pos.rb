@@ -1,0 +1,1 @@
+puts $ERROR_POSITION

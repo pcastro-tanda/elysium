@@ -1,0 +1,1 @@
+expect(object1.attr = 1).to eq 1

@@ -1,0 +1,1 @@
+def foo(arg); end

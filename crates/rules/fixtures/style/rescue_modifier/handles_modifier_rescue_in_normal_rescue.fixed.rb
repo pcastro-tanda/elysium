@@ -1,0 +1,9 @@
+begin
+  begin
+    test
+  rescue
+    modifier_handle
+  end
+rescue
+  normal_handle
+end

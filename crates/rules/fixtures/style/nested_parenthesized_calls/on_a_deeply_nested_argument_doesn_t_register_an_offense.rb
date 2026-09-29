@@ -1,0 +1,1 @@
+method(block_taker { another_method 1 })

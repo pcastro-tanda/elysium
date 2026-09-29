@@ -1,0 +1,1 @@
+puts $DEFAULT_INPUT

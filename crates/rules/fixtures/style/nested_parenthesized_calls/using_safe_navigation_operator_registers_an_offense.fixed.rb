@@ -1,0 +1,1 @@
+puts(receiver&.compute(something))

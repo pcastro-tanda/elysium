@@ -1,0 +1,9 @@
+begin
+  begin
+  blah
+rescue
+  1
+end
+rescue
+  2
+end
