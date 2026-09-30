@@ -1,0 +1,2 @@
+#-foo
+^^^^^ Missing space after `#`.

@@ -1,0 +1,4 @@
+Layout/AccessModifierIndentation:
+  SupportedStyles: [indent, outdent]
+Layout/IndentationWidth:
+  Width: 4

@@ -1,0 +1,3 @@
+# file: Gemfile
+Layout/LeadingCommentSpace:
+  AllowGemfileRubyComment: true

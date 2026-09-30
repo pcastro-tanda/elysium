@@ -90,6 +90,40 @@ later tag's checkout instead:
   `style/semicolon`, `style/signal_exception`,
   `style/trailing_underscore_variable`, `style/trivial_accessors`,
   `style/yoda_condition`, `style/zero_length_predicate`.
+- Phase 5 wave 9 (all ported from 1.91.0 source directly):
+  `layout/access_modifier_indentation`, `layout/array_alignment`,
+  `layout/assignment_indentation`, `layout/begin_end_alignment`,
+  `layout/block_alignment`, `layout/block_end_newline`,
+  `layout/case_indentation`, `layout/closing_heredoc_indentation`,
+  `layout/closing_parenthesis_indentation`, `layout/condition_position`,
+  `layout/def_end_alignment`, `layout/dot_position`, `layout/else_alignment`,
+  `layout/empty_line_after_guard_clause`,
+  `layout/empty_lines_around_access_modifier`,
+  `layout/empty_lines_around_arguments`,
+  `layout/empty_lines_around_attribute_accessor`,
+  `layout/empty_lines_around_begin_body`,
+  `layout/empty_lines_around_block_body`,
+  `layout/empty_lines_around_exception_handling_keywords`,
+  `layout/empty_lines_around_method_body`,
+  `layout/empty_lines_around_module_body`, `layout/end_alignment`,
+  `layout/first_array_element_indentation`,
+  `layout/first_parameter_indentation`, `layout/leading_comment_space`,
+  `layout/multiline_array_brace_layout`, `layout/multiline_block_layout`,
+  `layout/multiline_hash_brace_layout`,
+  `layout/multiline_method_call_brace_layout`,
+  `layout/multiline_method_call_indentation`,
+  `layout/multiline_method_definition_brace_layout`,
+  `layout/multiline_operation_indentation`, `layout/parameter_alignment`,
+  `layout/space_after_colon`, `layout/space_after_comma`,
+  `layout/space_after_method_name`, `layout/space_after_not`,
+  `layout/space_after_semicolon`, `layout/space_around_block_parameters`,
+  `layout/space_around_method_call_operator`,
+  `layout/space_before_block_braces`, `layout/space_before_comma`,
+  `layout/space_before_first_arg`, `layout/space_before_semicolon`,
+  `layout/space_in_lambda_literal`,
+  `layout/space_inside_array_percent_literal`,
+  `layout/space_inside_percent_literal_delimiters`,
+  `layout/space_inside_range_literal`.
 
 A case that does not state `AllCops/TargetRubyVersion` in its `.yml` runs at
 3.3: the specs were ported with `PARSER_ENGINE=parser_prism`, where RuboCop's
@@ -162,6 +196,19 @@ after regeneration:
 - `style/block_delimiters`: `autocorrects_adjacent_curly_braces_correctly` /
   `registers_an_offense_for_nested_multi_line_blocks_with_trail`: upstream
   `ignore_node` state persists across the spec's correction rounds.
+- `layout/space_around_block_parameters`: 5 lambda cases
+  (`registers_an_offense_and_corrects_a_lambda_for_extra_space_b`,
+  `..._multiple_spac`, `..._no_space_afte`, `..._no_space_befo`,
+  `registers_an_offense_and_corrects_spacing_in_lambda_args`): the spec's
+  isolated config leaves `Layout/SpaceInsideParens`'s `EnforcedStyle` unset.
+  Real config loading merges default.yml's `no_space`, which conflicts with
+  `EnforcedStyleInsidePipes: space` and suppresses the pipe/paren checks
+  (checked against `rubocop` 1.91.0 CLI).
+- `layout/empty_lines_around_access_modifier/registers_an_offense_and_partially_corrects`
+  and `..._2` through `..._4`: with `Layout/EmptyLinesAroundBlockBody:
+  no_empty_lines` and the modifier last in a block, upstream's
+  `should_insert_line_after?` declines the fix, so a correctable offense
+  survives; the spec checks one pass, the harness requires convergence.
 - `style/word_array/registers_an_offense_for_arrays_of_unicode_word_characters_2`:
   the spec sets `Encoding.default_external` to US-ASCII; elysium assumes UTF-8.
 - `lint/debugger/does_not_register_an_offense_for_a_pry_debugger_call` and

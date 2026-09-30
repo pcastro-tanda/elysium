@@ -1,0 +1,3 @@
+# file: test/test_case.rb
+Layout/LeadingCommentSpace:
+  AllowGemfileRubyComment: true

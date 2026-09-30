@@ -1,0 +1,2 @@
+CNST = if test
+end

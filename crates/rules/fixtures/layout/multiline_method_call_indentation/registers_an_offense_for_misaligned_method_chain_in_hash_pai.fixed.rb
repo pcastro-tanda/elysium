@@ -1,0 +1,4 @@
+{
+  key: Foo.bar
+          .baz
+}

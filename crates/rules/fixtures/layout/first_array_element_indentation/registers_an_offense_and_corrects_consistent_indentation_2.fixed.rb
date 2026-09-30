@@ -1,0 +1,3 @@
+receiver&.func([
+                 1
+               ])

@@ -1,0 +1,2 @@
+#:nodoc:
+^^^^^^^^ Missing space after `#`.

@@ -1,0 +1,2 @@
+Layout/EmptyLinesAroundAccessModifier:
+  EnforcedStyle: only_before

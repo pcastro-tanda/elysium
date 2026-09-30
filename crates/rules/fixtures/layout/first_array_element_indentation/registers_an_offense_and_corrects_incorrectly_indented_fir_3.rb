@@ -1,0 +1,6 @@
+a = [
+    1,
+    ^ Use 2 spaces for indentation in an array, relative to the start of the line where the left square bracket is.
+  2,
+ 3
+]

@@ -1,0 +1,5 @@
+Layout/FirstArrayElementIndentation:
+  EnforcedStyle: consistent
+  Preview: ~
+Layout/ArrayAlignment:
+  EnforcedStyle: with_fixed_indentation

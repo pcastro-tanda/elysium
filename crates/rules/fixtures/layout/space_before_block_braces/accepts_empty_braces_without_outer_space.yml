@@ -1,0 +1,2 @@
+Layout/SpaceBeforeBlockBraces:
+  EnforcedStyleForEmptyBraces: no_space

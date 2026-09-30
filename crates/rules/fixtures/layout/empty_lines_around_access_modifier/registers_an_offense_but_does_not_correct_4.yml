@@ -1,0 +1,2 @@
+Layout/EmptyLinesAroundBlockBody:
+  EnforcedStyle: no_empty_lines

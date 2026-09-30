@@ -1,0 +1,5 @@
+foo
+
+public
+
+bar

@@ -1,0 +1,4 @@
+Layout/FirstParameterIndentation:
+  EnforcedStyle: align_parentheses
+Layout/ParameterAlignment:
+  EnforcedStyle: with_fixed_indentation

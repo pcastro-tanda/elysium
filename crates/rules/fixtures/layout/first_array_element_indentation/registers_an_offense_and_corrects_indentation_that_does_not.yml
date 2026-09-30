@@ -1,0 +1,4 @@
+Layout/FirstArrayElementIndentation:
+  EnforcedStyle: align_brackets
+  IndentationWidth: 4
+  Preview: ~

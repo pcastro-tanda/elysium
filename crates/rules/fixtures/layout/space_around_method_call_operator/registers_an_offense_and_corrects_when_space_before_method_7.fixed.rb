@@ -1,0 +1,2 @@
+RuboCop
+  ::Cop

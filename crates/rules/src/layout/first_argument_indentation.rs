@@ -246,7 +246,7 @@ fn logical_parent(ctx: &Context<'_>) -> Option<NodeInfo> {
 }
 
 /// RuboCop-AST's `OPERATOR_METHODS`.
-fn is_operator_method(name: &[u8]) -> bool {
+pub(crate) fn is_operator_method(name: &[u8]) -> bool {
     matches!(
         name,
         b"|" | b"^"
