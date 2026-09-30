@@ -65,7 +65,7 @@ jobs:
         id: pin
         run: echo "version=$(ruby -e 'print File.read("ci/corpus/discourse/Gemfile")[/gem "rubocop", "([^"]+)"/, 1]')" >> "$GITHUB_OUTPUT"
       - name: Install RuboCop and spec dependencies
-        run: gem install --no-document rubocop -v "${{ steps.pin.outputs.version }}" rspec mcp:'~> 0.6'
+        run: gem install --no-document "rubocop:${{ steps.pin.outputs.version }}" rspec 'mcp:~> 0.6'
       - name: RuboCop source (specs)
         run: git clone --quiet --depth 1 --branch "v${{ steps.pin.outputs.version }}" https://github.com/rubocop/rubocop.git "$RUNNER_TEMP/rubocop"
       - name: Embedded config files are the pinned version's
