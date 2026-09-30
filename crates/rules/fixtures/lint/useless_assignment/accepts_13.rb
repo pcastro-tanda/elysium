@@ -1,5 +1,5 @@
-def some_method
+def some_method(bar)
   foo = 1
-  foo += 1
-  foo
+  bar ||= (foo = 2)
+  [foo, bar]
 end

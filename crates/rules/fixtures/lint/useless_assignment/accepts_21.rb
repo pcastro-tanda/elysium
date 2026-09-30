@@ -1,9 +1,12 @@
 begin
-  status = :initial
-  connect_sometimes_fails!
-  status = :connected
-  fetch_sometimes_fails!
-  status = :fetched
-ensure
-  puts status
+  do_something
+  foo = :in_begin
+rescue FirstError
+  foo = :in_first_rescue
+rescue SecondError
+  foo = :in_second_rescue
+else
+  foo = :in_else
 end
+
+puts foo

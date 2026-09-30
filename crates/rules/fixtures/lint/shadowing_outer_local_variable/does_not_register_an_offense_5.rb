@@ -1,6 +1,7 @@
-def some_method
-  foo = 1
-  puts foo
-  1.times do |bar|
+case condition
+in String => foo
+  foo
+in Integer
+  bar.each do |foo|
   end
 end

@@ -72,10 +72,13 @@ end
 a.nil? || a
 ```
 
-With `AllowedMethods: ['nonzero?']` (the default), a predicate call in that
-list is exempt from the \"true branch is a bare `true`\" check:
+With `AllowedMethods: ['infinite?', 'nonzero?']` (the default), a predicate
+call in that list is exempt from the \"true branch is a bare `true`\" check:
 
 ```ruby
+# good
+num.infinite? ? true : false
+
 # good
 num.nonzero? ? true : false
 ```",
@@ -86,7 +89,7 @@ num.nonzero? ? true : false
         kinds: &[NodeKind::IfNode, NodeKind::UnlessNode],
         config: &[ConfigOption {
             name: "AllowedMethods",
-            default: ConfigDefault::StrList(&["nonzero?"]),
+            default: ConfigDefault::StrList(&["infinite?", "nonzero?"]),
             allowed: &[],
             doc: "Predicate methods allowed as the condition when the true branch is a bare \
                   `true` literal.",
@@ -426,9 +429,8 @@ fn branches_have_assignment(shape: &Shape<'_>) -> bool {
     matches!((asgn_name(if_node), asgn_name(else_node)), (Some(a), Some(b)) if a == b)
 }
 
-/// RuboCop's `asgn_type?`: only the plain `=` forms over local/instance/
-/// class/global variables count -- not compound (`+=`/`||=`) forms and not
-/// constant assignment.
+/// RuboCop's `asgn_type?`: the plain `=` forms over local/instance/class/
+/// global variables and constants count -- not compound (`+=`/`||=`) forms.
 fn asgn_name<'a>(node: &Node<'a>) -> Option<&'a [u8]> {
     match node {
         Node::LocalVariableWriteNode { .. } => {
@@ -442,6 +444,9 @@ fn asgn_name<'a>(node: &Node<'a>) -> Option<&'a [u8]> {
         }
         Node::GlobalVariableWriteNode { .. } => {
             Some(node.as_global_variable_write_node().expect("kind matched").name_loc().as_slice())
+        }
+        Node::ConstantWriteNode { .. } => {
+            Some(node.as_constant_write_node().expect("kind matched").name_loc().as_slice())
         }
         _ => None,
     }
@@ -461,6 +466,9 @@ fn asgn_value<'a>(node: &Node<'a>) -> Option<Node<'a>> {
         }
         Node::GlobalVariableWriteNode { .. } => {
             Some(node.as_global_variable_write_node().expect("kind matched").value())
+        }
+        Node::ConstantWriteNode { .. } => {
+            Some(node.as_constant_write_node().expect("kind matched").value())
         }
         _ => None,
     }

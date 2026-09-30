@@ -151,10 +151,13 @@ impl AncestorView<'_> {
         Some(idx)
     }
 
-    /// RuboCop's `method_dispatch_as_argument?`: the ancestor at `idx`'s
+    /// RuboCop's `requires_parentheses_context?`: the ancestor at `idx`'s
     /// effective parent (skipping the `ArgumentsNode` wrapper) is itself a
-    /// `Call`/`Super`/`Yield` node.
-    fn method_dispatch_as_argument(&self, idx: usize) -> bool {
+    /// `Call`/`Super`/`Yield` node, or an `if`/`unless`/`until`/`while`
+    /// whose condition the ancestor is (upstream's `:if` whitequark type
+    /// covers both `if` and `unless`; Prism splits them into
+    /// [`NodeKind::IfNode`] and [`NodeKind::UnlessNode`]).
+    fn requires_parentheses_context(&self, idx: usize) -> bool {
         let Some(parent_idx) = idx.checked_sub(1) else { return false };
         let parent = self.ancestors[parent_idx];
         let effective = if parent.kind == NodeKind::ArgumentsNode {
@@ -164,7 +167,15 @@ impl AncestorView<'_> {
         };
         matches!(
             effective.map(|e| e.kind),
-            Some(NodeKind::CallNode | NodeKind::SuperNode | NodeKind::YieldNode)
+            Some(
+                NodeKind::CallNode
+                    | NodeKind::SuperNode
+                    | NodeKind::YieldNode
+                    | NodeKind::IfNode
+                    | NodeKind::UnlessNode
+                    | NodeKind::UntilNode
+                    | NodeKind::WhileNode
+            )
         )
     }
 
@@ -238,7 +249,7 @@ impl AncestorView<'_> {
         if idx > 0 && self.facts_of(self.ancestors[idx - 1]).is_parens_group {
             return None;
         }
-        if self.last_expression(idx) && !self.method_dispatch_as_argument(idx) {
+        if self.last_expression(idx) && !self.requires_parentheses_context(idx) {
             return None;
         }
         if facts.args.is_empty() {
@@ -463,6 +474,13 @@ impl HashSyntax {
             && pairs.iter().any(|p| p.value().as_symbol_node().is_some())
     }
 
+    /// RuboCop's `hash_rockets_enforced?`: the hash-shorthand mixin's
+    /// checks are skipped entirely when the cop's own style forces hash
+    /// rockets for this hash's pairs.
+    fn hash_rockets_enforced(&self, pairs: &[AssocNode<'_>]) -> bool {
+        self.style == Style::HashRockets || self.force_hash_rockets(pairs)
+    }
+
     /// RuboCop's `check`: flags every pair whose current delimiter matches
     /// `flag_colon` (colon/label form when `true`, hash-rocket form when
     /// `false`), with a fix chosen per RuboCop's own `autocorrect`.
@@ -478,7 +496,7 @@ impl HashSyntax {
         view: &AncestorView<'_>,
         ctx: &mut Context<'_>,
     ) {
-        let mut wrapped_in_braces = false;
+        let first_pair_span = pairs.first().map(|p| p.location().span());
         for pair in pairs {
             let is_colon = pair.operator_loc().is_none();
             if is_colon != flag_colon {
@@ -494,10 +512,13 @@ impl HashSyntax {
             let fix = if to_rockets {
                 fix_to_hash_rockets(pair)
             } else {
-                let wrap = !wrapped_in_braces && view.needs_brace_wrap(hash_key.1);
-                if wrap {
-                    wrapped_in_braces = true;
-                }
+                // RuboCop's `autocorrect_ruby19`: `wrap_in_braces_if_required` runs
+                // once per offending pair, but only the hash's actual first pair
+                // (`hash_node.pairs.first`, regardless of whether *that* pair is
+                // itself being autocorrected) is allowed to add the wrap, so the
+                // hash is wrapped at most once.
+                let wrap = first_pair_span == Some(pair.location().span())
+                    && view.needs_brace_wrap(hash_key.1);
                 fix_to_ruby19(view, hash_key, pair, hash, wrap)
             };
             ctx.report_with_fix(&Self::META, offense_span, msg, fix);
@@ -725,7 +746,7 @@ impl HashSyntax {
         view: &AncestorView<'_>,
         ctx: &mut Context<'_>,
     ) {
-        if self.target_ruby_version <= 3.0 {
+        if self.target_ruby_version <= 3.0 || self.hash_rockets_enforced(pairs) {
             return;
         }
         match self.shorthand {

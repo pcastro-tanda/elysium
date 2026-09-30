@@ -239,6 +239,7 @@ end
             NodeKind::BlockParameterNode,
             NodeKind::BlockLocalVariableNode,
             NodeKind::InNode,
+            NodeKind::RescueNode,
             NodeKind::IfNode,
             NodeKind::UnlessNode,
             NodeKind::WhileNode,
@@ -293,29 +294,7 @@ load-time evaluation on whatever Ruby runs RuboCop.",
                 let n = node.as_lambda_node().expect("kind matched");
                 self.enter_block_like(node, n.parameters().is_none());
             }
-            Node::ParametersNode { .. } => {
-                let n = node.as_parameters_node().expect("kind matched");
-                for param in &n.requireds() {
-                    self.process_param_node(&param);
-                }
-                for param in &n.optionals() {
-                    self.process_param_node(&param);
-                }
-                if let Some(rest) = n.rest() {
-                    self.process_param_node(&rest);
-                }
-                for param in &n.posts() {
-                    self.process_param_node(&param);
-                }
-                for param in &n.keywords() {
-                    self.process_param_node(&param);
-                }
-                if let Some(kwrest) = n.keyword_rest() {
-                    self.process_param_node(&kwrest);
-                }
-                // `.block` (`&blk`) is a real child node, visited on its
-                // own via the `BlockParameterNode` arm below.
-            }
+            Node::ParametersNode { .. } => self.process_parameters_node(node),
             Node::BlockParameterNode { .. } => {
                 let n = node.as_block_parameter_node().expect("kind matched");
                 if let Some(name) = n.name() {
@@ -332,6 +311,19 @@ load-time evaluation on whatever Ruby runs RuboCop.",
                 let names = collect_local_variable_target_names(&pattern);
                 for name in names {
                     self.push_name(key(node), name);
+                }
+            }
+            // RuboCop's `on_resbody`: registers `rescue => e`'s exception
+            // variable so `self.e` in the body disambiguates the local
+            // variable rather than reading as redundant.
+            Node::RescueNode { .. } => {
+                let n = node.as_rescue_node().expect("kind matched");
+                if let Some(reference) = n.reference() {
+                    if let Node::LocalVariableTargetNode { .. } = reference {
+                        let target =
+                            reference.as_local_variable_target_node().expect("kind matched");
+                        self.push_name(key(node), target.name().as_slice());
+                    }
                 }
             }
             Node::IfNode { .. } => {
@@ -416,6 +408,32 @@ impl RedundantSelf {
         };
         self.scope_of.insert(k, id);
         id
+    }
+
+    /// RuboCop's `on_args`: registers every parameter name in scope,
+    /// covering each parameter kind Prism's `ParametersNode` can hold.
+    fn process_parameters_node(&mut self, node: &Node<'_>) {
+        let n = node.as_parameters_node().expect("kind matched");
+        for param in &n.requireds() {
+            self.process_param_node(&param);
+        }
+        for param in &n.optionals() {
+            self.process_param_node(&param);
+        }
+        if let Some(rest) = n.rest() {
+            self.process_param_node(&rest);
+        }
+        for param in &n.posts() {
+            self.process_param_node(&param);
+        }
+        for param in &n.keywords() {
+            self.process_param_node(&param);
+        }
+        if let Some(kwrest) = n.keyword_rest() {
+            self.process_param_node(&kwrest);
+        }
+        // `.block` (`&blk`) is a real child node, visited on its
+        // own via the `BlockParameterNode` arm below.
     }
 
     fn push_name(&mut self, k: NodeKey, name: &[u8]) {
@@ -546,20 +564,6 @@ impl RedundantSelf {
         is_bare && call.arguments().is_none() && call.block().is_none()
     }
 
-    /// Ruby's grammar forbids the bare, argument-less, block-less `it`
-    /// this fix would produce whenever it sits directly inside a block
-    /// that has explicit parameter delimiters (even empty `||`) --
-    /// `` `it` is not allowed when an ordinary parameter is defined ``.
-    /// Real RuboCop's own corrector has no such guard (its spec never
-    /// exercises `expect_correction` for this shape); this rule keeps the
-    /// offense but withholds the otherwise syntax-breaking fix.
-    fn it_fix_would_break_syntax(&self, call: &CallNode<'_>, name: &[u8]) -> bool {
-        name == b"it"
-            && call.arguments().is_none()
-            && call.block().is_none()
-            && self.bare_block_stack.last() == Some(&false)
-    }
-
     /// RuboCop's `on_send`.
     fn handle_send(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
         let call = node.as_call_node().expect("kind matched");
@@ -585,10 +589,6 @@ impl RedundantSelf {
         }
 
         let receiver_span = receiver.span();
-        if self.it_fix_would_break_syntax(&call, name) {
-            ctx.report(&Self::META, receiver_span, MSG);
-            return;
-        }
         let mut edits = vec![Edit::delete(receiver_span)];
         if let Some(dot) = call.call_operator_loc() {
             edits.push(Edit::delete(dot.span()));

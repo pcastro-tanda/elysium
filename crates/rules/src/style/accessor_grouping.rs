@@ -364,11 +364,11 @@ fn span_with_leading_space_removed(ctx: &Context<'_>, span: Span) -> Span {
     ctx.with_surrounding_space(span, Side::Left, true, false)
 }
 
-/// RuboCop's `separate_accessors` plus `range_with_trailing_argument_comment`:
-/// returns the replacement text and the span it replaces (the call's own
-/// span, extended to swallow a trailing comment on its last argument when
-/// that comment is not already inside the call's own span, e.g. a
-/// parenthesized call already includes it).
+/// RuboCop's `separate_accessors` plus `range_with_trailing_argument_comment`
+/// (via [`trailing_argument_comment`]): returns the replacement text and the
+/// span it replaces (the call's own span, extended to swallow a trailing
+/// comment when that comment is not already inside the call's own span,
+/// e.g. a parenthesized call already includes it).
 fn separate_accessors(ctx: &Context<'_>, call: &CallNode<'_>) -> (String, Span) {
     let args: Vec<Node<'_>> =
         call.arguments().map(|a| a.arguments().iter().collect()).unwrap_or_default();
@@ -397,13 +397,19 @@ fn separate_accessors(ctx: &Context<'_>, call: &CallNode<'_>) -> (String, Span) 
         lines.extend(arg_lines);
     }
 
-    let span = match comments.last().and_then(|c| c.last()) {
-        Some(&last_comment) if last_comment.end > call_span.end => {
-            Span::new(call_span.start, last_comment.end)
-        }
+    let span = match trailing_argument_comment(&comments, call_span.end) {
+        Some(comment) if comment.end > call_span.end => Span::new(call_span.start, comment.end),
         _ => call_span,
     };
     (lines.join("\n"), span)
+}
+
+/// RuboCop's `trailing_argument_comment`: for a single-line declaration the
+/// parser associates the trailing comment with the *first* argument, not
+/// the last, so this looks through every argument's own last comment (not
+/// just the last argument's) for one that trails the whole call.
+fn trailing_argument_comment(comments: &[Vec<Span>], call_end: u32) -> Option<Span> {
+    comments.iter().filter_map(|c| c.last().copied()).find(|c| c.start >= call_end)
 }
 
 /// A direct port of `Parser::Source::Comment::Associator`'s leading/

@@ -217,20 +217,24 @@ impl LoadedConfig {
             let enabled_value = enabled_value(name, &params, &raw, all_cops.disabled_by_default);
             let enabled = match &enabled_value {
                 YamlValue::Bool(b) => *b,
-                YamlValue::String(s) if s == "pending" => all_cops.new_cops == NewCops::Enable,
+                YamlValue::String(s) if s == "pending" => enabled_new_cop(name, &params, &raw),
                 other => other.is_truthy(),
             };
             params.insert("Enabled", enabled_value.clone());
 
             let include = params.get_string_list("Include");
             let exclude = params.get_string_list("Exclude");
-            let has_include = params.contains_key("Include");
-            let has_exclude = params.contains_key("Exclude");
-            if has_include || has_exclude {
+            // `Cop::Base#relevant_file?` reads `Config#for_badge`, which lays
+            // the cop's own settings over its department's. Since RuboCop
+            // 1.91.0 the two `Exclude` lists are unioned instead of the cop's
+            // replacing the department's.
+            let department = name.rsplit_once('/').and_then(|(dept, _)| raw.get_mapping(dept));
+            let badge = badge_clusivity(department, &params);
+            if badge.include.is_some() || badge.exclude.is_some() {
                 if let Ok(matcher) = FileMatcher::rooted(
                     root.clone(),
-                    has_include.then_some(include.as_slice()),
-                    has_exclude.then_some(exclude.as_slice()),
+                    badge.include.as_deref(),
+                    badge.exclude.as_deref(),
                 ) {
                     cop_matchers.insert(name.to_string(), matcher);
                 }
@@ -541,6 +545,76 @@ fn enabled_value(
         }
     }
     cop_enabled
+}
+
+/// The `Include`/`Exclude` `Config#for_badge` reports for one cop: its own
+/// settings laid over its department's, with the two `Exclude` lists unioned
+/// (RuboCop 1.91.0). `None` means neither side sets the key, which RuboCop
+/// answers with the clusivity default.
+struct BadgeClusivity {
+    include: Option<Vec<String>>,
+    exclude: Option<Vec<String>>,
+}
+
+fn badge_clusivity(department: Option<&Mapping>, params: &Mapping) -> BadgeClusivity {
+    let pick = |key: &str| {
+        if params.contains_key(key) {
+            Some(params.get_string_list(key))
+        } else {
+            department.filter(|dept| dept.contains_key(key)).map(|dept| dept.get_string_list(key))
+        }
+    };
+    let mut exclude = pick("Exclude");
+    if let Some(dept) = department.filter(|dept| dept.contains_key("Exclude")) {
+        if params.contains_key("Exclude") {
+            let mut unioned = dept.get_string_list("Exclude");
+            for path in params.get_string_list("Exclude") {
+                if !unioned.contains(&path) {
+                    unioned.push(path);
+                }
+            }
+            exclude = Some(unioned);
+        }
+    }
+    BadgeClusivity { include: pick("Include"), exclude }
+}
+
+/// `Config#enabled_new_cop?` (RuboCop 1.91.0): a pending cop is enabled by
+/// `NewCops: enable`, or by a `NewCops` version on its department that is at
+/// least the cop's `VersionAdded`. A department's setting wins over
+/// `AllCops`'s.
+fn enabled_new_cop(name: &str, params: &Mapping, raw: &Mapping) -> bool {
+    let department = name.rsplit_once('/').and_then(|(dept, _)| raw.get_mapping(dept));
+    let setting = department
+        .and_then(|dept| dept.get("NewCops"))
+        .or_else(|| raw.get_mapping("AllCops").and_then(|all| all.get("NewCops")));
+    let Some(setting) = setting else { return false };
+    match setting.as_str() {
+        Some("enable") => true,
+        Some("pending" | "disable") => false,
+        _ => {
+            let Some(pinned) = comparable_version(setting) else { return false };
+            let Some(added) = params.get("VersionAdded").and_then(comparable_version) else {
+                return false;
+            };
+            added <= pinned
+        }
+    }
+}
+
+/// `Config#comparable_version`: `'1.19'`/`1.19` become comparable segment
+/// lists; `'N/A'`, `'<<next>>'` and the like are not versions at all.
+fn comparable_version(value: &YamlValue) -> Option<Vec<u32>> {
+    let text = match value {
+        YamlValue::String(s) => s.clone(),
+        YamlValue::Int(i) => i.to_string(),
+        YamlValue::Float(f) => f.to_string(),
+        _ => return None,
+    };
+    if !text.starts_with(|c: char| c.is_ascii_digit()) {
+        return None;
+    }
+    text.split('.').map(|part| part.parse::<u32>().ok()).collect()
 }
 
 /// RuboCop's `ShowCops::WildcardMatcher`/`ExactMatcher`.

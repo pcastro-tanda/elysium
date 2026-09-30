@@ -1,6 +1,4 @@
 def some_method
-  _ = 1
-  puts _
-  1.times do |_|
+  1.times do |_foo, bar, _foo|
   end
 end

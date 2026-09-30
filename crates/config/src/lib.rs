@@ -1,6 +1,6 @@
 //! RuboCop-compatible configuration loading.
 //!
-//! The crate embeds RuboCop 1.82.1's `config/default.yml` and
+//! The crate embeds RuboCop 1.91.0's `config/default.yml` and
 //! `config/obsoletion.yml` (see `rubocop/LICENSE.txt`) and resolves user
 //! configuration against them the way `RuboCop::ConfigLoader` does:
 //! `inherit_from`, `inherit_gem`, `inherit_mode`, department-level switches,

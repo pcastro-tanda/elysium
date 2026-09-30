@@ -168,7 +168,10 @@ variables, constants, constant paths, attribute writers, index writers, and
 multiple assignment.
 `node.method?(:define_method)` does not check the call's receiver, matching
 RuboCop, so `obj.define_method(...) do ... end` is treated the same as a
-bare call.",
+bare call.
+`self.autocorrect_incompatible_with` (`Style::MissingElse`, avoiding a
+double-correction clash when both cops run together) is not ported: this
+port has no cross-rule autocorrect-conflict mechanism.",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
@@ -841,21 +844,15 @@ fn build_fix(
 }
 
 /// One heredoc argument found as a branch's whole body: RuboCop's
-/// `if_branch.send_type? && heredoc?(if_branch.last_argument)`, carrying the
-/// heredoc's closing-delimiter end offset for `insert_after`.
+/// `find_heredoc_argument`, carrying the heredoc's closing-delimiter end
+/// offset for `insert_after`.
 struct HeredocInfo {
     closing_end: u32,
 }
 
 fn heredoc_branch(branch: &Branch<'_>, ctx: &Context<'_>) -> Option<HeredocInfo> {
-    let Branch::Single(n) = branch else { return None };
-    let call = n.as_call_node()?;
-    let args = call.arguments()?;
-    let last = args.arguments().last()?;
-    if !ruby_ast::ext::is_heredoc(&last) {
-        return None;
-    }
-    let closing = heredoc_closing_span(&last)?;
+    let found = find_heredoc_argument(branch)?;
+    let closing = heredoc_closing_span(&found)?;
     // Prism's heredoc closing location includes the trailing line
     // terminator (`"MESSAGE\n"`); RuboCop's `loc.heredoc_end` (parser gem)
     // stops before it, which is where `insert_after` must land.
@@ -864,6 +861,68 @@ fn heredoc_branch(branch: &Branch<'_>, ctx: &Context<'_>) -> Option<HeredocInfo>
         - closing_text.iter().rev().take_while(|&&b| b == b'\n' || b == b'\r').count();
     let closing_end = closing.start + u32::try_from(trimmed).unwrap_or(closing.len());
     Some(HeredocInfo { closing_end })
+}
+
+/// RuboCop's `find_heredoc_argument`, entered on a normalized branch (its
+/// `node.children.first while node.begin_type?` loop applies just as well
+/// to a multi-statement branch's synthetic `begin` -- our `Branch::Multi`'s
+/// `StatementsNode` -- as to an explicitly parenthesized single statement --
+/// Prism's `ParenthesesNode`, unwrapped by [`unwrap_begin`]).
+fn find_heredoc_argument<'pr>(branch: &Branch<'pr>) -> Option<Node<'pr>> {
+    let node = match branch {
+        Branch::Empty => return None,
+        Branch::Single(n) => *n,
+        Branch::Multi(stmts) => stmts.as_node(),
+    };
+    find_heredoc_in_node(node)
+}
+
+/// RuboCop's `find_heredoc_argument`'s recursive body: a heredoc found
+/// directly, or (for a call) among its arguments (last first) or its
+/// receiver, walked depth-first.
+fn find_heredoc_in_node<'pr>(node: Node<'pr>) -> Option<Node<'pr>> {
+    let node = unwrap_begin(node);
+    if ruby_ast::ext::is_heredoc(&node) {
+        return Some(node);
+    }
+    let call = node.as_call_node()?;
+    if let Some(args) = call.arguments() {
+        let arguments: Vec<Node<'pr>> = args.arguments().iter().collect();
+        for argument in arguments.into_iter().rev() {
+            if let Some(found) = find_heredoc_in_node(argument) {
+                return Some(found);
+            }
+        }
+    }
+    find_heredoc_in_node(call.receiver()?)
+}
+
+/// RuboCop's `node.children.first while node.begin_type?`: whitequark's
+/// unified `:begin` node type covers both an explicitly parenthesized
+/// single expression and a bare multi-statement implicit body, always
+/// unwrapping to its first child (discarding any further statements).
+/// Prism keeps these as two distinct kinds (`ParenthesesNode` wrapping a
+/// `StatementsNode`, and a bare `StatementsNode`), so both are unwrapped
+/// here, repeatedly, the same way.
+fn unwrap_begin(mut node: Node<'_>) -> Node<'_> {
+    loop {
+        let next = match &node {
+            Node::ParenthesesNode { .. } => node
+                .as_parentheses_node()
+                .expect("kind matched")
+                .body()
+                .and_then(|b| b.as_statements_node())
+                .and_then(|s| s.body().iter().next()),
+            Node::StatementsNode { .. } => {
+                node.as_statements_node().expect("kind matched").body().iter().next()
+            }
+            _ => None,
+        };
+        match next {
+            Some(n) => node = n,
+            None => return node,
+        }
+    }
 }
 
 /// The closing-delimiter span of a heredoc-capable string literal.

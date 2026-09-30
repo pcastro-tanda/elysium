@@ -20,7 +20,7 @@ use linter::{
 };
 use ruby_ast::{each_descendant, ext, LocationExt as _, Node, NodeKind};
 use ruby_source::Span;
-use std::collections::HashMap;
+use std::collections::{HashMap, HashSet};
 
 /// The three ways a heredoc's opening delimiter can be spelled -- RuboCop's
 /// `heredoc_indent_type`, which returns `'~'`, `'-'` or `nil`.
@@ -79,6 +79,11 @@ pub struct HeredocIndentation {
     max_line_length: Option<i64>,
     /// `Layout/LineLength`'s `AllowHeredoc` (default `true`).
     allow_heredoc_overflow: bool,
+    /// `AllCops`' `ActiveSupportExtensionsEnabled` (default `false`):
+    /// gates whether a `.squish`/`.squish!` call on a heredoc
+    /// (`heredoc_squish?`) makes an otherwise-tolerated `<<-`/`<<` body
+    /// indentation an offense too.
+    active_support_extensions_enabled: bool,
     /// Where each heredoc's body physically starts, keyed by the heredoc's
     /// own opening `Span::start`. Ruby's lexer fills stacked heredoc bodies
     /// (multiple `<<~TAG` openers on one physical line, e.g.
@@ -93,6 +98,13 @@ pub struct HeredocIndentation {
     /// source order (e.g. a modifier-`if`'s predicate is visited before
     /// its statement, though it reads after it).
     body_start_lines: HashMap<u32, u32>,
+    /// `squish_method?(node.parent)`: the `Span::start` of every
+    /// heredoc-shaped node that is the direct receiver of a `.squish`/
+    /// `.squish!` call, collected once in [`Rule::file_start`] (this
+    /// engine's single top-down pass has no way to look at a node's own
+    /// parent once visiting the node itself, unlike whitequark's
+    /// `node.parent`).
+    squish_receivers: HashSet<u32>,
 }
 
 impl HeredocIndentation {
@@ -153,7 +165,9 @@ impl HeredocIndentation {
                 }
             }
             IndentType::Dash | IndentType::Bare => {
-                if body_indent_level != 0 {
+                let is_squish = self.active_support_extensions_enabled
+                    && self.squish_receivers.contains(&opening.start);
+                if body_indent_level != 0 && !is_squish {
                     return;
                 }
             }
@@ -213,36 +227,74 @@ impl HeredocIndentation {
         };
 
         let fix = match indent_type {
-            IndentType::Squiggly => {
-                let correct_indent_level = base_indent_level + self.indentation_width;
-                let mut edits = vec![Edit::replace(
+            IndentType::Squiggly => Fix {
+                applicability: Applicability::Safe,
+                edits: self.squiggly_body_edits(
+                    ctx,
+                    closing,
                     body_span,
-                    build_indented_body(body, body_indent_level, correct_indent_level),
-                )];
-
-                let end_line = ctx.line_col(closing.start).line;
-                let end_span = ctx.line_span(end_line);
-                let end_text = ctx.text(end_span);
-                let end_indent_level = indent_level(end_text);
-                if end_indent_level < base_indent_level {
-                    let spaces = usize::try_from(base_indent_level).unwrap_or(0);
-                    let skip = usize::try_from(end_indent_level).unwrap_or(0);
-                    let mut new_end = vec![b' '; spaces];
-                    new_end.extend_from_slice(&end_text[skip..]);
-                    edits.push(Edit::replace(end_span, new_end));
-                }
-                Fix { applicability: Applicability::Safe, edits }
-            }
+                    body,
+                    body_indent_level,
+                    base_indent_level,
+                ),
+            },
             IndentType::Dash | IndentType::Bare => {
                 let marker = Span::new(opening.start, opening.start + indent_type.marker_len());
-                Fix {
-                    applicability: Applicability::Safe,
-                    edits: vec![Edit::replace(marker, b"<<~".as_slice())],
+                let mut edits = Vec::new();
+                if self.active_support_extensions_enabled
+                    && self.squish_receivers.contains(&opening.start)
+                {
+                    // `adjust_heredoc_squish`: `adjust_squiggly` followed by
+                    // `adjust_minus` -- reindent the body/end exactly as a
+                    // squiggly heredoc would, then switch the marker itself.
+                    edits.extend(self.squiggly_body_edits(
+                        ctx,
+                        closing,
+                        body_span,
+                        body,
+                        body_indent_level,
+                        base_indent_level,
+                    ));
                 }
+                edits.push(Edit::replace(marker, b"<<~".as_slice()));
+                Fix { applicability: Applicability::Safe, edits }
             }
         };
 
         ctx.report_with_fix(&Self::META, body_span, message, fix);
+    }
+
+    /// RuboCop's `adjust_squiggly`: reindents the body to
+    /// `base_indent_level + configured_indentation_width` and, if the
+    /// closing delimiter line is indented less than `base_indent_level`,
+    /// reindents it to match.
+    fn squiggly_body_edits(
+        &self,
+        ctx: &Context<'_>,
+        closing: Span,
+        body_span: Span,
+        body: &[u8],
+        body_indent_level: i64,
+        base_indent_level: i64,
+    ) -> Vec<Edit> {
+        let correct_indent_level = base_indent_level + self.indentation_width;
+        let mut edits = vec![Edit::replace(
+            body_span,
+            build_indented_body(body, body_indent_level, correct_indent_level),
+        )];
+
+        let end_line = ctx.line_col(closing.start).line;
+        let end_span = ctx.line_span(end_line);
+        let end_text = ctx.text(end_span);
+        let end_indent_level = indent_level(end_text);
+        if end_indent_level < base_indent_level {
+            let spaces = usize::try_from(base_indent_level).unwrap_or(0);
+            let skip = usize::try_from(end_indent_level).unwrap_or(0);
+            let mut new_end = vec![b' '; spaces];
+            new_end.extend_from_slice(&end_text[skip..]);
+            edits.push(Edit::replace(end_span, new_end));
+        }
+        edits
     }
 }
 
@@ -415,20 +467,35 @@ parser this cop is ported against -- never targets a Ruby that old.",
             .peer("Layout/LineLength", "AllowHeredoc")
             .and_then(OptionValue::as_bool)
             .unwrap_or(true);
+        let active_support_extensions_enabled = options
+            .peer("AllCops", "ActiveSupportExtensionsEnabled")
+            .and_then(OptionValue::as_bool)
+            .unwrap_or(false);
         Ok(Self {
             indentation_width,
             max_line_length,
             allow_heredoc_overflow,
+            active_support_extensions_enabled,
             body_start_lines: HashMap::new(),
+            squish_receivers: HashSet::new(),
         })
     }
 
     fn file_start(&mut self, ctx: &mut Context<'_>) {
         let mut heredocs: Vec<(Span, Span)> = Vec::new();
+        self.squish_receivers.clear();
         each_descendant(&ctx.parsed().root(), &mut |n| {
             if let Some(locs) = Self::heredoc_locs(n) {
                 heredocs.push(locs);
             }
+            let Node::CallNode { .. } = n else { return };
+            let call = n.as_call_node().expect("kind matched");
+            if !matches!(call.name().as_slice(), b"squish" | b"squish!") {
+                return;
+            }
+            let Some(receiver) = call.receiver() else { return };
+            let Some((receiver_opening, _)) = Self::heredoc_locs(&receiver) else { return };
+            self.squish_receivers.insert(receiver_opening.start);
         });
         // Lexer order is opening-offset order, not tree-visit order (e.g. a
         // modifier-`if`'s predicate is visited before its statement, though

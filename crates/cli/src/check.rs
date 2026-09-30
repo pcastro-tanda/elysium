@@ -129,11 +129,11 @@ fn select_rules(
 
 /// Builds the [`rules::RuleSet`] `path`'s file runs with: `session.rule_set`
 /// as-is, unless `directives` shows the file "opts in" (RuboCop's
-/// `CommentConfig#cop_opted_in?`, `comment_config.rb:48-50`) a cop this
+/// `CommentConfig#cop_opted_in?`, `comment_config.rb:59-61`) a cop this
 /// run's base selection (`session.rule_names`) left disabled. When it does, a
 /// fresh [`rules::RuleSet`] including that cop is built for this file alone --
-/// mirroring `Cop::Team#roundup_relevant_cops` (`team.rb:178-186`,
-/// RuboCop 1.82.1), whose `next true if
+/// mirroring `Cop::Team#roundup_relevant_cops` (`team.rb:263-271`,
+/// RuboCop 1.91.0), whose `next true if
 /// processed_source.comment_config.cop_opted_in?(cop)` reactivates a cop
 /// before ever consulting `@registry.enabled?(cop, @config)`, regardless of
 /// *why* the configuration disabled it. [`linter::lint_parsed_with`]'s
@@ -445,9 +445,9 @@ mod tests {
     // `Enabled: false`) disables `Layout/LineLength` project-wide, but a
     // `# rubocop:enable Layout/LineLength` directive reactivates it for that
     // one file, from strictly after the directive's line onward -- RuboCop's
-    // `Cop::Team#roundup_relevant_cops` (`team.rb:178-186`) and
-    // `CommentConfig#cop_opted_in?` (`comment_config.rb:48-50`),
-    // RuboCop 1.82.1.
+    // `Cop::Team#roundup_relevant_cops` (`team.rb:263-271`) and
+    // `CommentConfig#cop_opted_in?` (`comment_config.rb:59-61`),
+    // RuboCop 1.91.0.
 
     #[test]
     fn disabled_by_default_cop_opted_in_by_directive_reports_after_the_enable_line() {

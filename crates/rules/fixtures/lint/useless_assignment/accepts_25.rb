@@ -1,5 +1,9 @@
-def some_method
-  foo = 'some string'
-  /(?<foo>w+)/ =~ foo
-  puts foo
+retried = false
+
+begin
+  do_something
+rescue
+  fail if retried
+  retried = true
+  retry
 end

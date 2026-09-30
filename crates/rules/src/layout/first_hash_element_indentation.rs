@@ -512,7 +512,9 @@ impl FirstHashElementIndentation {
         parent_fact: Option<ParentPairFact>,
     ) {
         let first_span = first.location().span();
-        let actual_column = i64::from(ctx.line_col(first_span.start).column);
+        let first_pos = ctx.line_col(first_span.start);
+        let first_line = first_pos.line;
+        let actual_column = i64::from(first_pos.column);
         let (base_column, base_type) =
             self.indent_base(ctx, left_brace, true, parent_fact, left_paren);
         let expected_column = base_column + self.indentation_width + offset;
@@ -521,9 +523,22 @@ impl FirstHashElementIndentation {
             return;
         }
         let msg = message(self.indentation_width, base_type.description());
-        let taboo = linter::heredoc_bodies(ctx, &first.as_node());
         let delta = i32::try_from(column_delta).unwrap_or(0);
-        let edits = linter::shift_lines(ctx, first_span, delta, &taboo);
+        // RuboCop 1.91.0's `autocorrect`: a pair whose value starts on a line
+        // below its key is shifted by its *key's line* alone, so the value's
+        // own (independently indented) lines are left where they are. The
+        // pair always begins its line here -- `check` returned already if it
+        // shared the opening brace's line -- so the line range and the pair's
+        // own start coincide. Upstream passes a bare line range, which carries
+        // no `inside_string_ranges` taboo.
+        let key_line = ctx.line_col(first.key().location().span().start).line;
+        let value_line = ctx.line_col(first.value().location().span().start).line;
+        let (shift_span, taboo) = if value_line <= key_line {
+            (first_span, linter::heredoc_bodies(ctx, &first.as_node()))
+        } else {
+            (Span::new(first_span.start, ctx.line_span(first_line).end), Vec::new())
+        };
+        let edits = linter::shift_lines(ctx, shift_span, delta, &taboo);
         match fix_from_edits(edits) {
             Some(fix) => ctx.report_with_fix(&Self::META, first_span, msg, fix),
             None => ctx.report(&Self::META, first_span, msg),

@@ -159,10 +159,14 @@ fn check_assignment(
     }
 
     // `x = 1, y = 2` cannot lose a variable without becoming a syntax error,
-    // and turning `x ||= 1` into `x || 1` can raise `NameError`.
+    // and turning `x ||= 1`/`x &&= 1` into `x || 1`/`x && 1` can raise
+    // `NameError` if the variable was not declared before the operator
+    // assignment.
     let fix = if sequential_assignment(semantics, id)
-        || node.kind() == NodeKind::LocalVariableOrWriteNode
-    {
+        || matches!(
+            node.kind(),
+            NodeKind::LocalVariableOrWriteNode | NodeKind::LocalVariableAndWriteNode
+        ) {
         None
     } else {
         autocorrect(semantics, ctx, id)

@@ -1,3 +1,5 @@
+Layout/FirstHashElementIndentation:
+  Preview: ~
 Layout/HashAlignment:
   EnforcedColonStyle: separator
   AllowMultipleStyles: false

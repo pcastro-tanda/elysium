@@ -1,11 +1,11 @@
-//! The embedded RuboCop 1.82.1 `config/default.yml`.
+//! The embedded RuboCop 1.91.0 `config/default.yml`.
 
 use std::collections::BTreeSet;
 use std::sync::LazyLock;
 
 use crate::yaml::{parse_document, Mapping, YamlValue};
 
-/// RuboCop 1.82.1 `config/default.yml`, verbatim (see `rubocop/LICENSE.txt`).
+/// RuboCop 1.91.0 `config/default.yml`, verbatim (see `rubocop/LICENSE.txt`).
 pub const DEFAULT_YML: &str = include_str!("../rubocop/default.yml");
 
 /// The parsed default configuration.
@@ -37,7 +37,7 @@ mod tests {
         assert_eq!(cop.get_str("EnforcedStyle"), Some("prefer_alias"));
         assert_eq!(cop.get("Enabled"), Some(&YamlValue::Bool(true)));
         // `Lint/AssignmentInCondition: AllowSafeAssignment` is asserted by
-        // spec/rubocop/config_loader_spec.rb:2155.
+        // spec/rubocop/config_loader_spec.rb:2373.
         assert_eq!(
             DEFAULT_CONFIG
                 .get_mapping("Lint/AssignmentInCondition")

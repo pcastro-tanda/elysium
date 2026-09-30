@@ -12,10 +12,10 @@ Checks that there is a `# rubocop:enable ...` after a `# rubocop:disable ...`.
 
 Checks that there is an `# rubocop:enable ...` statement
 after a `# rubocop:disable ...` statement. This will prevent leaving
-cop disables on wide ranges of code, that latter contributors to
+cop disables on wide ranges of code, that later contributors to
 a file wouldn't be aware of.
 
-You can set `MaximumRangeSize` to define the maximum number of
+You can set `MaxRangeSize` to define the maximum number of
 consecutive lines a cop can be disabled for.
 
 - `.inf` any size (default)
@@ -29,7 +29,7 @@ a = 1
 ```
 
 ```ruby
-# MaximumRangeSize: .inf (default)
+# MaxRangeSize: .inf (default)
 
 # good
 # rubocop:disable Layout/SpaceAroundOperators
@@ -45,7 +45,7 @@ x= 0
 ```
 
 ```ruby
-# MaximumRangeSize: 2
+# MaxRangeSize: 2
 
 # good
 # rubocop:disable Layout/SpaceAroundOperators
@@ -65,7 +65,7 @@ x += 1
 
 | Name | Default | Allowed values | Description |
 | --- | --- | --- | --- |
-| MaximumRangeSize | inf |  | Maximum number of consecutive lines the cop can be disabled for. |
+| MaxRangeSize | inf |  | Maximum number of consecutive lines the cop can be disabled for. |
 
 ## Blind spots
 

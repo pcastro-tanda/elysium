@@ -1,7 +1,6 @@
 def some_method
-  foo = 1
-  ^^^ Useless assignment to variable - `foo`.
-  1.times do |foo|
-    puts foo
-  end
+  foo => { bar: bar }
+  baz { qux -= 1 }
+        ^^^ Useless assignment to variable - `qux`. Use `-` instead of `-=`.
+  foo
 end

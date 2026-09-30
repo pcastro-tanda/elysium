@@ -1,0 +1,4 @@
+Layout/EndAlignment:
+  EnforcedStyleAlignWith: variable
+Layout/IndentationStyle:
+  EnforcedStyle: tabs

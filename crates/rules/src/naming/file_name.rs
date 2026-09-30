@@ -47,7 +47,6 @@ const CAMEL_CASE_INCLUDE_EXACT: &[&str] = &[
     "Brewfile",
     "Buildfile",
     "Capfile",
-    "Cheffile",
     "Dangerfile",
     "Deliverfile",
     "Fastfile",
@@ -62,7 +61,6 @@ const CAMEL_CASE_INCLUDE_EXACT: &[&str] = &[
     "Snapfile",
     "Steepfile",
     "Thorfile",
-    "Vagabondfile",
     "Vagrantfile",
 ];
 

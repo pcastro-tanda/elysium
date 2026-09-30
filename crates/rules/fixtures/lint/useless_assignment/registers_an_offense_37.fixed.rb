@@ -1,6 +1,5 @@
 def some_method
-  1
-  1.times do |foo|
-    puts foo
-  end
+  foo => { bar: bar }
+  baz { qux - 1 }
+  foo
 end

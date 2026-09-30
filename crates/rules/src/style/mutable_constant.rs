@@ -16,6 +16,13 @@
 //! [`NodeKind::ShareableConstantNode`], which we detect by matching the
 //! wrapped write's span rather than re-scanning comments the way RuboCop's
 //! (pre-Prism) `ShareableConstantValue` mixin does.
+//!
+//! `Recursive` mode's descent (RuboCop's `mutable_nodes`/
+//! `freeze_nested_literals`) walks Prism's own [`ruby_ast::node::AssocNode`]
+//! (whitequark's flat `pair` children) for hash literals, and skips a
+//! percent-literal array's elements (RuboCop-AST's `percent_literal?`,
+//! reused from [`crate::layout::space_inside_array_percent_literal`]) since
+//! `.freeze` cannot be appended to them individually.
 
 use linter::{
     Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
@@ -23,6 +30,8 @@ use linter::{
 };
 use ruby_ast::{ext, LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
+
+use crate::layout::space_inside_array_percent_literal::array_percent_type;
 
 /// RuboCop's `MSG`.
 const MSG: &str = "Freeze mutable objects assigned to constants.";
@@ -131,6 +140,9 @@ fn produces_immutable_object(value: &Node<'_>) -> bool {
             let call = value.as_call_node().expect("kind matched");
             match call.name().as_slice() {
                 b"new" => call.receiver().is_some_and(|r| is_bare_or_toplevel_const(&r, b"Struct")),
+                b"define" => {
+                    call.receiver().is_some_and(|r| is_bare_or_toplevel_const(&r, b"Data"))
+                }
                 b"freeze" | b"count" | b"length" | b"size" | b"==" | b"===" | b"!=" | b"<="
                 | b">=" | b"<" | b">" => true,
                 b"+" | b"-" | b"*" | b"**" | b"/" | b"%" => {
@@ -220,13 +232,67 @@ fn value_span(value: &Node<'_>, ctx: &Context<'_>) -> Span {
     value.span()
 }
 
-/// RuboCop's `autocorrect`: wraps `value` as needed, then always appends
-/// `.freeze` right after it.
-fn build_fix(value: &Node<'_>, ctx: &Context<'_>) -> Fix {
-    let expr = value_span(value, ctx);
-    let mut edits = Vec::with_capacity(3);
+/// RuboCop's `PercentLiteral#type`-based classification, reused from
+/// `Layout/SpaceInsideArrayPercentLiteral`: whether `node` is a `%w`/`%W`/
+/// `%i`/`%I` percent-literal array, whose elements `literal_children` skips
+/// since `.freeze` cannot be appended to them individually.
+fn is_percent_literal_array(node: &Node<'_>, ctx: &Context<'_>) -> bool {
+    node.as_array_node().is_some_and(|array| {
+        array.opening_loc().is_some_and(|loc| array_percent_type(ctx.text(loc.span())).is_some())
+    })
+}
 
-    if let Some(splat) = splat_value(value) {
+/// RuboCop's `explicitly_frozen_literal?`, returning the frozen receiver:
+/// a `.freeze` call whose receiver is itself a mutable literal.
+fn explicitly_frozen_receiver<'pr>(node: &Node<'pr>) -> Option<Node<'pr>> {
+    let call = node.as_call_node()?;
+    if call.name().as_slice() != b"freeze" {
+        return None;
+    }
+    let receiver = call.receiver()?;
+    is_mutable_literal(receiver.kind()).then_some(receiver)
+}
+
+/// RuboCop's `literal_children`: the child literals of an array or hash
+/// node that may themselves need freezing (both keys and values count for
+/// a hash). Returns nothing for a percent-literal array, or any node that
+/// isn't itself an array/hash.
+fn literal_children<'pr>(node: &Node<'pr>, ctx: &Context<'_>) -> Vec<Node<'pr>> {
+    match node.kind() {
+        NodeKind::ArrayNode if !is_percent_literal_array(node, ctx) => {
+            node.as_array_node().expect("kind matched").elements().iter().collect()
+        }
+        NodeKind::HashNode => node
+            .as_hash_node()
+            .expect("kind matched")
+            .elements()
+            .iter()
+            .flat_map(|child| {
+                child
+                    .as_assoc_node()
+                    .map_or_else(Vec::new, |assoc| vec![assoc.key(), assoc.value()])
+            })
+            .collect(),
+        _ => Vec::new(),
+    }
+}
+
+/// RuboCop's `freezable_nested_literal?`. A nested child can never carry
+/// its own independent `shareable_constant_value` scoping apart from the
+/// top-level write it lives under (see the module doc), so unlike
+/// [`literals_check`] only the frozen-string-literal exemption applies
+/// here.
+fn is_freezable_nested_literal(node: &Node<'_>, ctx: &Context<'_>) -> bool {
+    is_mutable_literal(node.kind()) && !is_frozen_string_literal(node, ctx)
+}
+
+/// RuboCop's `autocorrect`, plus `freeze_nested_literals` (when `Recursive`
+/// is enabled): wraps `node` as needed, appends `.freeze`, then recursively
+/// freezes every nested mutable literal underneath it.
+fn autocorrect_edits(node: &Node<'_>, ctx: &Context<'_>, recursive: bool, edits: &mut Vec<Edit>) {
+    let expr = value_span(node, ctx);
+
+    if let Some(splat) = splat_value(node) {
         let source = ctx.text(splat.span());
         let replacement = if is_range_enclosed_in_parentheses(&splat) {
             format!("{}.to_a", String::from_utf8_lossy(source))
@@ -234,17 +300,44 @@ fn build_fix(value: &Node<'_>, ctx: &Context<'_>) -> Fix {
             format!("({}).to_a", String::from_utf8_lossy(source))
         };
         edits.push(Edit::replace(expr, replacement.into_bytes()));
-    } else if value.kind() == NodeKind::ArrayNode
-        && value.as_array_node().expect("kind matched").opening_loc().is_none()
+        edits.push(Edit::insert(expr.end, b".freeze".to_vec()));
+        return;
+    }
+
+    if node.kind() == NodeKind::ArrayNode
+        && node.as_array_node().expect("kind matched").opening_loc().is_none()
     {
         edits.push(Edit::insert(expr.start, b"[".to_vec()));
         edits.push(Edit::insert(expr.end, b"]".to_vec()));
-    } else if requires_parentheses(value) {
+    } else if requires_parentheses(node) {
         edits.push(Edit::insert(expr.start, b"(".to_vec()));
         edits.push(Edit::insert(expr.end, b")".to_vec()));
     }
     edits.push(Edit::insert(expr.end, b".freeze".to_vec()));
 
+    if recursive {
+        freeze_nested_literals(node, ctx, edits);
+    }
+}
+
+/// RuboCop's `freeze_nested_literals`: recursively freezes every nested
+/// mutable literal inside an array or hash literal. An already-frozen
+/// subtree is not re-frozen, but the recursion still walks into its
+/// receiver to find further unfrozen literals underneath.
+fn freeze_nested_literals(node: &Node<'_>, ctx: &Context<'_>, edits: &mut Vec<Edit>) {
+    for child in literal_children(node, ctx) {
+        if let Some(receiver) = explicitly_frozen_receiver(&child) {
+            freeze_nested_literals(&receiver, ctx, edits);
+        } else if is_freezable_nested_literal(&child, ctx) {
+            autocorrect_edits(&child, ctx, true, edits);
+        }
+    }
+}
+
+/// Builds the [`Fix`] for one reported offense node.
+fn build_fix(node: &Node<'_>, ctx: &Context<'_>, recursive: bool) -> Fix {
+    let mut edits = Vec::with_capacity(3);
+    autocorrect_edits(node, ctx, recursive, &mut edits);
     Fix { applicability: Applicability::Unsafe, edits }
 }
 
@@ -276,6 +369,9 @@ enum EnforcedStyle {
 #[derive(Debug, Clone)]
 pub struct MutableConstant {
     style: EnforcedStyle,
+    /// `Recursive` option: whether to descend into nested mutable literals
+    /// (see [`MutableConstant::mutable_nodes`]/[`freeze_nested_literals`]).
+    recursive: bool,
     /// Spans of writes that a [`NodeKind::ShareableConstantNode`] wrapped:
     /// the parser has already determined a `shareable_constant_value` magic
     /// comment applies to them, so they are exempt.
@@ -293,20 +389,40 @@ impl MutableConstant {
         }
     }
 
+    /// RuboCop's `mutable_nodes`: normally just checks `value` itself, but
+    /// when `Recursive` is enabled and `value` is already wrapped in an
+    /// explicit `.freeze` call on a mutable literal, descends into that
+    /// literal's children instead and reports each outermost unfrozen
+    /// literal underneath, rather than the (already frozen) whole.
+    fn mutable_nodes<'pr>(&self, value: &Node<'pr>, ctx: &Context<'_>, out: &mut Vec<Node<'pr>>) {
+        if self.recursive {
+            if let Some(receiver) = explicitly_frozen_receiver(value) {
+                for child in literal_children(&receiver, ctx) {
+                    self.mutable_nodes(&child, ctx, out);
+                }
+                return;
+            }
+        }
+        let offending = match self.style {
+            EnforcedStyle::Literals => literals_check(value, ctx),
+            EnforcedStyle::Strict => strict_check(value, ctx),
+        };
+        if offending {
+            out.push(*value);
+        }
+    }
+
     fn on_assignment(&mut self, node: &Node<'_>, value: &Node<'_>, ctx: &mut Context<'_>) {
         if self.is_shareable(node) {
             return;
         }
-        let offense = match self.style {
-            EnforcedStyle::Literals => literals_check(value, ctx),
-            EnforcedStyle::Strict => strict_check(value, ctx),
-        };
-        if !offense {
-            return;
+        let mut nodes = Vec::new();
+        self.mutable_nodes(value, ctx, &mut nodes);
+        for offending in nodes {
+            let span = value_span(&offending, ctx);
+            let fix = build_fix(&offending, ctx, self.recursive);
+            ctx.report_with_fix(&Self::META, span, MSG, fix);
         }
-        let span = value_span(value, ctx);
-        let fix = build_fix(value, ctx);
-        ctx.report_with_fix(&Self::META, span, MSG, fix);
     }
 }
 
@@ -341,6 +457,15 @@ CONST = Something.new.freeze
 Strict mode is considered experimental: it does not have an exhaustive list
 of methods that produce frozen objects, so it has a decent chance of false
 positives. There is no harm in freezing an already frozen object, though.
+`Data.define` is treated as frozen-safe too, since it declares an immutable
+value type.
+
+When the `Recursive` option is enabled, mutable literals nested inside
+arrays and hashes are frozen too, so an offense on the outermost unfrozen
+literal autocorrects every nested mutable literal underneath as well; when
+the outer literal is already `.freeze`d, the cop instead descends into it
+and reports each outermost unfrozen literal underneath separately. The
+option is disabled by default to preserve existing behavior.
 
 `Regexp` and `Range` literals have been frozen since Ruby 3.0 and are never
 flagged. A `# shareable_constant_value: literal` (or `experimental_everything`
@@ -358,13 +483,23 @@ semantics.",
             NodeKind::ConstantPathOrWriteNode,
             NodeKind::ShareableConstantNode,
         ],
-        config: &[ConfigOption {
-            name: "EnforcedStyle",
-            default: ConfigDefault::Str("literals"),
-            allowed: &["literals", "strict"],
-            doc: "`literals` freezes only literal values assigned to constants; \
+        config: &[
+            ConfigOption {
+                name: "EnforcedStyle",
+                default: ConfigDefault::Str("literals"),
+                allowed: &["literals", "strict"],
+                doc: "`literals` freezes only literal values assigned to constants; \
 `strict` freezes every constant assignment.",
-        }],
+            },
+            ConfigOption {
+                name: "Recursive",
+                default: ConfigDefault::Bool(false),
+                allowed: &[],
+                doc: "When `true`, recursively check and freeze mutable literals nested \
+inside arrays and hashes (e.g. `[{ a: [] }]` becomes \
+`[{ a: [].freeze }.freeze].freeze`).",
+            },
+        ],
         blind_spots: "\
 Only plain `CONST = value` and `CONST ||= value` (and their `A::B::CONST`
 path forms) are checked, matching RuboCop's own `on_casgn`: `+=`, `-=`,
@@ -390,7 +525,8 @@ reimplementing it.",
             "strict" => EnforcedStyle::Strict,
             _ => EnforcedStyle::Literals,
         };
-        Ok(Self { style, shareable_writes: Vec::new() })
+        let recursive = options.bool("Recursive");
+        Ok(Self { style, recursive, shareable_writes: Vec::new() })
     }
 
     fn file_start(&mut self, _ctx: &mut Context<'_>) {

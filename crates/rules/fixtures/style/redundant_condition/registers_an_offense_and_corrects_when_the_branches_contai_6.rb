@@ -1,6 +1,6 @@
 if foo
 ^^^^^^ Use double pipes `||` instead.
-  @value - foo
+  test.bar = foo
 else
-  @value - 'bar'
+  test.bar = 'baz'
 end

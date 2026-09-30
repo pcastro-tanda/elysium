@@ -1,4 +1,5 @@
 Layout/FirstHashElementIndentation:
   IndentationWidth: 3
+  Preview: ~
 Layout/HashAlignment:
   AllowMultipleStyles: false

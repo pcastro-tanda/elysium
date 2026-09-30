@@ -1,2 +1,2 @@
 Lint/MissingCopEnableDirective:
-  MaximumRangeSize: 2
+  MaxRangeSize: 2

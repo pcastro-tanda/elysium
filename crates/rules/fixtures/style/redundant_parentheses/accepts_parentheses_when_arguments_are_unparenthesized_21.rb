@@ -1,1 +1,1 @@
-(!defined? arg) && foo
+(!super arg) && foo

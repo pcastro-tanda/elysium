@@ -328,11 +328,7 @@ fn adjust_str(node: &Node<'_>, ctx: &Context<'_>) -> Vec<u8> {
     match node {
         Node::StringNode { .. } => {
             let s = node.as_string_node().expect("kind matched");
-            if is_single_quoted(node, ctx) {
-                escape_simple(s.unescaped())
-            } else {
-                ruby_inspect_body(s.unescaped())
-            }
+            adjust_str_literal(node, s.unescaped(), ctx)
         }
         Node::InterpolatedStringNode { .. } => node
             .as_interpolated_string_node()
@@ -366,6 +362,33 @@ fn adjust_str(node: &Node<'_>, ctx: &Context<'_>) -> Vec<u8> {
             out
         }
     }
+}
+
+/// RuboCop's `adjust_str_literal`: dispatches a `:str` literal part to the
+/// single-quoted, double-quoted, or fallback (`.inspect`-equivalent)
+/// encoding.
+fn adjust_str_literal(node: &Node<'_>, unescaped: &[u8], ctx: &Context<'_>) -> Vec<u8> {
+    if is_single_quoted(node, ctx) {
+        escape_simple(unescaped)
+    } else if is_double_quoted(node, ctx) {
+        double_quoted_body(node, ctx)
+    } else {
+        ruby_inspect_body(unescaped)
+    }
+}
+
+/// RuboCop's `double_quoted?`.
+fn is_double_quoted(node: &Node<'_>, ctx: &Context<'_>) -> bool {
+    ctx.text(node.span()).first() == Some(&b'"')
+}
+
+/// RuboCop's double-quoted `adjust_str` branch: `part.source[1..-2]`.
+/// Reuses the source as written instead of rebuilding it from the
+/// (already-unescaped) value, since re-encoding would rewrite the
+/// author's own escape notation (e.g. `\x0a` into `\n`).
+fn double_quoted_body(node: &Node<'_>, ctx: &Context<'_>) -> Vec<u8> {
+    let text = ctx.text(node.span());
+    text[1..text.len().saturating_sub(1)].to_vec()
 }
 
 /// RuboCop's `single_quoted?`.

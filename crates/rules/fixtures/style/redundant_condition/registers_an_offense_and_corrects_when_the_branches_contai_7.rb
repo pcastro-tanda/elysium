@@ -1,6 +1,6 @@
 if foo
 ^^^^^^ Use double pipes `||` instead.
-  bar foo
+  @value - foo
 else
-  bar 1..2
+  @value - 'bar'
 end

@@ -154,17 +154,42 @@ fn line_after_comment(ctx: &Context<'_>, comment_line: u32) -> Option<Span> {
 
 /// RuboCop's `less_indented?`: the line starts (after leading whitespace)
 /// with `end` (as a whole word) or a closing bracket, or -- only when
-/// `Layout/AccessModifierIndentation` is configured to outdent -- with
-/// `private`/`protected`/`public`.
+/// `Layout/AccessModifierIndentation` is configured to outdent -- with a
+/// *bare* `private`/`protected`/`public` (the keyword alone on its line,
+/// optionally followed by a trailing comment): an inline modifier such as
+/// `private def foo` keeps the regular method indentation, so a comment
+/// above it must not be pushed one level deeper.
 fn less_indented(line: &[u8], access_modifier_outdent: bool) -> bool {
     let rest = skip_ruby_space(line);
     if starts_with_keyword(rest, b"end") || matches!(rest.first(), Some(b')' | b'}' | b']')) {
         return true;
     }
-    access_modifier_outdent
-        && (starts_with_keyword(rest, b"private")
-            || starts_with_keyword(rest, b"protected")
-            || starts_with_keyword(rest, b"public"))
+    access_modifier_outdent && bare_access_modifier(rest)
+}
+
+/// RuboCop's `bare_access_modifier?`: `\A\s*(private|protected|public)\s*(#.*)?\z`
+/// applied to `rest` (the line's text past its leading whitespace, i.e. the
+/// pattern's `\A\s*` is already consumed).
+fn bare_access_modifier(rest: &[u8]) -> bool {
+    let Some(after_kw) = [b"private".as_slice(), b"protected".as_slice(), b"public".as_slice()]
+        .iter()
+        .find_map(|kw| starts_with_keyword(rest, kw).then(|| &rest[kw.len()..]))
+    else {
+        return false;
+    };
+    let after_spaces = skip_ruby_inline_space(after_kw);
+    after_spaces.is_empty() || after_spaces[0] == b'#'
+}
+
+/// The part of `s` after its leading run of ASCII space/tab bytes (Ruby's
+/// `\s*` inside a line, without crossing a newline -- `rest` never contains
+/// one here since it comes from a single physical line).
+fn skip_ruby_inline_space(s: &[u8]) -> &[u8] {
+    let mut i = 0;
+    while i < s.len() && is_ruby_space(s[i]) {
+        i += 1;
+    }
+    &s[i..]
 }
 
 /// RuboCop's `two_alternatives?`: the line starts (after leading
@@ -211,15 +236,24 @@ fn autocorrect_preceding_comments(
     edits
 }
 
-/// RuboCop's `should_correct?`.
+/// RuboCop's `should_correct?`: same column, the preceding comment is its
+/// own line's whole content, and only blank lines (if any) separate it from
+/// the reference comment -- not necessarily the line directly above it.
 fn should_correct(
     ctx: &Context<'_>,
     preceding_comment: &CommentInfo,
     reference_comment: &CommentInfo,
 ) -> bool {
-    preceding_comment.line == reference_comment.line - 1
-        && ctx.line_col(preceding_comment.span.start).column
-            == ctx.line_col(reference_comment.span.start).column
+    if ctx.line_col(preceding_comment.span.start).column
+        != ctx.line_col(reference_comment.span.start).column
+    {
+        return false;
+    }
+    if !own_line_comment(ctx, preceding_comment) {
+        return false;
+    }
+    ((preceding_comment.line + 1)..reference_comment.line)
+        .all(|line| ctx.text(ctx.line_span(line)).iter().all(|&b| is_ruby_space(b)))
 }
 
 /// Ruby's `\s` character class (ASCII-only, not full Unicode whitespace).
@@ -287,24 +321,36 @@ end
         fix: FixAvailability::Safe,
         stability: Stability::Stable,
         kinds: &[],
-        config: &[ConfigOption {
-            name: "AllowForAlignment",
-            default: ConfigDefault::Bool(false),
-            allowed: &[],
-            doc: "Allow comments to have extra indentation if that aligns them with a trailing \
-                  comment on the nearest preceding non-own-line comment.",
-        }],
+        config: &[
+            ConfigOption {
+                name: "AllowForAlignment",
+                default: ConfigDefault::Bool(false),
+                allowed: &[],
+                doc: "Allow comments to have extra indentation if that aligns them with a \
+                      trailing comment on the nearest preceding non-own-line comment.",
+            },
+            ConfigOption {
+                name: "IndentationWidth",
+                default: ConfigDefault::Nil,
+                allowed: &[],
+                doc: "Overrides `Layout/IndentationWidth`'s configured width for this cop \
+                      alone.",
+            },
+        ],
         blind_spots: "\
-`Layout/IndentationWidth`'s `Width` and `Layout/AccessModifierIndentation`'s
-`EnforcedStyle` are read as peer options, matching upstream's own
-cross-cop reads.",
+`Layout/IndentationWidth`'s `Width` (unless this cop's own `IndentationWidth`
+overrides it) and `Layout/AccessModifierIndentation`'s `EnforcedStyle` are
+read as peer options, matching upstream's own cross-cop reads.",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
         let allow_for_alignment = options.bool("AllowForAlignment");
         let indentation_width = options
-            .peer("Layout/IndentationWidth", "Width")
+            .get("IndentationWidth")
             .and_then(OptionValue::as_int)
+            .or_else(|| {
+                options.peer("Layout/IndentationWidth", "Width").and_then(OptionValue::as_int)
+            })
             .unwrap_or(2);
         let access_modifier_outdent = options
             .peer("Layout/AccessModifierIndentation", "EnforcedStyle")

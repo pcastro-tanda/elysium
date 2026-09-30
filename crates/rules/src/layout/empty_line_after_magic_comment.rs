@@ -5,20 +5,30 @@
 //! us, so the comment-syntax detection below is reimplemented directly
 //! against comment text; see `Style/FrozenStringLiteralComment`'s port for
 //! the `frozen_string_literal`-only subset of the same logic).
+//!
+//! `NumberOfEmptyLines` (default `1`) is the minimum number of empty lines
+//! required after the magic comment; `file_start` counts the run of blank
+//! lines that already follows it (RuboCop's `empty_lines_after`) and only
+//! offends -- inserting however many more are needed -- when that count
+//! falls short, unless the whole rest of the file is blank (that trailing
+//! run is `Layout/TrailingEmptyLines`'s responsibility, not this cop's).
 
 use linter::{
-    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule, RuleMeta,
-    RuleOptions, Severity, Stability,
+    Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
+    OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::NodeExt;
 use ruby_source::Span;
 
 /// RuboCop's `MSG`.
-const MSG: &str = "Add an empty line after magic comments.";
+const MSG_TEMPLATE: (&str, &str) = ("Expected at least ", " after magic comments; found ");
 
 /// Checks for a newline after the final magic comment.
 #[derive(Debug, Clone)]
-pub struct EmptyLineAfterMagicComment;
+pub struct EmptyLineAfterMagicComment {
+    /// RuboCop's `number_of_empty_lines`.
+    number_of_empty_lines: u32,
+}
 
 impl Rule for EmptyLineAfterMagicComment {
     const META: RuleMeta = RuleMeta {
@@ -27,6 +37,14 @@ impl Rule for EmptyLineAfterMagicComment {
         summary: "Checks for a newline after the final magic comment.",
         explanation: "\
 Add an empty line after magic comments to separate them from the code.
+
+`NumberOfEmptyLines` configures the minimum number of empty lines required.
+Set it to `2` when using YARD, which otherwise treats the magic comments as
+documentation for the first module or class in the file.
+
+NOTE: `Layout/EmptyLines` has to be disabled for values greater than `1`, as
+it removes the extra empty lines this cop adds, and autocorrecting with both
+enabled loops between them.
 
 ```ruby
 # good
@@ -49,11 +67,16 @@ end
         fix: FixAvailability::Safe,
         stability: Stability::Stable,
         kinds: &[],
-        config: &[],
+        config: &[ConfigOption {
+            name: "NumberOfEmptyLines",
+            default: ConfigDefault::Int(1),
+            allowed: &[],
+            doc: "The minimum number of empty lines required after magic comments.",
+        }],
         blind_spots: "\
 `RuboCop::MagicComment` is reimplemented against raw comment text rather
 than upstream's parser-gem-backed wrapper classes. Every keyword
-(`frozen_string_literal`, `encoding`/`coding`, `rbs_inline`,
+(`frozen_string_literal`, `encoding`/`coding`, `rbs_inline`, `warn_indent`,
 `shareable_constant_value`, `typed`) and all three comment syntaxes (plain,
 Emacs `-*- ... -*-`, Vim `# vim: ...`) are ported, including the
 `rbs_inline` restriction to a literal `enabled`/`disabled` value and the
@@ -61,28 +84,62 @@ case-sensitivity difference between the plain-comment patterns (RuboCop's
 `/io` flag) and the Emacs/Vim ones (no flag).",
     };
 
-    fn configure(_options: &RuleOptions) -> Result<Self, OptionError> {
-        Ok(Self)
+    fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
+        let raw = options.int("NumberOfEmptyLines");
+        if raw <= 0 {
+            return Err(OptionError {
+                rule: Self::META.name,
+                option: "NumberOfEmptyLines".to_string(),
+                message: format!(
+                    "The `Layout/EmptyLineAfterMagicComment` cop only accepts a positive \
+                     integer for its `NumberOfEmptyLines` configuration parameter, but `{raw}` \
+                     was given."
+                ),
+            });
+        }
+        let number_of_empty_lines = u32::try_from(raw).unwrap_or(1);
+        Ok(Self { number_of_empty_lines })
     }
 
     fn file_start(&mut self, ctx: &mut Context<'_>) {
         let Some(magic_line) = last_magic_comment_line(ctx) else { return };
-        let next_line = magic_line + 1;
-        if next_line > ctx.line_count() {
+        let expected = self.number_of_empty_lines;
+        let actual = empty_lines_after(ctx, magic_line);
+        // Trailing empty lines are `Layout/TrailingEmptyLines`'s responsibility.
+        if magic_line + actual + 1 > ctx.line_count() {
             return;
         }
-        if ctx.line_text(next_line).iter().all(u8::is_ascii_whitespace) {
+        if actual >= expected {
             return;
         }
 
+        let next_line = magic_line + 1;
         let start = ctx.line_span(next_line).start;
         let offending_range = Span::new(start, start + 1);
+        let deficit = expected - actual;
         let fix = Fix {
             applicability: Applicability::Safe,
-            edits: vec![Edit::insert(start, b"\n".as_slice())],
+            edits: vec![Edit::insert(start, "\n".repeat(deficit as usize).into_bytes())],
         };
-        ctx.report_with_fix(&Self::META, offending_range, MSG, fix);
+        let (prefix, suffix) = MSG_TEMPLATE;
+        let unit = if expected == 1 { "line" } else { "lines" };
+        let message = format!("{prefix}{expected} empty {unit}{suffix}{actual}.");
+        ctx.report_with_fix(&Self::META, offending_range, message, fix);
     }
+}
+
+/// RuboCop's `empty_lines_after`: the number of consecutive blank lines
+/// immediately following `magic_line` (the last magic comment's own line).
+fn empty_lines_after(ctx: &Context<'_>, magic_line: u32) -> u32 {
+    let mut count = 0;
+    loop {
+        let line = magic_line + 1 + count;
+        if line > ctx.line_count() || !ctx.line_text(line).iter().all(u8::is_ascii_whitespace) {
+            break;
+        }
+        count += 1;
+    }
+    count
 }
 
 /// RuboCop's `last_magic_comment`: among the comments preceding the first
@@ -104,7 +161,7 @@ fn last_magic_comment_line(ctx: &Context<'_>) -> Option<u32> {
 }
 
 /// RuboCop's `MagicComment.parse(text).any?`: whether the comment `text`
-/// (including its leading `#`) specifies any of the five recognized
+/// (including its leading `#`) specifies any of the six recognized
 /// settings, under whichever of the three comment syntaxes it matches.
 fn is_magic_comment(text: &[u8]) -> bool {
     if let Some(any) = emacs_any(text) {
@@ -173,6 +230,11 @@ fn kw_frozen_string_literal(b: &[u8], i: usize, ci: bool) -> Option<usize> {
 /// RuboCop's `KEYWORDS[:shareable_constant_value]`.
 fn kw_shareable_constant_value(b: &[u8], i: usize, ci: bool) -> Option<usize> {
     match_segmented(b, i, &[b"shareable", b"constant", b"value"], ci)
+}
+
+/// RuboCop's `KEYWORDS[:warn_indent]`.
+fn kw_warn_indent(b: &[u8], i: usize, ci: bool) -> Option<usize> {
+    match_segmented(b, i, &[b"warn", b"indent"], ci)
 }
 
 /// RuboCop's `KEYWORDS[:rbs_inline]`.
@@ -250,6 +312,9 @@ fn simple_any(text: &[u8]) -> bool {
     if matches!(simple_value(text, kw_rbs_inline), Some(b"enabled" | b"disabled")) {
         return true;
     }
+    if simple_value(text, kw_warn_indent).is_some() {
+        return true;
+    }
     if simple_value(text, kw_shareable_constant_value).is_some() {
         return true;
     }
@@ -296,9 +361,9 @@ fn editor_value(
 
 /// RuboCop's `MagicComment.parse` dispatch to `EmacsComment` plus its
 /// `any?` (`frozen_string_literal_specified? || encoding_specified? ||
-/// shareable_constant_value_specified?`; Emacs comments never specify
-/// `rbs_inline` or `typed`). Returns `None` when `text` isn't an
-/// Emacs-style `-*- ... -*-` comment at all.
+/// warn_indent_specified? || shareable_constant_value_specified?`; Emacs
+/// comments never specify `rbs_inline` or `typed`). Returns `None` when
+/// `text` isn't an Emacs-style `-*- ... -*-` comment at all.
 fn emacs_any(text: &[u8]) -> Option<bool> {
     let start = find(text, b"-*-")?;
     let inner_start = start + 3;
@@ -312,6 +377,7 @@ fn emacs_any(text: &[u8]) -> Option<bool> {
         !tok.is_empty()
             && (editor_value(tok, kw_frozen_string_literal, b':')
                 || editor_value(tok, kw_coding, b':')
+                || editor_value(tok, kw_warn_indent, b':')
                 || editor_value(tok, kw_shareable_constant_value, b':'))
     }))
 }

@@ -1,0 +1,16 @@
+AllCops:
+  TargetRubyVersion: 3.4
+Layout/LineLength:
+  Max: 80
+  AllowedPatterns: ~
+  AutoCorrect: true
+  SplitStrings: true
+  AllowHeredoc: false
+  AllowURI: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false
+Layout/IndentationStyle:
+  IndentationWidth: 2
+Style/EndlessMethod:
+  Enabled: true
+  EnforcedStyle: require_always

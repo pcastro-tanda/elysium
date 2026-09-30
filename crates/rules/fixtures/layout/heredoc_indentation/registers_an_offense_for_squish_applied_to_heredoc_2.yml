@@ -1,0 +1,5 @@
+AllCops:
+  ActiveSupportExtensionsEnabled: true
+Layout/LineLength:
+  Max: 5
+  AllowHeredoc: true

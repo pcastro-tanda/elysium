@@ -1,2 +1,1 @@
-(x ||
- y)
+(foo[key] & bar.baz).any?

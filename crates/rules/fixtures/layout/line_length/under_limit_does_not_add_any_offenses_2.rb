@@ -1,1 +1,1 @@
-foo&.bar(foo: 1, bar: "2")
+def foo(bar) = bar.length

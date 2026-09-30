@@ -50,6 +50,11 @@ pub struct ArgumentAlignment {
     /// combined with `Layout/HashAlignment` configured for a "separator" alignment style is a
     /// cross-cop conflict neither cop can resolve alone, so this cop disables itself entirely.
     disabled_by_hash_alignment: bool,
+    /// RuboCop's `enforce_hash_argument_with_separator?`: `Layout/HashAlignment` is configured
+    /// for a "separator" alignment style. Under `with_fixed_indentation` a trailing braceless
+    /// hash argument is then left entirely to `Layout/HashAlignment` (1.91.0's
+    /// `arguments_with_last_arg_pairs` early return).
+    hash_separator_style: bool,
     /// Every span already reported in this file (RuboCop's per-investigation
     /// `current_offenses`): an offense whose range falls inside one already reported is emitted
     /// without a fix (two rewrites of the same region in one pass cannot be handled; the next
@@ -69,7 +74,9 @@ impl ArgumentAlignment {
     /// RuboCop's `flattened_arguments`.
     fn flattened_arguments<'pr>(&self, args: Vec<Node<'pr>>) -> Vec<Node<'pr>> {
         match self.style {
-            Style::WithFixedIndentation => arguments_with_last_arg_pairs(args),
+            Style::WithFixedIndentation => {
+                arguments_with_last_arg_pairs(args, self.hash_separator_style)
+            }
             Style::WithFirstArgument => arguments_or_first_arg_pairs(args),
         }
     }
@@ -223,11 +230,17 @@ actual behaviour for every config that does not explicitly opt in.",
                 options.peer("Layout/IndentationWidth", "Width").and_then(OptionValue::as_int)
             })
             .unwrap_or(2);
-        let disabled_by_hash_alignment = style == Style::WithFirstArgument
-            && ["EnforcedColonStyle", "EnforcedHashRocketStyle"]
-                .into_iter()
-                .any(|key| peer_uses_separator(options, key));
-        Ok(Self { style, indentation_width, disabled_by_hash_alignment, reported: Vec::new() })
+        let hash_separator_style = ["EnforcedColonStyle", "EnforcedHashRocketStyle"]
+            .into_iter()
+            .any(|key| peer_uses_separator(options, key));
+        let disabled_by_hash_alignment = style == Style::WithFirstArgument && hash_separator_style;
+        Ok(Self {
+            style,
+            indentation_width,
+            disabled_by_hash_alignment,
+            hash_separator_style,
+            reported: Vec::new(),
+        })
     }
 
     fn file_start(&mut self, _ctx: &mut Context<'_>) {
@@ -240,7 +253,8 @@ actual behaviour for every config that does not explicitly opt in.",
         }
         let Node::CallNode { .. } = node else { return };
         let call = node.as_call_node().expect("kind matched");
-        if call.name().as_slice() == b"[]=" && !call.is_safe_navigation() {
+        // 1.91.0 widened `send_type?` to `call_type?` here, so `&.[]=` is skipped too.
+        if call.name().as_slice() == b"[]=" {
             return;
         }
         let Some(arguments) = call.arguments() else { return };
@@ -295,10 +309,17 @@ fn is_braceless_hash(node: &Node<'_>) -> bool {
 
 /// RuboCop's `arguments_with_last_arg_pairs` (`EnforcedStyle: with_fixed_indentation`): every
 /// argument but the last, plus the last argument itself, or its pairs when it is a braceless
-/// hash.
-fn arguments_with_last_arg_pairs(mut args: Vec<Node<'_>>) -> Vec<Node<'_>> {
+/// hash -- or, when `Layout/HashAlignment` enforces a separator style, nothing at all for that
+/// braceless hash (1.91.0's `return items if enforce_hash_argument_with_separator?`).
+fn arguments_with_last_arg_pairs(
+    mut args: Vec<Node<'_>>,
+    hash_separator_style: bool,
+) -> Vec<Node<'_>> {
     let Some(last) = args.pop() else { return args };
     if is_braceless_hash(&last) {
+        if hash_separator_style {
+            return args;
+        }
         if let Some(pairs) = hash_pairs(&last) {
             args.extend(pairs);
             return args;

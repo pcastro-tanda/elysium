@@ -1,4 +1,2 @@
-Layout/IndentationWidth:
-  AllowedPatterns: ~
 Layout/EndAlignment:
   EnforcedStyleAlignWith: start_of_line

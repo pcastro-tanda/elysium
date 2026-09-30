@@ -1,3 +1,5 @@
 def some_method
-  foo = bar { |foo| baz(foo) }
+  foo = if condition
+          bar { |foo| baz(foo) }
+        end
 end

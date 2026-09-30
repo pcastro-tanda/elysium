@@ -1,8 +1,9 @@
-retry_count = 0
-
 begin
-  do_something
+  status = :initial
+  connect_sometimes_fails!
+  status = :connected
+  fetch_sometimes_fails!
+  status = :fetched
 rescue
-  fail if (retry_count += 1) > 3
-  retry
+  puts status
 end

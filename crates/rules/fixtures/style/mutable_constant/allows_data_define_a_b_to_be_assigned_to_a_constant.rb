@@ -1,0 +1,1 @@
+CONST = Data.define(:a, :b)

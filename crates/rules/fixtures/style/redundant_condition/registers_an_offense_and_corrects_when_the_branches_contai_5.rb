@@ -1,6 +1,6 @@
 if foo
 ^^^^^^ Use double pipes `||` instead.
-  test.bar = foo
+  CONST = foo
 else
-  test.bar = 'baz'
+  CONST = 'bar'
 end

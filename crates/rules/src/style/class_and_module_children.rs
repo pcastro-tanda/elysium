@@ -57,14 +57,15 @@ impl Style {
 /// style.
 #[derive(Debug, Clone)]
 pub struct ClassAndModuleChildren {
-    /// The raw `EnforcedStyle` option (RuboCop's `style`).
-    style: Style,
     /// RuboCop's `style_for_classes`.
     style_for_classes: Style,
     /// RuboCop's `style_for_modules`.
     style_for_modules: Style,
     /// RuboCop's `configured_indentation_width`.
     indentation_width: i64,
+    /// RuboCop's `AlignmentCorrector#using_tabs?`: `Layout/IndentationStyle`'s
+    /// `EnforcedStyle` is `tabs`.
+    use_tabs: bool,
     /// See the module doc comment.
     left_sibling: HashMap<u32, Span>,
     /// See the module doc comment.
@@ -76,8 +77,8 @@ pub struct ClassAndModuleChildren {
 impl ClassAndModuleChildren {
     /// RuboCop's `on_class`/`on_module` plus the shared `check_style`.
     fn check_class(&mut self, class: &ClassNode<'_>, node: &Node<'_>, ctx: &mut Context<'_>) {
-        // RuboCop's `on_class`: `return if node.parent_class && style != :nested`.
-        if class.superclass().is_some() && self.style != Style::Nested {
+        // RuboCop's `on_class`: `return if node.parent_class && style_for_classes != :nested`.
+        if class.superclass().is_some() && self.style_for_classes != Style::Nested {
             return;
         }
         let constant_path = class.constant_path();
@@ -104,6 +105,10 @@ impl ClassAndModuleChildren {
         if is_absolute_path(constant_path) {
             return;
         }
+        // RuboCop's `return unless const_namespace?(node.identifier.namespace)`.
+        if !const_namespace_ok(constant_path) {
+            return;
+        }
         match style {
             Style::Nested => self.check_nested_style(node, constant_path, ctx),
             Style::Compact => self.check_compact_style(node, constant_path, body, ctx),
@@ -120,14 +125,27 @@ impl ClassAndModuleChildren {
         }
         let span = constant_path.span();
         // RuboCop's `autocorrect`: `return if node.class_type? && node.parent_class
-        // && style != :nested` -- unreachable in practice (`check_class`'s own
-        // gate above already guarantees `style == Nested` whenever there is a
-        // superclass), ported anyway for fidelity.
+        // && style_for_classes != :nested` -- unreachable in practice
+        // (`check_class`'s own gate above already guarantees
+        // `style_for_classes == Nested` whenever there is a superclass),
+        // ported anyway for fidelity.
         if self.skip_fix_for_superclass(node) {
             ctx.report(&Self::META, span, NESTED_MSG);
             return;
         }
-        let fix = self.build_nest_fix(node, constant_path, ctx);
+        // RuboCop's `nest_definition`'s ping-pong guard: a namespace wrapper
+        // whose own style resolves to `compact` would itself violate that
+        // style, so no fix is offered (report only).
+        let path = constant_path.as_constant_path_node().expect("compact path checked by caller");
+        let namespace = path.parent().expect("compact path has a namespace parent");
+        let namespace_text = String::from_utf8_lossy(ctx.text(namespace.span())).into_owned();
+        let keyword = self.namespace_keyword_for(node.span().start, &namespace_text);
+        let keyword_style = self.style_for_keyword(keyword);
+        if keyword_style == Style::Compact {
+            ctx.report(&Self::META, span, NESTED_MSG);
+            return;
+        }
+        let fix = self.build_nest_fix(node, constant_path, keyword, ctx);
         ctx.report_with_fix(&Self::META, span, NESTED_MSG, fix);
     }
 
@@ -148,21 +166,43 @@ impl ClassAndModuleChildren {
             ctx.report(&Self::META, span, COMPACT_MSG);
             return;
         }
+        // RuboCop's `compact_definition`'s ping-pong guard: compacting would
+        // produce a definition whose own type's style resolves to `nested`,
+        // so no fix is offered (report only).
+        let inner_style = self.style_for_keyword(keyword_word(&inner));
+        if inner_style == Style::Nested {
+            ctx.report(&Self::META, span, COMPACT_MSG);
+            return;
+        }
         let fix = self.build_compact_fix(node, constant_path, &inner, ctx);
         ctx.report_with_fix(&Self::META, span, COMPACT_MSG, fix);
     }
 
     /// RuboCop's `autocorrect`'s guard: `node.class_type? && node.parent_class
-    /// && style != :nested`.
+    /// && style_for_classes != :nested`.
     fn skip_fix_for_superclass(&self, node: &Node<'_>) -> bool {
         node.as_class_node().is_some_and(|c| c.superclass().is_some())
-            && self.style != Style::Nested
+            && self.style_for_classes != Style::Nested
+    }
+
+    /// RuboCop's `style_for_kind`.
+    fn style_for_keyword(&self, keyword: &str) -> Style {
+        if keyword == "class" {
+            self.style_for_classes
+        } else {
+            self.style_for_modules
+        }
     }
 
     /// RuboCop's `nest_definition`.
-    fn build_nest_fix(&self, node: &Node<'_>, constant_path: &Node<'_>, ctx: &Context<'_>) -> Fix {
+    fn build_nest_fix(
+        &self,
+        node: &Node<'_>,
+        constant_path: &Node<'_>,
+        namespace_keyword: &'static str,
+        ctx: &Context<'_>,
+    ) -> Fix {
         let path = constant_path.as_constant_path_node().expect("compact path checked by caller");
-        let namespace = path.parent().expect("compact path has a namespace parent");
         let delimiter = path.delimiter_loc().span();
 
         let node_span = node.span();
@@ -176,8 +216,6 @@ impl ClassAndModuleChildren {
         let end_col = ctx.line_col(end.start).column;
         let padding_for_trailing_end = sub_first(&padding, &" ".repeat(end_col as usize));
 
-        let namespace_text = String::from_utf8_lossy(ctx.text(namespace.span())).into_owned();
-        let namespace_keyword = self.namespace_keyword_for(node_span.start, &namespace_text);
         let original_keyword = String::from_utf8_lossy(ctx.text(keyword)).into_owned();
 
         let edits = vec![
@@ -265,10 +303,20 @@ impl ClassAndModuleChildren {
         let remove_range = Span::new(remove_begin, remove_end);
         edits.push(Edit::delete(remove_range));
 
-        // RuboCop's `unindent`.
+        // RuboCop's `unindent`, now always passing `tab_indentation: true`.
         if let Some(delta) = self.unindent_delta(node, inner, ctx) {
             let taboo = [replace_range, remove_range];
-            edits.extend(build_alignment_edits(ctx, node.span(), delta, &taboo));
+            if self.use_tabs {
+                edits.extend(build_tab_alignment_edits(
+                    ctx,
+                    node.span(),
+                    delta,
+                    &taboo,
+                    self.indentation_width,
+                ));
+            } else {
+                edits.extend(build_alignment_edits(ctx, node.span(), delta, &taboo));
+            }
         }
 
         Fix { applicability: Applicability::Unsafe, edits }
@@ -359,11 +407,11 @@ end
   (`block_comment_within?`) are not ported: an unindent shift touching a
   heredoc body or straddling a block comment could mis-edit it. No fixture
   exercises this.
-- `Layout/IndentationStyle`'s own `IndentationWidth` (tab-to-column weight)
-  is not read as a separate peer; tabs are weighted using this cop's own
-  `configured_indentation_width`, which matches upstream's fallback chain
-  whenever `Layout/IndentationStyle: IndentationWidth` is unset (the common
-  case).
+- `AllCops/UseProjectIndex`/the `rubydex` gem's project-wide index (upstream's
+  `ProjectIndexHelp`) is not ported: `namespace_keyword` always falls back to
+  the heuristic left-sibling `class`/`module` search, and a compacting fix is
+  always offered without verifying the namespace is defined elsewhere,
+  matching upstream's own behavior when the index is unavailable.
 - Compacting (or splitting) a name with two or more `::` levels only
   resolves one level per lint pass, matching upstream's own single-node
   `add_offense` (only the outermost namespace is flagged per pass); the
@@ -378,11 +426,15 @@ end
             Some(value) => value.as_int().unwrap_or(2),
             None => 2,
         };
+        // RuboCop's `AlignmentCorrector#using_tabs?`.
+        let use_tabs =
+            options.peer("Layout/IndentationStyle", "EnforcedStyle").and_then(OptionValue::as_str)
+                == Some("tabs");
         Ok(Self {
-            style,
             style_for_classes,
             style_for_modules,
             indentation_width,
+            use_tabs,
             left_sibling: HashMap::new(),
             sole_child_of_class_or_module: HashSet::new(),
             class_defs: Vec::new(),
@@ -461,6 +513,35 @@ fn is_compact_path(path: &Node<'_>) -> bool {
     path.as_constant_path_node().is_some()
 }
 
+/// RuboCop's `return unless const_namespace?(node.identifier.namespace)`:
+/// `path`'s own namespace (its `ConstantPathNode::parent`, or none at all
+/// for a bare `ConstantReadNode` -- whitequark's namespace-less `const`
+/// node), checked by [`const_namespace`].
+fn const_namespace_ok(path: &Node<'_>) -> bool {
+    let namespace = path.as_constant_path_node().and_then(|p| p.parent());
+    const_namespace(namespace)
+}
+
+/// RuboCop's `const_namespace?`: recursively verifies every level of a
+/// namespace prefix is itself a constant reference (not, say, a method
+/// call receiver like `self.class::Foo`), walking up until nil (a bare
+/// name) or a `ConstantPathNode` with no further parent (an absolute
+/// top-level path, `::Foo` -- whitequark's `cbase_type?` case).
+fn const_namespace(node: Option<Node<'_>>) -> bool {
+    let Some(node) = node else { return true };
+    match node.kind() {
+        NodeKind::ConstantReadNode => true,
+        NodeKind::ConstantPathNode => {
+            let path = node.as_constant_path_node().expect("kind matched");
+            match path.parent() {
+                None => true,
+                Some(parent) => const_namespace(Some(parent)),
+            }
+        }
+        _ => false,
+    }
+}
+
 /// RuboCop's `needs_compacting?`, normalizing Prism's always-wrapping
 /// `StatementsNode` to whitequark's single-statement unwrap: `body` passes
 /// only when it holds exactly one statement and that statement is itself a
@@ -533,8 +614,9 @@ fn leading_whitespace(ctx: &Context<'_>, offset: u32) -> String {
 }
 
 /// RuboCop's `spaces_size`: each byte counts as one column, except a tab,
-/// which counts as `tab_width` (this cop's own `tab_indentation_width`,
-/// approximated here as `configured_indentation_width`; see `blind_spots`).
+/// which counts as `tab_width` (this cop's own `configured_indentation_width`
+/// -- upstream's `spaces_size` no longer consults `Layout/IndentationStyle`'s
+/// own `IndentationWidth` either).
 fn columns_of(s: &str, tab_width: i64) -> i64 {
     s.bytes().map(|b| if b == b'\t' { tab_width } else { 1 }).sum()
 }
@@ -569,4 +651,53 @@ fn build_alignment_edits(
 ) -> Vec<Edit> {
     let delta = i32::try_from(delta).unwrap_or(0);
     linter::shift_lines(ctx, node_span, delta, taboo)
+}
+
+/// RuboCop's `AlignmentCorrector#correct_tab_indentation`/`correct_tab_line`/
+/// `target_tab_indentation`: rewrites each physical line of `node_span`'s
+/// leading `[ \t]*` run to the whole number of tabs that `column_delta`
+/// (in the same visual-column units as [`columns_of`]) shifts it to,
+/// working in whole tabs rather than a raw column delta so the result is
+/// idempotent (unlike [`build_alignment_edits`], which is only ever used
+/// here for the non-tab case). Skips a blank line, and a line whose
+/// leading run overlaps a `taboo` span.
+fn build_tab_alignment_edits(
+    ctx: &Context<'_>,
+    node_span: Span,
+    column_delta: i64,
+    taboo: &[Span],
+    indentation_width: i64,
+) -> Vec<Edit> {
+    if indentation_width <= 0 {
+        return Vec::new();
+    }
+    let start_line = ctx.line_col(node_span.start).line;
+    let last_byte = node_span.end.saturating_sub(1).max(node_span.start);
+    let end_line = ctx.line_col(last_byte).line;
+
+    let mut edits = Vec::new();
+    for line in start_line..=end_line {
+        let line_span = ctx.line_span(line);
+        let text = ctx.line_text(line);
+        let leading_len = text.iter().take_while(|&&b| b == b' ' || b == b'\t').count();
+        if leading_len == text.len() {
+            continue; // blank line
+        }
+        let leading_len_u32 = u32::try_from(leading_len).unwrap_or(0);
+        let leading_range = Span::new(line_span.start, line_span.start + leading_len_u32);
+        if taboo.iter().any(|t| t.contains(leading_range)) {
+            continue;
+        }
+        let leading = &text[..leading_len];
+        let visual_width: i64 =
+            leading.iter().map(|&b| if b == b'\t' { indentation_width } else { 1 }).sum();
+        let target_tabs = (visual_width + column_delta).max(0) / indentation_width;
+        let target_tabs = usize::try_from(target_tabs).unwrap_or(0);
+        if leading.len() == target_tabs && leading.iter().all(|&b| b == b'\t') {
+            continue;
+        }
+        let target = vec![b'\t'; target_tabs];
+        edits.push(Edit::replace(leading_range, target));
+    }
+    edits
 }

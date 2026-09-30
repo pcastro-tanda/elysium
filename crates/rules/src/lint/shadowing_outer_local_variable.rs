@@ -11,6 +11,13 @@
 //! of owning it, and Prism spells parser's optional `begin` wrapper as a
 //! `StatementsNode` (plus an `ElseNode` for `else` clauses). Both are
 //! stepped over so `variable_node` lands on the node parser would report.
+//!
+//! `same_conditions_node_different_branch` also exempts a shadowing that
+//! spans two different `in` branches of the same `case ... in`
+//! ([`different_case_in_branch`]): each branch binds its own pattern
+//! variables and the branches are mutually exclusive, so a block argument
+//! in one does not really shadow a pattern variable from another. Prism
+//! spells whitequark's `in_pattern` node `InNode`.
 
 use linter::{
     Context, Department, FixAvailability, OptionError, Rule, RuleMeta, RuleOptions, Severity,
@@ -149,6 +156,10 @@ fn same_conditions_node_different_branch(
     id: VariableId,
     outer: VariableId,
 ) -> bool {
+    if different_case_in_branch(semantics, id, outer) {
+        return true;
+    }
+
     let scope = semantics.variable(id).scope();
     let ancestors = semantics.scope_ancestors(scope);
     let Some((variable_node, variable_index)) = variable_node(semantics, scope) else {
@@ -167,6 +178,32 @@ fn same_conditions_node_different_branch(
     }
     outer_node.kind() == NodeKind::IfNode
         && else_branch(&outer_node).is_some_and(|branch| same(&branch, &variable_node))
+}
+
+/// RuboCop's `different_case_in_branch?`: `case ... in` binds variables in
+/// the pattern itself, so a block argument in one `in` branch does not
+/// shadow a pattern variable from a different `in` branch of the same
+/// `case` (the branches are mutually exclusive). Prism spells whitequark's
+/// `in_pattern` node `InNode`.
+fn different_case_in_branch(semantics: &Semantics<'_>, id: VariableId, outer: VariableId) -> bool {
+    let scope = semantics.variable(id).scope();
+    let Some((inner_branch, inner_parent)) = case_in_branch(semantics.scope_ancestors(scope))
+    else {
+        return false;
+    };
+    let Some((outer_branch, outer_parent)) = case_in_branch(semantics.variable_ancestors(outer))
+    else {
+        return false;
+    };
+    !same(&inner_branch, &outer_branch) && same(&inner_parent, &outer_parent)
+}
+
+/// The nearest enclosing `InNode` in an ancestor chain, paired with its
+/// parent (the enclosing `CaseMatchNode`).
+fn case_in_branch<'pr>(ancestors: &[Node<'pr>]) -> Option<(Node<'pr>, Node<'pr>)> {
+    let index = ancestors.iter().rposition(|node| node.kind() == NodeKind::InNode)?;
+    let parent = *ancestors.get(index.checked_sub(1)?)?;
+    Some((ancestors[index], parent))
 }
 
 /// RuboCop's `variable_node`: the shadowing block's parent, with a `when`

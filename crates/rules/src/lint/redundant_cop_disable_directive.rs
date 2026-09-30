@@ -5,10 +5,11 @@
 //!
 //! Unlike every other rule, this one has no `enter`/`leave` hooks: it runs once per file, in
 //! [`Rule::file_finish`], after every other rule has reported its offenses. It replays each
-//! `# rubocop:disable`/`todo`/`-next` directive comment's effect cop-by-cop (mirroring RuboCop's
-//! `CommentConfig#analyze`, adapted to also remember which directive opened each disabled range)
-//! and flags a directive whose covered cop(s) never triggered a real offense in their covered
-//! range as redundant.
+//! `# rubocop:disable`/`todo`/`push`/`pop`/`-next`/`next` directive comment's effect cop-by-cop
+//! (mirroring RuboCop's `CommentConfig#analyze`, adapted to also remember which directive opened
+//! each disabled range) and flags a directive whose covered cop(s) never triggered a real offense
+//! in their covered range as redundant, plus every next-statement directive that attached to no
+//! statement at all (`each_detached_next_directive`).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::sync::LazyLock;
@@ -19,7 +20,7 @@ use linter::{
     REDUNDANT_DISABLE_DIRECTIVE_RULE,
 };
 use regex::Regex;
-use ruby_directives::{CopRef, Directive, DirectiveKind};
+use ruby_directives::{CopRef, Directive, DirectiveKind, Sign};
 use ruby_source::{Side, Span};
 
 /// RuboCop's `DirectiveComment::LINT_SYNTAX_COP`: never actually disabled by any directive.
@@ -60,6 +61,11 @@ struct Occ {
     line: u32,
     kind: DirectiveKind,
     inline: bool,
+    /// The statement a next-statement directive attached to, if any.
+    scope: Option<(u32, u32)>,
+    /// The `+`/`-` this cop carried in a `push`/`next` argument list. `None` on the bare
+    /// `push`/`pop` occurrence that only saves or restores the state.
+    sign: Option<Sign>,
 }
 
 /// One finished disabled range for one cop, mirroring one entry of RuboCop's
@@ -71,6 +77,14 @@ struct CopRange {
     /// The directive that opened this range; `None` only for the sentinel config-disabled seed.
     opener: Option<usize>,
     via: Via,
+}
+
+/// One cop's identity plus whether it's config-disabled, bundled so
+/// [`RedundantCopDisableDirective::mark_redundant_ranges`] stays within clippy's argument-count
+/// budget.
+struct CopCheck<'a> {
+    cop: &'a str,
+    config_disabled: bool,
 }
 
 impl Rule for RedundantCopDisableDirective {
@@ -107,14 +121,15 @@ impl Rule for RedundantCopDisableDirective {
                       across two *separate* directives with no `enable` between them still falls \
                       back to the ordinary per-range offense check, under-reporting (false \
                       negative, never false positive) the rarer case where the second directive's \
-                      range has a genuine offense of its own. `DirectiveComment#malformed?`/`push`/\
-                      `pop` directives are out of `ruby_directives`' scope (see its module docs) \
-                      and are not handled here either. A directive's trailing free text after the \
-                      cop list (`# rubocop:disable Foo -- reason`) is dropped along with the rest \
-                      of the comment on a whole-comment removal instead of being preserved as `# \
-                      -- reason`. Ambiguous bare cop names (matching more than one department) are \
-                      left unresolved (a false negative) instead of raising, since there is no \
-                      way to surface RuboCop's `AmbiguousCopName` configuration error here.",
+                      range has a genuine offense of its own. `DirectiveComment#malformed?` is \
+                      out of `ruby_directives`' scope (see its module docs), so a malformed \
+                      directive is not diagnosed here either. `Registry#enabled_pending_cop?`'s \
+                      `--enable-pending-cops`/`--disable-pending-cops` CLI overrides do not \
+                      exist in this port, so `pending_cop_not_run?` consults only the \
+                      configuration (`Enabled: pending` plus `AllCops: NewCops`). Ambiguous bare \
+                      cop names (matching more than one department) are left unresolved (a false \
+                      negative) instead of raising, since there is no way to surface RuboCop's \
+                      `AmbiguousCopName` configuration error here.",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
@@ -136,12 +151,12 @@ impl RedundantCopDisableDirective {
             return;
         }
         let depts = departments(&self.known_cops);
-        let expansions: Vec<Vec<(String, Via)>> =
+        let expansions: Vec<Vec<(String, Via, Option<Sign>)>> =
             directives.iter().map(|d| expand_directive(d, &self.known_cops, &depts)).collect();
 
         let mut touched: BTreeSet<&str> = BTreeSet::new();
         for expansion in &expansions {
-            for (key, _) in expansion {
+            for (key, _, _) in expansion {
                 touched.insert(key.as_str());
             }
         }
@@ -149,84 +164,28 @@ impl RedundantCopDisableDirective {
         // Directive index -> the set of redundant descriptor keys ("all", "DEPARTMENT<Name>", or
         // a plain resolved cop name) it accumulated, mirroring RuboCop's `redundant_cops` hash of
         // `Set`s keyed by comment.
-        let mut redundant: BTreeMap<usize, BTreeSet<String>> = BTreeMap::new();
+        let mut redundant = detached_next_redundant(&directives);
 
         for cop in touched {
+            if self.pending_cop_not_run(cop) {
+                continue;
+            }
             let config_disabled = self.cop_disabled_in_config(cop);
-            let mut occs: Vec<Occ> = Vec::new();
-            if config_disabled {
-                occs.push(Occ {
-                    directive_idx: None,
-                    via: Via::Explicit,
-                    line: CONFIG_DISABLED_LINE,
-                    kind: DirectiveKind::Disable,
-                    inline: false,
-                });
-            }
-            for (idx, expansion) in expansions.iter().enumerate() {
-                for (key, via) in expansion {
-                    if key != cop {
-                        continue;
-                    }
-                    occs.push(Occ {
-                        directive_idx: Some(idx),
-                        via: via.clone(),
-                        line: directives[idx].line,
-                        kind: directives[idx].kind,
-                        inline: directives[idx].inline,
-                    });
-                }
-            }
+            let occs = Self::build_occs(cop, config_disabled, &directives, &expansions);
             if occs.is_empty() {
                 continue;
             }
 
             let ranges = analyze_cop(&occs);
-            for (range_idx, range) in ranges.iter().enumerate() {
-                if range.start == CONFIG_DISABLED_LINE {
-                    continue;
-                }
-                let Some(opener) = range.opener else { continue };
-
-                // `each_already_disabled`: this range's cop was already disabled by an
-                // immediately preceding range for the same cop (no `enable` in between, so the
-                // previous range ends exactly where this one begins) that wasn't opened by a
-                // `disable all` -- redundant unconditionally, even over a real offense or
-                // `expected_final_disable?`. A `Department`- or `All`-via range is exempted:
-                // their unconditional verdicts (`find_redundant_department`/`find_redundant_all`)
-                // are exactly the offense checks below, so there is nothing to short-circuit.
-                let already_disabled = range_idx > 0 && {
-                    let previous = &ranges[range_idx - 1];
-                    previous.end == range.start && previous.via != Via::All
-                };
-                let unconditional =
-                    already_disabled && !matches!(range.via, Via::Department(_) | Via::All);
-                if !already_disabled && range.end == u32::MAX && config_disabled {
-                    // `expected_final_disable?`: only consulted by the ordinary per-range check,
-                    // never by the duplicate-adjacency check above.
-                    continue;
-                }
-                if !unconditional
-                    && has_real_offense(ctx, reported, cop, &range.via, range.start, range.end)
-                {
-                    continue;
-                }
-                if range.via == Via::All {
-                    // `find_redundant_all`: an immediately-following disabled range for this same
-                    // cop means a later, more specific directive took over; don't double-flag.
-                    if let Some(next) = ranges.get(range_idx + 1) {
-                        if next.start == range.end {
-                            continue;
-                        }
-                    }
-                }
-                let key = match &range.via {
-                    Via::All => "all".to_string(),
-                    Via::Department(dept) => format!("DEPARTMENT{dept}"),
-                    Via::Explicit => cop.to_string(),
-                };
-                redundant.entry(opener).or_default().insert(key);
-            }
+            let check = CopCheck { cop, config_disabled };
+            Self::mark_redundant_ranges(
+                ctx,
+                reported,
+                &directives,
+                &ranges,
+                &check,
+                &mut redundant,
+            );
         }
 
         for (idx, keys) in redundant {
@@ -234,10 +193,143 @@ impl RedundantCopDisableDirective {
         }
     }
 
+    /// Builds the replay list for one cop: `push`/`pop` occurrences (which affect every cop,
+    /// since they save/restore *every* cop's state) plus this cop's own occurrences from each
+    /// directive's expansion, seeded by the synthetic config-disabled occurrence when applicable.
+    fn build_occs(
+        cop: &str,
+        config_disabled: bool,
+        directives: &[Directive],
+        expansions: &[Vec<(String, Via, Option<Sign>)>],
+    ) -> Vec<Occ> {
+        let mut occs: Vec<Occ> = Vec::new();
+        if config_disabled {
+            occs.push(Occ {
+                directive_idx: None,
+                via: Via::Explicit,
+                line: CONFIG_DISABLED_LINE,
+                kind: DirectiveKind::Disable,
+                inline: false,
+                scope: None,
+                sign: None,
+            });
+        }
+        for (idx, directive) in directives.iter().enumerate() {
+            // `push` saves and `pop` restores the state of *every* cop, including ones
+            // neither of them names, so both take part in each cop's replay.
+            if matches!(directive.kind, DirectiveKind::Push | DirectiveKind::Pop) {
+                occs.push(Occ {
+                    directive_idx: Some(idx),
+                    via: Via::Explicit,
+                    line: directive.line,
+                    kind: directive.kind,
+                    inline: directive.inline,
+                    scope: None,
+                    sign: None,
+                });
+            }
+            for (key, via, sign) in &expansions[idx] {
+                if key != cop {
+                    continue;
+                }
+                occs.push(Occ {
+                    directive_idx: Some(idx),
+                    via: via.clone(),
+                    line: directive.line,
+                    kind: directive.kind,
+                    inline: directive.inline,
+                    scope: directive.scope,
+                    sign: *sign,
+                });
+            }
+        }
+        occs
+    }
+
+    /// Walks one cop's replayed disabled ranges (`ranges`, from [`analyze_cop`]), inserting the
+    /// redundant descriptor key for each range whose opener directive never suppressed a real
+    /// offense, into `redundant`.
+    fn mark_redundant_ranges(
+        ctx: &Context<'_>,
+        reported: &[Diagnostic],
+        directives: &[Directive],
+        ranges: &[CopRange],
+        check: &CopCheck<'_>,
+        redundant: &mut BTreeMap<usize, BTreeSet<String>>,
+    ) {
+        for (range_idx, range) in ranges.iter().enumerate() {
+            if range.start == CONFIG_DISABLED_LINE {
+                continue;
+            }
+            let Some(opener) = range.opener else { continue };
+            // `skip_directive?`: a range opened by a `push`/`pop`/`next` is not judged --
+            // their signed arguments are not analyzed for redundancy (yet), upstream.
+            if matches!(
+                directives[opener].kind,
+                DirectiveKind::Push | DirectiveKind::Pop | DirectiveKind::Next
+            ) {
+                continue;
+            }
+
+            // `each_already_disabled`: this range's cop was already disabled by an
+            // immediately preceding range for the same cop (no `enable` in between, so the
+            // previous range ends exactly where this one begins) that wasn't opened by a
+            // `disable all` -- redundant unconditionally, even over a real offense or
+            // `expected_final_disable?`. A `Department`- or `All`-via range is exempted:
+            // their unconditional verdicts (`find_redundant_department`/`find_redundant_all`)
+            // are exactly the offense checks below, so there is nothing to short-circuit.
+            let already_disabled = range_idx > 0 && {
+                let previous = &ranges[range_idx - 1];
+                previous.end == range.start && previous.via != Via::All
+            };
+            let unconditional =
+                already_disabled && !matches!(range.via, Via::Department(_) | Via::All);
+            if !already_disabled && range.end == u32::MAX && check.config_disabled {
+                // `expected_final_disable?`: only consulted by the ordinary per-range check,
+                // never by the duplicate-adjacency check above.
+                continue;
+            }
+            if !unconditional
+                && has_real_offense(ctx, reported, check.cop, &range.via, range.start, range.end)
+            {
+                continue;
+            }
+            if range.via == Via::All {
+                // `find_redundant_all`: an immediately-following disabled range for this same
+                // cop means a later, more specific directive took over; don't double-flag.
+                if let Some(next) = ranges.get(range_idx + 1) {
+                    if next.start == range.end {
+                        continue;
+                    }
+                }
+            }
+            let key = match &range.via {
+                Via::All => "all".to_string(),
+                Via::Department(dept) => format!("DEPARTMENT{dept}"),
+                Via::Explicit => check.cop.to_string(),
+            };
+            redundant.entry(opener).or_default().insert(key);
+        }
+    }
+
     /// RuboCop's `expected_final_disable?`'s config half: is `cop` disabled by the loaded
     /// configuration (as opposed to only by a directive)?
     fn cop_disabled_in_config(&self, cop: &str) -> bool {
         matches!(self.options.peer(cop, "Enabled"), Some(OptionValue::Bool(false)))
+    }
+
+    /// `pending_cop_not_run?`: a cop that is `Enabled: pending` and that `NewCops` does not
+    /// mobilize produces no offenses at all, so its directives cannot be judged -- they
+    /// typically prepare the code for the moment the cop gets enabled. A name that is not
+    /// registered as written is reported as unknown instead of exempted here.
+    ///
+    /// `EnabledPending` is the configuration's raw `Enabled: pending`, and the resolved
+    /// `Enabled` flag next to it already folds in `AllCops: NewCops` (and an explicit per-cop
+    /// `Enabled: true`), which is exactly what `Registry#enabled_pending_cop?` consults.
+    fn pending_cop_not_run(&self, cop: &str) -> bool {
+        self.known_cops.binary_search_by(|probe| probe.as_str().cmp(cop)).is_ok()
+            && matches!(self.options.peer(cop, "EnabledPending"), Some(OptionValue::Bool(true)))
+            && matches!(self.options.peer(cop, "Enabled"), Some(OptionValue::Bool(false)))
     }
 
     /// Builds and reports the offense(s) for one directive comment, given the redundant
@@ -250,19 +342,33 @@ impl RedundantCopDisableDirective {
         keys: &BTreeSet<String>,
     ) {
         let all_disabled = keys.contains("all");
+        let verb =
+            if directive.kind == DirectiveKind::EnableNext { "enabling" } else { "disabling" };
         if all_disabled || directive.cops.len() == keys.len() {
             let mut sorted: Vec<&String> = keys.iter().collect();
             sorted.sort();
             let message = format!(
-                "Unnecessary disabling of {}.",
+                "Unnecessary {verb} of {}.",
                 sorted
                     .iter()
                     .map(|key| describe_key(key, &self.known_cops))
                     .collect::<Vec<_>>()
                     .join(", ")
             );
+            // An unknown cop may just not be loaded in this run (e.g. a custom cop whose
+            // configuration failed to load): removing its directive would destroy something that
+            // cannot be restored, so only report. A misplaced end-of-line next-statement
+            // directive should be moved, not deleted.
+            if keys.iter().any(|key| self.is_unknown_cop(key))
+                || Self::is_misplaced_next(ctx, directive)
+            {
+                ctx.report(&<Self as Rule>::META, directive.span, message);
+                return;
+            }
             let comment_span = enclosing_comment_span(ctx, directive.span);
-            let removal = comment_removal_span(ctx, directive.span, comment_span, directive.inline);
+            // `remove_entire_comment`: the `--` reason goes with the directive.
+            let with_reason = range_with_reason(ctx, directive.span, comment_span);
+            let removal = comment_removal_span(ctx, with_reason, comment_span, directive.inline);
             ctx.report_with_fix(
                 &<Self as Rule>::META,
                 directive.span,
@@ -281,7 +387,11 @@ impl RedundantCopDisableDirective {
         for i in 0..spans.len() {
             let (key, span) = spans[i].clone();
             let message =
-                format!("Unnecessary disabling of {}.", describe_key(&key, &self.known_cops));
+                format!("Unnecessary {verb} of {}.", describe_key(&key, &self.known_cops));
+            if self.is_unknown_cop(&key) {
+                ctx.report(&<Self as Rule>::META, span, message);
+                continue;
+            }
             let is_trailing = ends_line && trailing_range(ctx, &spans, i);
             let removal = directive_range_in_list(ctx, span, is_trailing);
             ctx.report_with_fix(
@@ -292,6 +402,38 @@ impl RedundantCopDisableDirective {
             );
         }
     }
+
+    /// `unknown_cop?`: `all` and a department marker always exist; any other descriptor key is
+    /// unknown when the configuration's registry does not know it under that exact spelling.
+    fn is_unknown_cop(&self, key: &str) -> bool {
+        if key == "all" || key.starts_with("DEPARTMENT") {
+            return false;
+        }
+        self.known_cops.binary_search_by(|probe| probe.as_str().cmp(key)).is_err()
+    }
+
+    /// `misplaced_next_directive?`: a next-statement directive that trails code on its line
+    /// applies to nothing; it should be moved onto its own line, not deleted.
+    fn is_misplaced_next(ctx: &Context<'_>, directive: &Directive) -> bool {
+        directive.kind.is_next() && !ctx.directives().comment_only_line(directive.line)
+    }
+}
+
+/// `each_detached_next_directive`: a next-statement directive with nothing attached (or
+/// misplaced at the end of a code line) affects nothing, so every cop it names -- as written,
+/// unresolved -- is redundant by definition.
+fn detached_next_redundant(directives: &[Directive]) -> BTreeMap<usize, BTreeSet<String>> {
+    let mut redundant: BTreeMap<usize, BTreeSet<String>> = BTreeMap::new();
+    for (idx, directive) in directives.iter().enumerate() {
+        if !directive.kind.is_next() || directive.scope.is_some() {
+            continue;
+        }
+        let keys = redundant.entry(idx).or_default();
+        for cop in &directive.cops {
+            keys.insert(written_name(cop).to_string());
+        }
+    }
+    redundant
 }
 
 /// Every real department name our known-cop registry can produce, e.g. `"Style"`, `"Metrics"`.
@@ -313,14 +455,14 @@ fn expand_directive(
     directive: &Directive,
     known: &[String],
     depts: &BTreeSet<&str>,
-) -> Vec<(String, Via)> {
+) -> Vec<(String, Via, Option<Sign>)> {
     if directive.cops.iter().any(|cop_ref| matches!(cop_ref, CopRef::All)) {
         return known
             .iter()
             .filter(|cop| {
                 cop.as_str() != LINT_SYNTAX_COP && cop.as_str() != REDUNDANT_DISABLE_DIRECTIVE_RULE
             })
-            .map(|cop| (cop.clone(), Via::All))
+            .map(|cop| (cop.clone(), Via::All, None))
             .collect();
     }
 
@@ -334,13 +476,16 @@ fn expand_directive(
             CopRef::Department(name) if !depts.contains(name.as_str()) => {
                 Some(qualify_bare(name, known))
             }
-            CopRef::Cop(name) => Some(qualify_qualified(name, known)),
+            CopRef::Cop(name) => Some(qualify_qualified(name)),
             CopRef::Department(_) | CopRef::All => None,
         })
         .collect();
 
-    let mut out: Vec<(String, Via)> = Vec::new();
-    for cop_ref in &directive.cops {
+    let mut out: Vec<(String, Via, Option<Sign>)> = Vec::new();
+    for (index, cop_ref) in directive.cops.iter().enumerate() {
+        // `resolve_push_cops`/`expand_cop_name`: a `push`/`next` argument expands exactly like a
+        // plain cop reference does, carrying its `+`/`-` along.
+        let sign = directive.signs.get(index).copied();
         match cop_ref {
             CopRef::All => unreachable!("handled above"),
             CopRef::Department(name) if depts.contains(name.as_str()) => {
@@ -356,16 +501,27 @@ fn expand_directive(
                     } else {
                         Via::Department(name.clone())
                     };
-                    out.push((cop.clone(), via));
+                    out.push((cop.clone(), via, sign));
                 }
             }
             // Not a real department: `ruby_directives` has no registry, so a bare cop name like
             // `MethodLength` was classified as `Department` too (see its module docs).
-            CopRef::Department(name) => out.push((qualify_bare(name, known), Via::Explicit)),
-            CopRef::Cop(name) => out.push((qualify_qualified(name, known), Via::Explicit)),
+            CopRef::Department(name) => {
+                out.push((qualify_bare(name, known), Via::Explicit, sign));
+            }
+            CopRef::Cop(name) => out.push((qualify_qualified(name), Via::Explicit, sign)),
         }
     }
     out
+}
+
+/// One cop reference exactly as the directive spelled it -- upstream's `raw_cop_names`, the
+/// unresolved names `each_detached_next_directive` reports.
+fn written_name(cop: &CopRef) -> &str {
+    match cop {
+        CopRef::All => "all",
+        CopRef::Department(name) | CopRef::Cop(name) => name.as_str(),
+    }
 }
 
 /// RuboCop's `Badge.parse`'s per-segment `camel_case`: `/^[a-z]|_[a-z]/` replaced with the
@@ -394,63 +550,90 @@ fn qualify_bare(name: &str, known: &[String]) -> String {
     }
 }
 
-/// Resolves an already-qualified (`Department/Cop`) reference, mirroring
-/// `Registry#qualified_cop_name` for a qualified `Badge`: if the (`camel_case`d) name is
-/// registered as-is, the *original* text is kept (a case/spelling mismatch that still
-/// `camel_case`s to a real badge, e.g. `Lint/selfAssignment`, is intentionally not normalized,
-/// matching upstream); otherwise, try correcting only the department, keeping the cop-name part
-/// fixed (`qualify_badge`); otherwise leave it unresolved.
-fn qualify_qualified(name: &str, known: &[String]) -> String {
-    let camelled = name.split('/').map(camel_case).collect::<Vec<_>>().join("/");
-    if known.iter().any(|cop| cop.as_str() == camelled) {
-        return name.to_string();
-    }
-    let cop_part = camel_case(name.rsplit('/').next().unwrap_or(name));
-    let mut matches = known.iter().filter(|cop| cop.rsplit('/').next() == Some(cop_part.as_str()));
-    match (matches.next(), matches.next()) {
-        (Some(only), None) => only.clone(),
-        _ => name.to_string(),
-    }
+/// A qualified (`Department/Cop`) reference is kept exactly as written, mirroring
+/// `Registry#qualified_cop_name` with `correct_namespace: false` (what `CommentConfig` passes
+/// since 1.91): a name under the wrong department suppresses nothing, and this cop reports it as
+/// unknown with a did-you-mean hint instead of silently honoring the corrected cop.
+fn qualify_qualified(name: &str) -> String {
+    name.to_string()
 }
 
 /// RuboCop's `CommentConfig#analyze`'s per-cop state machine (`analyze_single_line`/
-/// `analyze_disabled`/`analyze_rest`), replayed over one cop's occurrences and additionally
-/// remembering which occurrence opened each finished range.
+/// `analyze_disabled`/`analyze_rest`, plus `PushPop` and `DisableNext`), replayed over one cop's
+/// occurrences and additionally remembering which occurrence opened each finished range.
 fn analyze_cop(occs: &[Occ]) -> Vec<CopRange> {
+    /// `CopAnalysis#close`: the open range ends at `line`, unless that is above its own start.
+    fn close(ranges: &mut Vec<CopRange>, open: &mut Option<(u32, Option<usize>, Via)>, line: u32) {
+        if let Some((start, opener, via)) = open.take() {
+            if line >= start {
+                ranges.push(CopRange { start, end: line, opener, via });
+            }
+        }
+    }
+
     let mut ranges = Vec::new();
     let mut open: Option<(u32, Option<usize>, Via)> = None;
+    let mut stack: Vec<Option<(u32, Option<usize>, Via)>> = Vec::new();
     for occ in occs {
-        if occ.kind.is_next() {
-            let target = occ.line + 1;
-            if occ.kind.disables() {
-                ranges.push(CopRange {
-                    start: target,
-                    end: target,
-                    opener: occ.directive_idx,
-                    via: occ.via.clone(),
-                });
-            } else if let Some((start, opener, via)) = open.take() {
-                if target > start {
-                    ranges.push(CopRange { start, end: target - 1, opener, via });
+        match occ.kind {
+            DirectiveKind::Push => match occ.sign {
+                // The bare occurrence saves the state; the signed ones apply `apply_cop_op`.
+                None => stack.push(open.clone()),
+                Some(Sign::Minus) if open.is_none() => {
+                    open = Some((occ.line, occ.directive_idx, occ.via.clone()));
                 }
-                open = Some((target + 1, None, Via::Explicit));
+                Some(Sign::Plus) if open.is_some() => close(&mut ranges, &mut open, occ.line),
+                Some(_) => {}
+            },
+            DirectiveKind::Pop => {
+                if let Some(restored) = stack.pop() {
+                    close(&mut ranges, &mut open, occ.line.saturating_sub(1));
+                    open = restored.map(|(_, opener, via)| (occ.line, opener, via));
+                }
             }
-        } else if occ.inline {
-            if occ.kind.disables() {
-                ranges.push(CopRange {
-                    start: occ.line,
-                    end: occ.line,
-                    opener: occ.directive_idx,
-                    via: occ.via.clone(),
-                });
+            DirectiveKind::DisableNext
+            | DirectiveKind::TodoNext
+            | DirectiveKind::EnableNext
+            | DirectiveKind::Next => {
+                let Some((first, last)) = occ.scope else { continue };
+                let disables = if occ.kind == DirectiveKind::Next {
+                    occ.sign == Some(Sign::Minus)
+                } else {
+                    occ.kind.disables()
+                };
+                if disables {
+                    // add_next_range: an independent range that leaves any open one alone.
+                    ranges.push(CopRange {
+                        start: first,
+                        end: last,
+                        opener: occ.directive_idx,
+                        via: occ.via.clone(),
+                    });
+                } else if let Some((_, opener, via)) = open.clone() {
+                    // suspend_disable: the open range closes just above the statement and
+                    // reopens right below it, still attributed to its opening directive.
+                    close(&mut ranges, &mut open, first.saturating_sub(1));
+                    open = Some((last + 1, opener, via));
+                }
             }
-        } else if occ.kind.disables() {
-            if let Some((start, opener, via)) = open.take() {
-                ranges.push(CopRange { start, end: occ.line, opener, via });
+            _ => {
+                if occ.inline {
+                    // analyze_single_line: an inline `enable` has no effect.
+                    if occ.kind.disables() {
+                        ranges.push(CopRange {
+                            start: occ.line,
+                            end: occ.line,
+                            opener: occ.directive_idx,
+                            via: occ.via.clone(),
+                        });
+                    }
+                } else {
+                    close(&mut ranges, &mut open, occ.line);
+                    if occ.kind.disables() {
+                        open = Some((occ.line, occ.directive_idx, occ.via.clone()));
+                    }
+                }
             }
-            open = Some((occ.line, occ.directive_idx, occ.via.clone()));
-        } else if let Some((start, opener, via)) = open.take() {
-            ranges.push(CopRange { start, end: occ.line, opener, via });
         }
     }
     if let Some((start, opener, via)) = open {
@@ -462,7 +645,8 @@ fn analyze_cop(occs: &[Occ]) -> Vec<CopRange> {
 /// Whether a real diagnostic from another rule already justifies this disabled range, mirroring
 /// `range_with_offense?`: an `all`-covered range checks every reported offense regardless of cop;
 /// a department-covered range checks offenses in that department; an explicitly-named cop checks
-/// only its own offenses.
+/// only its own offenses. An offense counts when the range overlaps any line of its span, the
+/// same way a directive on any line of a multi-line offense suppresses it.
 fn has_real_offense(
     ctx: &Context<'_>,
     reported: &[Diagnostic],
@@ -471,18 +655,19 @@ fn has_real_offense(
     start: u32,
     end: u32,
 ) -> bool {
-    let line_in_range = |span: Span| {
-        let line = ctx.line_col(span.start).line;
-        line >= start && line <= end
+    let overlaps_range = |span: Span| {
+        let first = ctx.line_col(span.start).line;
+        let last = ctx.line_col(span.end.max(span.start).saturating_sub(1).max(span.start)).line;
+        first <= end && last >= start
     };
     match via {
-        Via::All => reported.iter().any(|offense| line_in_range(offense.span)),
+        Via::All => reported.iter().any(|offense| overlaps_range(offense.span)),
         Via::Department(dept) => reported.iter().any(|offense| {
             offense.rule.strip_prefix(dept.as_str()).is_some_and(|rest| rest.starts_with('/'))
-                && line_in_range(offense.span)
+                && overlaps_range(offense.span)
         }),
         Via::Explicit => {
-            reported.iter().any(|offense| offense.rule == cop && line_in_range(offense.span))
+            reported.iter().any(|offense| offense.rule == cop && overlaps_range(offense.span))
         }
     }
 }
@@ -497,11 +682,23 @@ fn describe_key(key: &str, known: &[String]) -> String {
     }
     if known.binary_search_by(|probe| probe.as_str().cmp(key)).is_ok() {
         format!("`{key}`")
-    } else if let Some(similar) = find_similar_name(key, known) {
+    } else if let Some(similar) = suggest_name(key, known) {
         format!("`{key}` (did you mean `{similar}`?)")
     } else {
         format!("`{key}` (unknown cop)")
     }
+}
+
+/// `SIMILAR_COP_NAMES_CACHE`: a registered cop with the same base name is a better suggestion
+/// than anything spelling similarity can find -- the most common mistake is qualifying a cop
+/// with the wrong department.
+fn suggest_name(cop_name: &str, known: &[String]) -> Option<String> {
+    let basename = format!("/{}", cop_name.rsplit('/').next().unwrap_or(cop_name));
+    known
+        .iter()
+        .find(|name| name.ends_with(&basename))
+        .cloned()
+        .or_else(|| find_similar_name(cop_name, known))
 }
 
 /// The full comment containing `directive_span` (the comment's own span may extend past the
@@ -529,6 +726,9 @@ fn locate_span(ctx: &Context<'_>, directive_span: Span, key: &str) -> Option<Spa
         })
 }
 
+/// `matching_range`'s `/#{needle}(?!\w)/`: the name has to match as a whole token, so a shorter
+/// name is not found inside a longer one sharing its prefix (`Lint/AmbiguousOperator` in
+/// `Lint/AmbiguousOperatorPrecedence`).
 fn find_substring(haystack: &[u8], needle: &str) -> Option<(usize, usize)> {
     let needle = needle.as_bytes();
     if needle.is_empty() {
@@ -536,8 +736,27 @@ fn find_substring(haystack: &[u8], needle: &str) -> Option<(usize, usize)> {
     }
     haystack
         .windows(needle.len())
-        .position(|window| window == needle)
-        .map(|pos| (pos, needle.len()))
+        .enumerate()
+        .find(|(pos, window)| {
+            *window == needle
+                && !haystack
+                    .get(pos + needle.len())
+                    .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
+        })
+        .map(|(pos, _)| (pos, needle.len()))
+}
+
+/// `DirectiveComment#range_with_reason`: a `--` reason sits outside the directive's own range,
+/// but it documents the directive and means nothing once it is gone, so removing the directive
+/// has to cover it. Any other trailing text is an ordinary comment and is left alone.
+fn range_with_reason(ctx: &Context<'_>, directive_span: Span, comment_span: Span) -> Span {
+    let trailing = ctx.text(Span::new(directive_span.end, comment_span.end));
+    let stripped = trailing.iter().position(|b| !b.is_ascii_whitespace()).unwrap_or(trailing.len());
+    if trailing[stripped..].starts_with(b"--") {
+        Span::new(directive_span.start, comment_span.end)
+    } else {
+        directive_span
+    }
 }
 
 /// True when nothing but whitespace follows `pos` through the end of its line, mirroring

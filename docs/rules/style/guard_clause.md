@@ -86,3 +86,6 @@ multiple assignment.
 `node.method?(:define_method)` does not check the call's receiver, matching
 RuboCop, so `obj.define_method(...) do ... end` is treated the same as a
 bare call.
+`self.autocorrect_incompatible_with` (`Style::MissingElse`, avoiding a
+double-correction clash when both cops run together) is not ported: this
+port has no cross-rule autocorrect-conflict mechanism.

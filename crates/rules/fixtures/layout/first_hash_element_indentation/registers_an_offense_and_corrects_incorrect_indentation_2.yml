@@ -1,4 +1,5 @@
 Layout/FirstHashElementIndentation:
   EnforcedStyle: align_braces
+  Preview: ~
 Layout/HashAlignment:
   AllowMultipleStyles: false

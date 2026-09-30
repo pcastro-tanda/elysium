@@ -35,6 +35,15 @@ CONST = Something.new.freeze
 Strict mode is considered experimental: it does not have an exhaustive list
 of methods that produce frozen objects, so it has a decent chance of false
 positives. There is no harm in freezing an already frozen object, though.
+`Data.define` is treated as frozen-safe too, since it declares an immutable
+value type.
+
+When the `Recursive` option is enabled, mutable literals nested inside
+arrays and hashes are frozen too, so an offense on the outermost unfrozen
+literal autocorrects every nested mutable literal underneath as well; when
+the outer literal is already `.freeze`d, the cop instead descends into it
+and reports each outermost unfrozen literal underneath separately. The
+option is disabled by default to preserve existing behavior.
 
 `Regexp` and `Range` literals have been frozen since Ruby 3.0 and are never
 flagged. A `# shareable_constant_value: literal` (or `experimental_everything`
@@ -47,6 +56,7 @@ semantics.
 | Name | Default | Allowed values | Description |
 | --- | --- | --- | --- |
 | EnforcedStyle | `literals` | `literals`, `strict` | `literals` freezes only literal values assigned to constants; `strict` freezes every constant assignment. |
+| Recursive | false |  | When `true`, recursively check and freeze mutable literals nested inside arrays and hashes (e.g. `[{ a: [] }]` becomes `[{ a: [].freeze }.freeze].freeze`). |
 
 ## Blind spots
 

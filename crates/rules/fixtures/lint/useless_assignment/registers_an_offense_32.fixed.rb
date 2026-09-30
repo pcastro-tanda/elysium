@@ -1,4 +1,4 @@
-def some_method(foo, bar)
+def some_method(bar)
   1
-  super(bar)
+  super
 end

@@ -1,3 +1,3 @@
 # frozen_string_literal: true
 # Hello!
-^ Add an empty line after magic comments.
+^ Expected at least 1 empty line after magic comments; found 0.

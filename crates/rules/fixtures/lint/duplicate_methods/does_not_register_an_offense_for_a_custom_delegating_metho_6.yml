@@ -1,0 +1,4 @@
+# file: example.rb
+Lint/DuplicateMethods:
+  DelegatingMethods: [delegate, expose]
+  AllowedCrossFilePaths: ~

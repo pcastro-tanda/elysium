@@ -1,1 +1,1 @@
-bar foo || (1..2)
+@value - (foo || 'bar')

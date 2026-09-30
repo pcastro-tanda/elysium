@@ -1,5 +1,5 @@
 //! Behaviour tests mirroring `spec/rubocop/config_loader_spec.rb` (RuboCop
-//! 1.82.1). Line references in comments point at that spec.
+//! 1.91.0). Line references in comments point at that spec.
 
 use std::path::{Path, PathBuf};
 
@@ -72,7 +72,7 @@ fn defaults_only_matches_rubocop_defaults() {
 
 #[test]
 fn inheritance_chain_merges_parent_then_child() {
-    // spec/rubocop/config_loader_spec.rb:1057 "inherits from a parent and grandparent file"
+    // spec/rubocop/config_loader_spec.rb:1084 "inherits from a parent and grandparent file"
     let project = Project::new();
     project.write(
         "grandparent.yml",
@@ -111,7 +111,7 @@ fn todo_file_is_just_another_inherited_file() {
 
 #[test]
 fn inherit_mode_merge_unions_and_override_replaces() {
-    // spec/rubocop/config_loader_spec.rb:595 and :661
+    // spec/rubocop/config_loader_spec.rb:622 and :688
     let project = Project::new();
     project.write(
         ".rubocop_parent.yml",
@@ -149,7 +149,7 @@ fn inherit_mode_merge_unions_and_override_replaces() {
         [project.abs("spec/requests/group_invite_spec.rb")],
         "a per-cop override beats the global merge"
     );
-    // AllCops/Exclude is unioned with the bundled defaults (spec line 642).
+    // AllCops/Exclude is unioned with the bundled defaults (spec line 669).
     let all_excludes = &config.all_cops().exclude;
     assert!(all_excludes.contains(&project.abs("spec/requests/expense_spec.rb")));
     assert!(all_excludes.iter().any(|e| e.ends_with("node_modules/**/*")));
@@ -172,8 +172,166 @@ fn inherited_include_paths_are_rewritten_for_the_deriving_file() {
 }
 
 #[test]
+fn a_restated_include_is_left_alone() {
+    // spec/rubocop/config_loader_spec.rb:358 "gets an Include that is relative
+    // to the subdirectory". RuboCop 1.91.0's `only_base_has_include` guard
+    // rewrites an inherited `Include` only while the deriving file keeps
+    // quiet about it; before 1.91.0 the deriving file's own patterns were
+    // rewritten against the *base* file's directory too.
+    let project = Project::new();
+    project.write(
+        "nested/.rubocop_shared.yml",
+        concat!(
+            "Style/Documentation:\n  Include:\n    - 'lib/**/*.rb'\n",
+            "Style/Alias:\n  Include:\n    - 'lib/**/*.rb'\n",
+        ),
+    );
+    project.write(
+        ".rubocop.yml",
+        concat!(
+            "inherit_from: nested/.rubocop_shared.yml\n",
+            "Style/Alias:\n  Include:\n    - 'app/**/*.rb'\n",
+        ),
+    );
+
+    let config = project.load(".rubocop.yml");
+    assert_eq!(config.cop("Style/Documentation").unwrap().include, ["nested/lib/**/*.rb"]);
+    assert_eq!(config.cop("Style/Alias").unwrap().include, ["app/**/*.rb"]);
+    assert!(config.is_cop_enabled_for("Style/Alias", Path::new("app/a.rb")));
+    assert!(!config.is_cop_enabled_for("Style/Alias", Path::new("nested/app/a.rb")));
+}
+
+#[test]
+fn preview_sections_are_dropped_unless_preview_is_on() {
+    // `ConfigLoaderResolver#apply_preview_defaults`. `config/default.yml`
+    // gives `Style/StringLiterals` a `Preview` section holding
+    // `EnforcedStyle: double_quotes`; resolved configuration never shows the
+    // section itself, only whichever value is in effect.
+    let project = Project::new();
+    let config = project.loader().load(None).expect("defaults load");
+    let cop = config.cop("Style/StringLiterals").expect("Style/StringLiterals");
+    assert!(cop.raw().get("Preview").is_none(), "{:?}", cop.raw().get("Preview"));
+    assert_eq!(cop.raw().get_str("EnforcedStyle"), Some("single_quotes"));
+    assert!(config.all_cops().raw().get("Preview").is_none());
+
+    project.write(".rubocop.yml", "AllCops:\n  Preview: true\n");
+    let config = project.load(".rubocop.yml");
+    let cop = config.cop("Style/StringLiterals").expect("Style/StringLiterals");
+    assert!(cop.raw().get("Preview").is_none());
+    assert_eq!(cop.raw().get_str("EnforcedStyle"), Some("double_quotes"));
+    // The project's own `Preview` switch is a boolean and survives.
+    assert_eq!(config.all_cops().raw().get("Preview"), Some(&config::YamlValue::Bool(true)));
+}
+
+#[test]
+fn preview_merges_exclude_instead_of_replacing_it() {
+    // `ConfigLoaderResolver#with_preview_exclude_merge`: under preview,
+    // `Exclude` is unioned across the inheritance chain unless an explicit
+    // `inherit_mode` decides otherwise.
+    let project = Project::new();
+    project.write(".rubocop_parent.yml", "Style/For:\n  Exclude:\n    - 'a.rb'\n");
+    project.write(
+        ".rubocop.yml",
+        concat!(
+            "inherit_from: .rubocop_parent.yml\n",
+            "AllCops:\n  Preview: true\n",
+            "Style/For:\n  Exclude:\n    - 'b.rb'\n",
+        ),
+    );
+    let mut excludes = project.load(".rubocop.yml").cop("Style/For").unwrap().exclude.clone();
+    excludes.sort();
+    assert_eq!(excludes, [project.abs("a.rb"), project.abs("b.rb")]);
+
+    // An explicit `override` still wins.
+    project.write(
+        ".rubocop.yml",
+        concat!(
+            "inherit_from: .rubocop_parent.yml\n",
+            "AllCops:\n  Preview: true\n",
+            "inherit_mode:\n  override:\n    - Exclude\n",
+            "Style/For:\n  Exclude:\n    - 'b.rb'\n",
+        ),
+    );
+    assert_eq!(
+        project.load(".rubocop.yml").cop("Style/For").unwrap().exclude,
+        [project.abs("b.rb")]
+    );
+}
+
+#[test]
+fn a_department_new_cops_version_enables_pending_cops_added_up_to_it() {
+    // `Config#enabled_new_cop?` (RuboCop 1.91.0): a department may pin
+    // `NewCops` to a version, enabling the pending cops added by it.
+    let project = Project::new();
+    let (pending, version) = {
+        let config = project.loader().load(None).expect("defaults");
+        let (name, cop) = config
+            .cops()
+            .filter(|(name, cop)| cop.is_pending() && name.starts_with("Style/"))
+            .find(|(_, cop)| cop.raw().get_str("VersionAdded").is_some())
+            .expect("a pending Style cop with a VersionAdded");
+        (name.to_string(), cop.raw().get_str("VersionAdded").expect("VersionAdded").to_string())
+    };
+
+    project.write(".rubocop.yml", &format!("Style:\n  NewCops: '{version}'\n"));
+    let config = project.load(".rubocop.yml");
+    assert!(enabled(&config, &pending), "{pending} added in {version} should be enabled");
+
+    project.write(".rubocop.yml", "Style:\n  NewCops: '0.1'\n");
+    assert!(!enabled(&project.load(".rubocop.yml"), &pending));
+
+    // The department setting beats `AllCops`.
+    project.write(
+        ".rubocop.yml",
+        &format!("AllCops:\n  NewCops: disable\nStyle:\n  NewCops: '{version}'\n"),
+    );
+    assert!(enabled(&project.load(".rubocop.yml"), &pending));
+    project.write(".rubocop.yml", "AllCops:\n  NewCops: enable\nStyle:\n  NewCops: disable\n");
+    assert!(!enabled(&project.load(".rubocop.yml"), &pending));
+}
+
+#[test]
+fn a_department_exclude_is_unioned_into_each_cops_own() {
+    // `Config#for_badge` lays a cop's settings over its department's; since
+    // RuboCop 1.91.0 the two `Exclude` lists are unioned rather than the
+    // cop's replacing the department's.
+    let project = Project::new();
+    project.write(
+        ".rubocop.yml",
+        concat!(
+            "Style:\n  Exclude:\n    - 'db/**/*'\n",
+            "Style/Alias:\n  Exclude:\n    - 'lib/legacy.rb'\n",
+        ),
+    );
+    let config = project.load(".rubocop.yml");
+    assert!(!config.is_cop_enabled_for("Style/Alias", Path::new("lib/legacy.rb")));
+    assert!(!config.is_cop_enabled_for("Style/Alias", Path::new("db/schema.rb")));
+    assert!(config.is_cop_enabled_for("Style/Alias", Path::new("app/user.rb")));
+    // A cop that sets nothing still inherits its department's `Exclude`.
+    assert!(!config.is_cop_enabled_for("Style/AndOr", Path::new("db/schema.rb")));
+    assert!(config.is_cop_enabled_for("Style/AndOr", Path::new("app/user.rb")));
+    // Other departments are untouched.
+    assert!(config.is_cop_enabled_for("Layout/TrailingWhitespace", Path::new("db/schema.rb")));
+}
+
+#[test]
+fn mise_toml_states_the_target_ruby_version() {
+    // `TargetRuby::MiseTomlFile`, added in RuboCop 1.91.0, sits between
+    // `.ruby-version` and `.tool-versions` in `RUBY_VERSION_SOURCES`.
+    let project = Project::new();
+    project.write("mise.toml", "[tools]\nruby = \"3.3.4\"\nnode = \"20\"\n");
+    project.write(".tool-versions", "ruby 3.1.0\n");
+    project.write(".rubocop.yml", "Style/Alias:\n  Enabled: false\n");
+    assert_eq!(project.load(".rubocop.yml").all_cops().target_ruby_version, Some(3.3));
+
+    // `.ruby-version` still wins over it.
+    project.write(".ruby-version", "3.4.1\n");
+    assert_eq!(project.load(".rubocop.yml").all_cops().target_ruby_version, Some(3.4));
+}
+
+#[test]
 fn per_cop_exclude_is_absolute_relative_to_the_declaring_file() {
-    // spec/rubocop/config_loader_spec.rb:2125 "configuration for CharacterLiteral"
+    // spec/rubocop/config_loader_spec.rb:2343 "configuration for CharacterLiteral"
     let project = Project::new();
     project.write(
         "test/.rubocop_rules.yml",
@@ -191,7 +349,7 @@ fn per_cop_exclude_is_absolute_relative_to_the_declaring_file() {
 
 #[test]
 fn disabled_by_default_only_enables_mentioned_cops() {
-    // spec/rubocop/config_loader_spec.rb:1587
+    // spec/rubocop/config_loader_spec.rb:1658
     let project = Project::new();
     project.write(
         ".rubocop.yml",
@@ -201,7 +359,7 @@ fn disabled_by_default_only_enables_mentioned_cops() {
     assert!(enabled(&config, "Style/Copyright"), "mentioned cops are enabled");
     assert!(!enabled(&config, "Layout/TrailingWhitespace"));
 
-    // "and a department is enabled" (spec line 1609)
+    // "and a department is enabled" (spec line 1680)
     project.write(".rubocop.yml", "AllCops:\n  DisabledByDefault: true\nStyle:\n  Enabled: true\n");
     let config = project.load(".rubocop.yml");
     assert!(enabled(&config, "Style/Alias"));
@@ -214,7 +372,7 @@ fn disabled_by_default_only_enables_mentioned_cops() {
 
 #[test]
 fn enabled_by_default_enables_everything_but_explicit_opt_outs() {
-    // spec/rubocop/config_loader_spec.rb:1636
+    // spec/rubocop/config_loader_spec.rb:1707
     let project = Project::new();
     project.write(
         ".rubocop.yml",
@@ -227,7 +385,7 @@ fn enabled_by_default_enables_everything_but_explicit_opt_outs() {
 
 #[test]
 fn pending_cops_follow_new_cops() {
-    // spec/rubocop/config_loader_spec.rb:1658 "when a new cop is introduced"
+    // spec/rubocop/config_loader_spec.rb:1771 "when a new cop is introduced"
     let project = Project::new();
     let pending = {
         let config = project.loader().load(None).expect("defaults");
@@ -259,7 +417,7 @@ fn pending_cops_follow_new_cops() {
 
 #[test]
 fn department_switches_resolve_across_the_inheritance_chain() {
-    // spec/rubocop/config_loader_spec.rb:868 "when a department is disabled"
+    // spec/rubocop/config_loader_spec.rb:895 "when a department is disabled"
     let project = Project::new();
     project.write(
         "grandparent_rubocop.yml",
@@ -318,7 +476,7 @@ fn department_switches_resolve_across_the_inheritance_chain() {
 
 #[test]
 fn department_disabled_in_a_subdirectory_does_not_leak_upwards() {
-    // spec/rubocop/config_loader_spec.rb:832
+    // spec/rubocop/config_loader_spec.rb:859
     let project = Project::new();
     project.write("Gemfile", "");
     project.write(".rubocop.yml", "Layout:\n  Enabled: true\n");
@@ -332,7 +490,7 @@ fn department_disabled_in_a_subdirectory_does_not_leak_upwards() {
 
 #[test]
 fn bare_cop_names_are_qualified_and_wrong_departments_fixed() {
-    // spec/rubocop/config_loader_spec.rb:1175 "overrides with non-namespaced cops"
+    // spec/rubocop/config_loader_spec.rb:1202 "overrides with non-namespaced cops"
     let project = Project::new();
     project.write(".rubocop.yml", "LineLength:\n  Max: 99\nLint/EndOfLine:\n  Enabled: false\n");
     let config = project.load(".rubocop.yml");
@@ -345,7 +503,7 @@ fn bare_cop_names_are_qualified_and_wrong_departments_fixed() {
 
 #[test]
 fn obsolete_cop_names_fail_the_load() {
-    // spec/rubocop/config_loader_spec.rb:2025
+    // spec/rubocop/config_loader_spec.rb:2231
     let project = Project::new();
     project.write(".rubocop.yml", "Style/MethodMissing:\n  Enabled: true\n");
     let err = project.loader().load(Some(Path::new(".rubocop.yml"))).unwrap_err();
@@ -368,7 +526,7 @@ fn obsolete_parameters_with_warning_severity_only_warn() {
 
 #[test]
 fn erb_is_rejected_with_a_clear_error() {
-    // RuboCop evaluates ERB (spec line 1849); elysium has no Ruby runtime.
+    // RuboCop evaluates ERB (spec line 1962); elysium has no Ruby runtime.
     let project = Project::new();
     project.write(".rubocop.yml", "Style/Encoding:\n  Enabled: <%= 1 == 1 %>\n");
     let err = project.loader().load(Some(Path::new(".rubocop.yml"))).unwrap_err();
@@ -378,7 +536,7 @@ fn erb_is_rejected_with_a_clear_error() {
 
 #[test]
 fn malformed_and_missing_files_are_reported() {
-    // spec/rubocop/config_loader_spec.rb:1878 and :1999
+    // spec/rubocop/config_loader_spec.rb:1991 and :1999
     let project = Project::new();
     project.write(".rubocop.yml", "This string is not a YAML hash\n");
     let err = project.loader().load(Some(Path::new(".rubocop.yml"))).unwrap_err();
@@ -388,7 +546,7 @@ fn malformed_and_missing_files_are_reported() {
     let err = project.loader().load(Some(Path::new("nope.yml"))).unwrap_err();
     assert!(matches!(err, ConfigError::NotFound(_)), "{err}");
 
-    // An empty file is an empty configuration (spec line 1895). The malformed
+    // An empty file is an empty configuration (spec line 2008). The malformed
     // dotfile must go first: RuboCop also loads the project's outermost
     // `.rubocop.yml` for its `AllCops/Exclude`.
     project.write(".rubocop.yml", "AllCops:\n  Exclude:\n    - 'ignored/**/*'\n");
@@ -399,7 +557,7 @@ fn malformed_and_missing_files_are_reported() {
 
 #[test]
 fn inherit_gem_resolves_through_a_fake_gem_home() {
-    // spec/rubocop/config_loader_spec.rb:1266 "inherits from a known gem"
+    // spec/rubocop/config_loader_spec.rb:1293 "inherits from a known gem"
     let project = Project::new();
     let gem_home = project.path().join("fake_gem_home");
     std::fs::create_dir_all(gem_home.join("gems/gitlab-styles-1.2.0")).expect("mkdir");
@@ -428,7 +586,7 @@ fn inherit_gem_resolves_through_a_fake_gem_home() {
 
 #[test]
 fn missing_gem_names_the_gem_and_searched_paths() {
-    // spec/rubocop/config_loader_spec.rb:1236 "inherits from an unknown gem"
+    // spec/rubocop/config_loader_spec.rb:1263 "inherits from an unknown gem"
     let project = Project::new();
     project.write(".rubocop.yml", "inherit_gem:\n  not_there:\n    - config/rubocop.yml\n");
     let err = project.loader().load(Some(Path::new(".rubocop.yml"))).unwrap_err();
@@ -441,7 +599,7 @@ fn missing_gem_names_the_gem_and_searched_paths() {
 
 #[test]
 fn inherit_gem_rubocop_is_rejected() {
-    // spec/rubocop/config_loader_spec.rb:1251
+    // spec/rubocop/config_loader_spec.rb:1278
     let project = Project::new();
     project.write(".rubocop.yml", "inherit_gem:\n  rubocop:\n    - config/default.yml\n");
     let err = project.loader().load(Some(Path::new(".rubocop.yml"))).unwrap_err();
@@ -450,7 +608,7 @@ fn inherit_gem_rubocop_is_rejected() {
 
 #[test]
 fn glob_inheritance_loads_every_match() {
-    // spec/rubocop/config_loader_spec.rb:516 "inherits from multiple files using a glob"
+    // spec/rubocop/config_loader_spec.rb:543 "inherits from multiple files using a glob"
     let project = Project::new();
     project.write(".rubocop_a.yml", "Style/Alias:\n  Enabled: false\n");
     project.write(".rubocop_b.yml", "Style/AndOr:\n  Enabled: false\n");
@@ -480,7 +638,7 @@ fn circular_inheritance_is_detected() {
 
 #[test]
 fn nil_values_remove_keys_when_merging_with_the_defaults() {
-    // spec/rubocop/config_loader_spec.rb:563 "inherits and overrides a hash with nil"
+    // spec/rubocop/config_loader_spec.rb:590 "inherits and overrides a hash with nil"
     let project = Project::new();
     project.write(
         ".rubocop_parent.yml",
@@ -539,7 +697,7 @@ fn all_cops_exclude_from_a_higher_level_file_applies() {
 
 #[test]
 fn find_config_file_prefers_the_closest_then_home_then_xdg() {
-    // spec/rubocop/config_loader_spec.rb:24 ".configuration_file_for"
+    // spec/rubocop/config_loader_spec.rb:32 ".configuration_file_for"
     let project = Project::new();
     project.write("dir/example.rb", "");
     assert_eq!(project.loader().find_config_file(&project.path().join("dir")), None);

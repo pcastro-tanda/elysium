@@ -29,4 +29,4 @@ This rule has no options.
 
 ## Blind spots
 
-One-line pattern matching (`in`/`=>`) is only handled for the top-level `MatchPredicateNode`/`MatchRequiredNode` content case, not a full ancestor-walk guard for nested cases.
+One-line pattern matching (`in`/`=>`) is only handled for the top-level `MatchPredicateNode`/`MatchRequiredNode` content case, not a full ancestor-walk guard for nested cases. `singular_parenthesized_parent?`'s `parent.children.one?` is only evaluated for `return`/`next`/`break` and array parents.

@@ -1,0 +1,4 @@
+foo(
+  'aaaaaaaaaaaaaaaaaaaaaaaaaaaaaa ' \
+'bbbbbbbbbbb'
+)

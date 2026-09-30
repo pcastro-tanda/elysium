@@ -1,9 +1,11 @@
-retried = false
-
 begin
-  do_something
+  status = :initial
+  connect_sometimes_fails!
+  status = :connected
+  fetch_sometimes_fails!
+  status = :fetched
 rescue
-  fail if retried
-  retried = true
-  retry
+  do_something
 end
+
+puts status

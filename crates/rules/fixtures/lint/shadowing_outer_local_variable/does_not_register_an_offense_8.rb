@@ -1,5 +1,7 @@
 def some_method
-  foo = if condition
-          bar { |foo| baz(foo) }
-        end
+  foo = 1
+  puts foo
+  1.times do
+    puts foo
+  end
 end

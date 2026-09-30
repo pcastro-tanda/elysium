@@ -1,1 +1,1 @@
-(!x arg) && foo
+foo((x and y))

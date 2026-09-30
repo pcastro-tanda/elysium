@@ -8,7 +8,7 @@ use linter::{
     OptionError, OptionValue, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use regex::Regex;
-use ruby_ast::node::{BlockNode, BlockParametersNode, CallNode, ParametersNode};
+use ruby_ast::node::{BlockNode, BlockParametersNode, CallNode, DefNode, ParametersNode};
 use ruby_ast::{ext::is_heredoc, LocationExt as _, Node, NodeExt as _, NodeKind, Visitor};
 use ruby_source::{char_len, Span};
 
@@ -46,6 +46,45 @@ struct Breakable {
     delimiter: Option<u8>,
 }
 
+/// One endless method definition (`def foo = bar`) whose line is too long,
+/// collected by [`Walker`] for RuboCop 1.91's `endless_methods_by_line`.
+/// Only spans are kept; the replacement text is built on the report path.
+#[derive(Debug, Clone, Copy)]
+struct EndlessDef {
+    /// The whole `def` node (`correct_to_multiline`'s replacement target).
+    span: Span,
+    /// `receiver.` including the `.`/`::` operator, for `def self.foo`.
+    receiver: Option<Span>,
+    /// The method name.
+    name: Span,
+    /// The parenthesized parameter list, when the method takes parameters
+    /// (RuboCop's `arguments(node)`, which is `''` when `arguments.any?`
+    /// is false -- an empty `()` is dropped).
+    params: Option<Span>,
+    /// The endless body expression.
+    body: Span,
+    /// The `def` keyword's column (RuboCop's `indent(node)`).
+    column: i64,
+    /// The body when it is a method call with a single-line brace block,
+    /// i.e. RuboCop's `correctable_endless_method_block?`.
+    block: Option<EndlessBlock>,
+}
+
+/// The brace block of a `correctable_endless_method_block?` body, rewritten
+/// to `do ... end` when `Style/EndlessMethod` requires endless methods.
+#[derive(Debug, Clone, Copy)]
+struct EndlessBlock {
+    /// The whole call-with-block (upstream's `block` node, the replacement
+    /// target).
+    span: Span,
+    /// The call without its block (upstream's `send_node`).
+    send: Span,
+    /// `|params|`, when the block takes explicit parameters.
+    params: Option<Span>,
+    /// The block body.
+    body: Span,
+}
+
 /// Checks the length of lines in the source code.
 #[derive(Debug, Clone)]
 #[allow(clippy::struct_excessive_bools)]
@@ -70,6 +109,16 @@ pub struct LineLength {
     /// One breakable insertion point per offending 1-based line, computed
     /// once per file by [`Walker`] and consumed by `file_end`.
     breakable: HashMap<u32, Breakable>,
+    /// RuboCop 1.91's `endless_methods_by_line`: every endless `def`, keyed
+    /// by its 1-based first line.
+    endless_defs: HashMap<u32, EndlessDef>,
+    /// `require_endless_methods?`: `Style/EndlessMethod` is enabled and its
+    /// `EnforcedStyle` is `require_always`, so an over-long endless method
+    /// must stay endless and only its block body may be broken up.
+    require_endless_methods: bool,
+    /// `configured_indentation_width`: this cop's own `IndentationWidth`,
+    /// else `Layout/IndentationWidth`'s `Width`, else `2`.
+    indentation_width: i64,
 }
 
 impl Rule for LineLength {
@@ -213,6 +262,20 @@ is a complete port.",
         let allowed_patterns =
             options.str_list("AllowedPatterns").iter().filter_map(|p| Regex::new(p).ok()).collect();
         let tab_width = tab_indentation_width(options);
+        let endless_method_enabled = options
+            .peer("Style/EndlessMethod", "Enabled")
+            .and_then(OptionValue::as_bool)
+            .unwrap_or(true);
+        let require_endless_methods = endless_method_enabled
+            && options.peer("Style/EndlessMethod", "EnforcedStyle").and_then(OptionValue::as_str)
+                == Some("require_always");
+        let indentation_width = options
+            .get("IndentationWidth")
+            .and_then(OptionValue::as_int)
+            .or_else(|| {
+                options.peer("Layout/IndentationWidth", "Width").and_then(OptionValue::as_int)
+            })
+            .unwrap_or(2);
         Ok(Self {
             max,
             allow_heredoc,
@@ -228,12 +291,16 @@ is a complete port.",
             tab_width,
             heredocs: Vec::new(),
             breakable: HashMap::new(),
+            endless_defs: HashMap::new(),
+            require_endless_methods,
+            indentation_width,
         })
     }
 
     fn file_start(&mut self, ctx: &mut Context<'_>) {
         self.heredocs.clear();
         self.breakable.clear();
+        self.endless_defs.clear();
 
         let last = last_source_line(ctx);
         let any_long = ctx
@@ -260,6 +327,7 @@ is a complete port.",
         for (line, b) in walker.block_breaks {
             self.breakable.insert(line, b);
         }
+        self.endless_defs = walker.endless_defs;
         self.heredocs = walker.heredocs;
     }
 
@@ -288,6 +356,10 @@ impl LineLength {
         if self.allowed_line(text, line) {
             return;
         }
+        if self.endless_defs.contains_key(&line) {
+            self.handle_endless_method_line(ctx, text, line, length);
+            return;
+        }
         if self.allow_rbs_inline_annotation && Self::rbs_annotation_on_line(ctx, line) {
             return;
         }
@@ -303,6 +375,68 @@ impl LineLength {
         }
         let start = highlight_start(text, self.max, self.tab_width);
         self.report_line(ctx, line, start, length, length);
+    }
+
+    /// RuboCop's `handle_endless_method_line`: an over-long endless method
+    /// is always an offense, but the correction depends on whether
+    /// `Style/EndlessMethod` requires the endless form
+    /// (`register_required_endless_method_offense`, which only rewrites a
+    /// brace block body) or not (`register_endless_method_offense`, which
+    /// rewrites the whole definition to a multiline one).
+    fn handle_endless_method_line(
+        &mut self,
+        ctx: &mut Context<'_>,
+        text: &[u8],
+        line: u32,
+        length: i64,
+    ) {
+        let Some(def) = self.endless_defs.get(&line).copied() else { return };
+        let start = highlight_start(text, self.max, self.tab_width);
+        let start_off = column_to_offset(ctx, line, start);
+        let end_off = column_to_offset(ctx, line, length).max(start_off);
+        let span = Span::new(start_off, end_off);
+        let msg = message(length, self.max);
+        match self.autocorrect.then(|| self.endless_fix(ctx, &def)).flatten() {
+            Some(fix) => ctx.report_with_fix(&Self::META, span, msg, fix),
+            None => ctx.report(&Self::META, span, msg),
+        }
+    }
+
+    /// RuboCop's `correct_to_multiline` (`EndlessMethodRewriter`) and
+    /// `correct_endless_method_block_to_multiline`.
+    fn endless_fix(&self, ctx: &Context<'_>, def: &EndlessDef) -> Option<Fix> {
+        let source = |span: Span| String::from_utf8_lossy(ctx.text(span)).into_owned();
+        let indent = " ".repeat(usize::try_from(def.column.max(0)).unwrap_or(0));
+        let (span, replacement) = if self.require_endless_methods {
+            let block = def.block?;
+            let body_indent = " ".repeat(usize::try_from((def.column + 2).max(0)).unwrap_or(0));
+            let params = block.params.map_or_else(String::new, |p| format!(" {}", source(p)));
+            (
+                block.span,
+                format!(
+                    "{} do{params}\n{body_indent}{}\n{indent}end",
+                    source(block.send),
+                    source(block.body)
+                ),
+            )
+        } else {
+            let body_indent = " "
+                .repeat(usize::try_from((def.column + self.indentation_width).max(0)).unwrap_or(0));
+            let receiver = def.receiver.map_or_else(String::new, source);
+            let params = def.params.map_or_else(String::new, source);
+            (
+                def.span,
+                format!(
+                    "def {receiver}{}{params}\n{body_indent}{}\n{indent}end",
+                    source(def.name),
+                    source(def.body)
+                ),
+            )
+        };
+        Some(Fix {
+            applicability: Applicability::Safe,
+            edits: vec![Edit::replace(span, replacement.into_bytes())],
+        })
     }
 
     fn allowed_line(&self, text: &[u8], line: u32) -> bool {
@@ -691,6 +825,26 @@ pub(crate) fn def_parameter_list(params: Option<ParametersNode<'_>>) -> Vec<Node
     out
 }
 
+/// Whether a parameter list holds any parameter at all (RuboCop's
+/// `arguments.any?`, which is false for an empty `()`).
+fn params_present(params: &ParametersNode<'_>) -> bool {
+    !params.requireds().is_empty()
+        || !params.optionals().is_empty()
+        || params.rest().is_some()
+        || !params.posts().is_empty()
+        || !params.keywords().is_empty()
+        || params.keyword_rest().is_some()
+        || params.block().is_some()
+}
+
+/// The single expression of a body Prism wraps in a `StatementsNode`
+/// (whitequark, and so RuboCop's `node.body`, has no such wrapper).
+fn single_statement<'pr>(body: &Node<'pr>) -> Option<Node<'pr>> {
+    let statements = body.as_statements_node()?;
+    let list = statements.body();
+    (list.len() == 1).then(|| list.iter().next()).flatten()
+}
+
 /// RuboCop's `valid_uri?`, approximated: Ruby's stdlib `URI` module
 /// registers stricter parsers for a handful of well-known schemes (`ldap`,
 /// `mailto`, ...) that reject a bare `scheme:opaque` match lacking the
@@ -747,6 +901,7 @@ struct Walker<'ctx, 'src> {
     block_breaks: HashMap<u32, Breakable>,
     opaque_spans: Vec<Span>,
     heredocs: Vec<(u32, u32, String)>,
+    endless_defs: HashMap<u32, EndlessDef>,
 }
 
 impl<'ctx, 'src> Walker<'ctx, 'src> {
@@ -768,6 +923,7 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
             block_breaks: HashMap::new(),
             opaque_spans: Vec::new(),
             heredocs: Vec::new(),
+            endless_defs: HashMap::new(),
         }
     }
 
@@ -1006,6 +1162,13 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
 
     fn handle_def(&mut self, node: &Node<'src>) {
         let n = node.as_def_node().expect("kind matched");
+        // RuboCop 1.91's `on_def`: an endless method is tracked for
+        // `handle_endless_method_line` instead of contributing a breakable
+        // range.
+        if n.equal_loc().is_some() {
+            self.track_endless_method(&n);
+            return;
+        }
         let span = n.location().span();
         let elements = def_parameter_list(n.parameters());
         let already_multiline = match elements.last() {
@@ -1017,6 +1180,75 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
             None => false,
         };
         self.try_breakable_elements(span, &elements, false, false, already_multiline);
+    }
+
+    /// RuboCop's `track_endless_method`, plus the span bookkeeping its two
+    /// correctors need.
+    fn track_endless_method(&mut self, n: &DefNode<'src>) {
+        let Some(body) = n.body() else { return };
+        let span = n.location().span();
+        let receiver = match (n.receiver(), n.operator_loc()) {
+            (Some(recv), Some(op)) => Some(Span::new(recv.span().start, op.span().end)),
+            _ => None,
+        };
+        let params = match (n.parameters(), n.lparen_loc(), n.rparen_loc()) {
+            (Some(params), Some(lparen), Some(rparen)) if params_present(&params) => {
+                Some(Span::new(lparen.span().start, rparen.span().end))
+            }
+            (Some(params), _, _) if params_present(&params) => Some(params.location().span()),
+            _ => None,
+        };
+        let expression = single_statement(&body);
+        let block = expression.as_ref().and_then(|expr| self.correctable_endless_block(expr));
+        let first_line = self.line_of(span.start);
+        self.endless_defs.insert(
+            first_line,
+            EndlessDef {
+                span,
+                receiver,
+                name: n.name_loc().span(),
+                params,
+                body: expression.map_or_else(|| body.span(), |e| e.span()),
+                column: self.col(span.start),
+                block,
+            },
+        );
+    }
+
+    /// RuboCop's `correctable_endless_method_block?`: the body is a method
+    /// call with a single-line brace block that has a body, and the call's
+    /// receiver holds no heredoc.
+    fn correctable_endless_block(&self, expr: &Node<'src>) -> Option<EndlessBlock> {
+        let call = expr.as_call_node()?;
+        let block = call.block()?.as_block_node()?;
+        let opening = block.opening_loc().span();
+        if self.ctx.text(opening) != b"{" {
+            return None;
+        }
+        let closing = block.closing_loc().span();
+        if self.line_of(opening.start) != self.line_of(closing.start) {
+            return None;
+        }
+        let body = block.body()?;
+        if call.receiver().is_some_and(|r| contains_heredoc_descendant(&r)) {
+            return None;
+        }
+        let params = block.parameters().and_then(|p| p.as_block_parameters_node()).and_then(|p| {
+            let has_args = p.parameters().is_some_and(|inner| params_present(&inner))
+                || !p.locals().is_empty();
+            has_args.then(|| match (p.opening_loc(), p.closing_loc()) {
+                (Some(open), Some(close)) => Span::new(open.span().start, close.span().end),
+                _ => p.location().span(),
+            })
+        });
+        let send_end = self.ctx.text(Span::new(expr.span().start, opening.start));
+        let trimmed = u32::try_from(rstrip(send_end).len()).unwrap_or(0);
+        Some(EndlessBlock {
+            span: expr.span(),
+            send: Span::new(expr.span().start, expr.span().start + trimmed),
+            params,
+            body: body.span(),
+        })
     }
 
     fn handle_block(&mut self, node: &Node<'src>) {
@@ -1057,14 +1289,24 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
     }
 
     /// RuboCop's `largest_possible_string` + `breakable_string_range`.
-    fn breakable_string_range(&self, span: Span) -> Option<u32> {
+    /// `content_end` is `string_content_length`'s content end: the closing
+    /// quote's start for a quoted literal, the node's end otherwise.
+    fn breakable_string_range(&self, span: Span, content_end: u32) -> Option<u32> {
         let mut max_length = self.max - 3;
-        if let Some(parent) = self.ancestors.last() {
-            max_length -= self.col(span.start) - self.col(parent.span.start);
+        // 1.91: offset by the column difference only when the string sits on
+        // its parent's line; otherwise the string is indented on its own
+        // line, so its own indentation is what must be subtracted (else an
+        // indented string under a multi-line parent never shortens below
+        // `Max` and the correction loops, inserting empty `"" \` fragments).
+        match self.ancestors.last() {
+            Some(parent) if self.line_of(span.start) == self.line_of(parent.span.start) => {
+                max_length -= self.col(span.start) - self.col(parent.span.start);
+            }
+            _ => max_length -= self.col(span.start),
         }
         let content = self.ctx.text(span);
         let relevant = take_chars(content, usize::try_from(max_length.max(0)).unwrap_or(0));
-        if let Some(char_idx) = last_whitespace_char_index(relevant) {
+        if let Some(char_idx) = self.breakable_space_position(span, content_end, relevant) {
             return Some(shift_chars(
                 self.ctx.source().bytes(),
                 span.start,
@@ -1085,6 +1327,28 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
             return None;
         }
         Some(shift_chars(self.ctx.source().bytes(), span.end, adjustment))
+    }
+
+    /// RuboCop 1.91's `breakable_space_position`: the last space in the
+    /// truncated string, backed off to the previous one when it is the
+    /// string's own last content character (breaking there would leave the
+    /// line exactly as long as before, looping the correction).
+    fn breakable_space_position(
+        &self,
+        span: Span,
+        content_end: u32,
+        relevant: &[u8],
+    ) -> Option<usize> {
+        let space_pos = last_whitespace_char_index(relevant)?;
+        // `string_content_length(node) - 1`, in characters.
+        let limit =
+            i64::from(char_len(self.ctx.text(Span::new(span.start, content_end.max(span.start)))))
+                - 1;
+        if i64::try_from(space_pos + 1).unwrap_or(i64::MAX) > limit {
+            let limit = usize::try_from(limit.max(0)).unwrap_or(0);
+            return last_whitespace_char_index(take_chars(relevant, limit));
+        }
+        Some(space_pos)
     }
 
     fn handle_str(&mut self, node: &Node<'src>) {
@@ -1119,7 +1383,8 @@ impl<'ctx, 'src> Walker<'ctx, 'src> {
         if self.col(span.end) < self.max {
             return;
         }
-        let Some(pos) = self.breakable_string_range(span) else { return };
+        let content_end = n.closing_loc().map_or(span.end, |close| close.span().start);
+        let Some(pos) = self.breakable_string_range(span, content_end) else { return };
         if pos == span.start {
             return;
         }

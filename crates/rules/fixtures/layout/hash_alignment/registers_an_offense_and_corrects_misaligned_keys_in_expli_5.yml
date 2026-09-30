@@ -1,5 +1,4 @@
 Layout/HashAlignment:
-  EnforcedLastArgumentHashStyle: ignore_implicit
   AllowMultipleStyles: false
   SupportedHashRocketStyles: ~
   SupportedColonStyles: ~

@@ -1,1 +1,1 @@
-bar foo || { baz => quux }
+bar foo || (1..2)

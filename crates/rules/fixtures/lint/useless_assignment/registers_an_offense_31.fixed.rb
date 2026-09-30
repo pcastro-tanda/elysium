@@ -1,4 +1,4 @@
-def some_method(bar)
-  1
-  super
+begin
+  do_something
+rescue
 end

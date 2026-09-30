@@ -1,4 +1,5 @@
 Layout/FirstHashElementIndentation:
   EnforcedStyle: consistent
+  Preview: ~
 Layout/HashAlignment:
   AllowMultipleStyles: false

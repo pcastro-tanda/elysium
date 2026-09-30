@@ -1,1 +1,1 @@
-foo && (!x arg)
+(!yield arg) && foo

@@ -1,1 +1,1 @@
-# rubocop:disable Metrics/ClassLength
+# not very long comment
