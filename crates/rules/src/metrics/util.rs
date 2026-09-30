@@ -18,11 +18,12 @@
 //!   `else`/`:` are told apart by keyword-location *length* (2/5/absent and
 //!   4/1), which is exact for these keywords.
 
-use linter::Context;
-use ruby_ast::ext::is_heredoc;
-use ruby_ast::node::{CallNode, ElseNode, IfNode};
+use linter::{Context, RuleMeta, RuleOptions};
+use regex::Regex;
+use ruby_ast::ext::{const_name, is_bare_or_toplevel_const, is_heredoc};
+use ruby_ast::node::{CallNode, CaseMatchNode, CaseNode, ElseNode, IfNode, InNode};
 use ruby_ast::{for_each_child, LocationExt as _, Node, NodeExt as _, NodeKind};
-use ruby_source::{is_comment_line, SourceFile};
+use ruby_source::{is_comment_line, SourceFile, Span};
 
 // ---------------------------------------------------------------------------
 // CodeLengthCalculator
@@ -94,6 +95,110 @@ pub(crate) fn code_length(
     foldable: &[Foldable],
 ) -> u32 {
     code_length_in(ctx.source(), node, count_comments, foldable)
+}
+
+/// Upstream `CodeLength`'s `MSG`: `'%<label>s has too many lines. [%<length>d/%<max>d]'`.
+pub(crate) fn message(label: &str, length: u32, max: i64) -> String {
+    format!("{label} has too many lines. [{length}/{max}]")
+}
+
+/// The `CodeLength` mixin's configuration (`Max`, `CountComments`,
+/// `CountAsOne`), shared by the four `*Length` cops.
+#[derive(Debug, Clone)]
+pub(crate) struct CodeLength {
+    max: i64,
+    count_comments: bool,
+    foldable: Vec<Foldable>,
+}
+
+impl CodeLength {
+    pub(crate) fn from_options(options: &RuleOptions) -> Self {
+        Self {
+            max: options.int("Max"),
+            count_comments: options.bool("CountComments"),
+            foldable: Foldable::from_config(&options.str_list("CountAsOne")),
+        }
+    }
+
+    /// Port of `CodeLength#check_code_length`, minus the perf-only
+    /// `line_count` short-circuit (upstream skips the full calculation when
+    /// the node's raw physical-line count is already within `max`; the result
+    /// is identical either way) and the `self.max = length` `exclude_limit`
+    /// bookkeeping (only consumed by `--auto-gen-config`, which this linter
+    /// does not implement).
+    pub(crate) fn check(
+        &self,
+        ctx: &mut Context<'_>,
+        meta: &RuleMeta,
+        node: &Node<'_>,
+        report_span: Span,
+        label: &str,
+    ) {
+        let length = code_length(ctx, node, self.count_comments, &self.foldable);
+        if i64::from(length) > self.max {
+            ctx.report(meta, report_span, message(label, length, self.max));
+        }
+    }
+}
+
+/// `rubocop-ast`'s `Node#class_definition?`/`Node#module_definition?`,
+/// restricted to their `any_block` alternative (the `class`/`module`/
+/// `sclass` keyword-form alternatives are handled directly by
+/// `ClassLength`/`ModuleLength` on the keyword nodes themselves): an
+/// attached-block call to `.new` on one of `allowed`'s bare or
+/// top-level-qualified receiver constants, e.g. `Struct.new(...) do ... end`
+/// or `::Class.new do ... end`.
+pub(crate) fn constructor_call<'pr>(value: &Node<'pr>, allowed: &[&str]) -> Option<CallNode<'pr>> {
+    let call = value.as_call_node()?;
+    call.block()?.as_block_node()?;
+    if call.name().as_slice() != b"new" {
+        return None;
+    }
+    let receiver = call.receiver()?;
+    if !is_bare_or_toplevel_const(&receiver) {
+        return None;
+    }
+    let name = const_name(&receiver)?;
+    allowed.contains(&name.as_str()).then_some(call)
+}
+
+/// `rubocop-ast`'s `Node#assignment?` restricted to constant targets, fused
+/// with the RHS extraction `ClassLength`/`ModuleLength`'s `on_casgn` does by
+/// hand (`node.expression || find_expression_within_parent(node.parent)`):
+/// the assigned value of a plain (`FOO = v`), compound (`FOO ||= v`,
+/// `FOO &&= v`, `FOO op= v`, and their `A::FOO` path equivalents), or
+/// multiple (`FOO, BAR = v`) assignment to a constant. Prism gives each of
+/// these its own flat node carrying `.value()` directly, unlike whitequark,
+/// where a compound assignment nests a valueless `casgn` inside an
+/// `or_asgn`/`and_asgn`/`op_asgn`, and a multiple assignment nests one
+/// valueless `casgn` per target inside an `mlhs` inside a `masgn` -- both
+/// reached upstream by walking `casgn`'s own `parent`/`parent.parent`.
+pub(crate) fn assigned_value<'pr>(node: &Node<'pr>) -> Option<Node<'pr>> {
+    match node.kind() {
+        NodeKind::ConstantWriteNode => Some(node.as_constant_write_node()?.value()),
+        NodeKind::ConstantPathWriteNode => Some(node.as_constant_path_write_node()?.value()),
+        NodeKind::ConstantOrWriteNode => Some(node.as_constant_or_write_node()?.value()),
+        NodeKind::ConstantAndWriteNode => Some(node.as_constant_and_write_node()?.value()),
+        NodeKind::ConstantOperatorWriteNode => {
+            Some(node.as_constant_operator_write_node()?.value())
+        }
+        NodeKind::ConstantPathOrWriteNode => Some(node.as_constant_path_or_write_node()?.value()),
+        NodeKind::ConstantPathAndWriteNode => Some(node.as_constant_path_and_write_node()?.value()),
+        NodeKind::ConstantPathOperatorWriteNode => {
+            Some(node.as_constant_path_operator_write_node()?.value())
+        }
+        NodeKind::MultiWriteNode => {
+            let multi = node.as_multi_write_node()?;
+            let has_const_target = multi.lefts().iter().any(|n| is_constant_target(&n))
+                || multi.rights().iter().any(|n| is_constant_target(&n));
+            has_const_target.then(|| multi.value())
+        }
+        _ => None,
+    }
+}
+
+fn is_constant_target(node: &Node<'_>) -> bool {
+    matches!(node.kind(), NodeKind::ConstantTargetNode | NodeKind::ConstantPathTargetNode)
 }
 
 fn code_length_in(
@@ -310,6 +415,19 @@ fn heredoc_closing_line(src: &SourceFile, node: &Node<'_>) -> u32 {
 /// equivalent (`begin`) when there is more than one statement, so a lone
 /// statement is unwrapped. That matters for `namespace_module?`, which asks
 /// whether the body *is* a class or module.
+///
+/// The `CallNode`/`SuperNode`/`ForwardingSuperNode` arms are Prism's stand-in
+/// for whitequark's `:block` case: whitequark wraps a call plus its literal
+/// block in one `block`-type node, whose own `.body` is the statements
+/// inside; Prism instead attaches the block to the call/`super` as a field,
+/// so a `Struct.new(...) do ... end`/`Class.new do ... end`/`Module.new do
+/// ... end` value (what `ClassLength`/`ModuleLength`'s constant-assignment
+/// handling passes here), or any other attached-block call/`super`
+/// (`Metrics/BlockLength`), is a bare `CallNode`/`SuperNode`/
+/// `ForwardingSuperNode`, and its body must be reached through the attached
+/// block explicitly. `LambdaNode` (`->() { ... }`/`->() do ... end`) is its
+/// own node kind in Prism, unlike whitequark's `(block (send nil :lambda)
+/// ...)`, but already exposes its statements directly via `.body`.
 fn extract_body<'pr>(node: &Node<'pr>) -> Option<Node<'pr>> {
     let body = match node.kind() {
         NodeKind::ClassNode => node.as_class_node()?.body(),
@@ -317,10 +435,19 @@ fn extract_body<'pr>(node: &Node<'pr>) -> Option<Node<'pr>> {
         NodeKind::SingletonClassNode => node.as_singleton_class_node()?.body(),
         NodeKind::BlockNode => node.as_block_node()?.body(),
         NodeKind::DefNode => node.as_def_node()?.body(),
-        NodeKind::ConstantWriteNode => extract_body(&node.as_constant_write_node()?.value()),
-        NodeKind::ConstantPathWriteNode => {
-            extract_body(&node.as_constant_path_write_node()?.value())
+        NodeKind::CallNode => {
+            let call = node.as_call_node()?;
+            call.block().and_then(|b| b.as_block_node()?.body()).or(Some(*node))
         }
+        NodeKind::SuperNode => {
+            let s = node.as_super_node()?;
+            s.block().and_then(|b| b.as_block_node()?.body()).or(Some(*node))
+        }
+        NodeKind::ForwardingSuperNode => {
+            let s = node.as_forwarding_super_node()?;
+            s.block().and_then(|b| b.body()).or(Some(*node))
+        }
+        NodeKind::LambdaNode => node.as_lambda_node()?.body(),
         _ => Some(*node),
     }?;
     Some(unwrap_single_statement(&body))
@@ -383,10 +510,44 @@ fn omit_length(descendant: &Node<'_>, parent: Option<&Node<'_>>) -> u32 {
 
 /// `for_each_child` applied recursively -- `ruby_ast::each_descendant` with a
 /// `&mut` callback that can stop contributing early.
+///
+/// A call's attached block is transparent here: `f` is never invoked on the
+/// `BlockNode` wrapper itself (only recursed into, for its parameters and
+/// statements), since whitequark has no node standing for just the wrapper
+/// -- a call plus its literal block is *one* `:block`-type node there, whose
+/// own boundary (through the closing `end`/`}`) is attributed to the call
+/// itself (a Prism `CallNode`'s span already extends through its attached
+/// block, matching a whitequark `:block` node's `.last_line`). Visiting the
+/// wrapper too would double-count that same boundary a second time -- e.g.
+/// `source_from_node_with_heredoc`'s "last line among all descendants" scan
+/// (ported as `heredoc_extended_last_line`) would otherwise extend a
+/// statement's measured length through a nested block's own closing `end`,
+/// which whitequark's fused node never contributes as a distinct child.
+///
+/// An `ElseNode` (an `if`/`unless`/`case`'s `else` clause), an
+/// `EnsureNode`, and an `elsif` link (an `IfNode` reused for the purpose,
+/// per `is_elsif`) all get the same treatment and for the same reason:
+/// whitequark has no node standing for just the `else`/`ensure`/`elsif`
+/// clause -- the enclosing `if`/`unless`/`case`/`begin` node's own child
+/// *is* that branch's body directly -- but Prism wraps each in its own
+/// node, whose span reaches through the enclosing `end` too (confirmed
+/// empirically for `EnsureNode`; `elsif` links are documented to "share the
+/// `end_keyword_loc`" with the `if` they belong to). `body_span` already
+/// sidesteps this for the *outermost* rescue/ensure by reading
+/// `.statements()` instead of the clause node's own span; this walk needs
+/// the identical fix for one reached as an ordinary, deeper descendant.
 fn each_descendant<'pr>(node: &Node<'pr>, f: &mut impl FnMut(&Node<'pr>)) {
     for_each_child(node, |child| {
-        f(child);
-        each_descendant(child, f);
+        let is_transparent = child.as_block_node().is_some()
+            || child.as_else_node().is_some()
+            || child.as_ensure_node().is_some()
+            || child.as_if_node().is_some_and(|i| is_elsif(&i));
+        if is_transparent {
+            each_descendant(child, f);
+        } else {
+            f(child);
+            each_descendant(child, f);
+        }
     });
 }
 
@@ -397,20 +558,39 @@ fn each_descendant<'pr>(node: &Node<'pr>, f: &mut impl FnMut(&Node<'pr>)) {
 /// `CyclomaticComplexity::COUNTED_NODES`, also `AbcSizeCalculator`'s
 /// `CONDITION_NODES`: `if while until for csend block block_pass rescue when
 /// in_pattern and or or_asgn and_asgn`.
-fn is_counted_cyclomatic(node: &Node<'_>) -> bool {
+///
+/// `numblock` and `itblock` are *not* on that list, and whitequark gives a
+/// block using `_1`/`it` one of those types rather than `block`, so such a
+/// block never counts. `it_parameter` says whether the target Ruby version
+/// really reads a bare `it` as the implicit parameter (3.4 and later); below
+/// that, `it` is an ordinary method call and the block stays a `block`.
+fn is_counted_cyclomatic(node: &Node<'_>, it_parameter: bool) -> bool {
     match node.kind() {
         NodeKind::IfNode
         | NodeKind::UnlessNode
-        | NodeKind::WhileNode
-        | NodeKind::UntilNode
         | NodeKind::ForNode
-        | NodeKind::BlockNode
         | NodeKind::BlockArgumentNode
         | NodeKind::RescueModifierNode
         | NodeKind::WhenNode
         | NodeKind::InNode
         | NodeKind::AndNode
         | NodeKind::OrNode => true,
+        // `begin ... end while cond` is whitequark's `while_post`, which is
+        // not on the list; only a plain `while`/`until` is.
+        NodeKind::WhileNode => {
+            node.as_while_node().is_some_and(|loop_node| !loop_node.is_begin_modifier())
+        }
+        NodeKind::UntilNode => {
+            node.as_until_node().is_some_and(|loop_node| !loop_node.is_begin_modifier())
+        }
+        NodeKind::BlockNode => match node.as_block_node().and_then(|block| block.parameters()) {
+            Some(parameters) => match parameters.kind() {
+                NodeKind::NumberedParametersNode => false,
+                NodeKind::ItParametersNode => !it_parameter,
+                _ => true,
+            },
+            None => true,
+        },
         // Prism models `begin/rescue` as a `BeginNode` owning a `RescueNode`
         // chain; whitequark has a single `rescue` node for the construct.
         NodeKind::BeginNode => {
@@ -419,6 +599,13 @@ fn is_counted_cyclomatic(node: &Node<'_>) -> bool {
         NodeKind::CallNode => node.as_call_node().is_some_and(|call| call.is_safe_navigation()),
         kind => is_or_asgn(kind) || is_and_asgn(kind),
     }
+}
+
+/// Whether a bare `it` inside a parameterless block is the implicit block
+/// parameter, which Ruby only made it in 3.4. Prism always parses it that
+/// way; whitequark follows `TargetRubyVersion`.
+pub(crate) fn it_is_parameter(target_ruby_version: f32) -> bool {
+    target_ruby_version > 3.35
 }
 
 fn is_or_asgn(kind: NodeKind) -> bool {
@@ -498,11 +685,18 @@ fn lvasgn_name<'pr>(node: &Node<'pr>) -> Option<&'pr [u8]> {
 
 /// `IteratingBlock#block_method_name`: the method a `block`/`block_pass` node
 /// belongs to. Prism attaches both to the call node directly.
+///
+/// whitequark's `SuperNode#method_name` is `:super` for both `super` and
+/// `zsuper`, so `super { ... }` and `super(&blk)` report that name rather
+/// than nothing.
 fn block_method_name<'pr>(node: &Node<'pr>, parent: Option<&Node<'pr>>) -> Option<&'pr [u8]> {
     if !matches!(node.kind(), NodeKind::BlockNode | NodeKind::BlockArgumentNode) {
         return None;
     }
     let parent = parent?;
+    if matches!(parent.kind(), NodeKind::SuperNode | NodeKind::ForwardingSuperNode) {
+        return Some(b"super");
+    }
     parent.as_call_node().map(|call| call.name().as_slice()).or_else(|| {
         parent
             .as_call_or_write_node()
@@ -515,12 +709,15 @@ fn block_method_name<'pr>(node: &Node<'pr>, parent: Option<&Node<'pr>>) -> Optio
 }
 
 /// `IteratingBlock#iterating_block?`: `None` when `node` is neither a block
-/// nor a block-pass, otherwise whether the call iterates.
+/// nor a block-pass, otherwise whether the call iterates. Upstream returns
+/// `nil` -- not `false` -- when the method name cannot be determined, and
+/// every caller tests `== false`, so an unknown name must not read as "not
+/// iterating".
 fn iterating_block(node: &Node<'_>, parent: Option<&Node<'_>>) -> Option<bool> {
     if !matches!(node.kind(), NodeKind::BlockNode | NodeKind::BlockArgumentNode) {
         return None;
     }
-    Some(block_method_name(node, parent).is_some_and(is_iterating_method))
+    Some(is_iterating_method(block_method_name(node, parent)?))
 }
 
 /// `IteratingBlock::KNOWN_ITERATING_METHODS`.
@@ -648,10 +845,54 @@ fn is_real_else(else_node: &ElseNode<'_>) -> bool {
 fn walk_with_parent<'pr>(
     node: &Node<'pr>,
     parent: Option<&Node<'pr>>,
-    f: &mut impl FnMut(&Node<'pr>, Option<&Node<'pr>>),
+    in_pattern: bool,
+    f: &mut impl FnMut(&Node<'pr>, Option<&Node<'pr>>, bool),
 ) {
-    f(node, parent);
-    for_each_child(node, |child| walk_with_parent(child, Some(node), f));
+    f(node, parent, in_pattern);
+    for_each_child(node, |child| {
+        walk_with_parent(child, Some(node), child_in_pattern(node, child, in_pattern), f);
+    });
+}
+
+/// Whether `child` sits in pattern-matching position, where Prism's
+/// `LocalVariableTargetNode` stands for whitequark's `match_var` rather than
+/// an `lvasgn`.
+///
+/// A branch guard (`in pat if cond`) is Prism's modifier `IfNode` wrapping
+/// the pattern, so its condition is marked too; only an assignment written
+/// inside a guard would notice, and that is not expressible without
+/// parentheses.
+fn child_in_pattern<'pr>(node: &Node<'pr>, child: &Node<'pr>, in_pattern: bool) -> bool {
+    if in_pattern || is_pattern_node(node.kind()) {
+        return true;
+    }
+    let pattern = match node.kind() {
+        NodeKind::InNode => node.as_in_node().map(|in_node| in_node.pattern()),
+        NodeKind::MatchRequiredNode => {
+            node.as_match_required_node().map(|match_node| match_node.pattern())
+        }
+        NodeKind::MatchPredicateNode => {
+            node.as_match_predicate_node().map(|match_node| match_node.pattern())
+        }
+        _ => None,
+    };
+    pattern.is_some_and(|pattern| pattern.span().start == child.span().start)
+}
+
+/// Node kinds that only ever occur inside a pattern, and so carry pattern
+/// position down to everything below them.
+fn is_pattern_node(kind: NodeKind) -> bool {
+    matches!(
+        kind,
+        NodeKind::ArrayPatternNode
+            | NodeKind::FindPatternNode
+            | NodeKind::HashPatternNode
+            | NodeKind::CapturePatternNode
+            | NodeKind::AlternationPatternNode
+            | NodeKind::ImplicitNode
+            | NodeKind::PinnedExpressionNode
+            | NodeKind::PinnedVariableNode
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -693,22 +934,25 @@ impl<'pr> RepeatedCsend<'pr> {
 /// Port of `Metrics::CyclomaticComplexity`'s scoring over
 /// `MethodComplexity#complexity`. Call with a method or block *body*, as
 /// upstream's `check_complexity` does.
-pub(crate) fn cyclomatic(node: &Node<'_>) -> u32 {
-    complexity(node, false)
+pub(crate) fn cyclomatic(node: &Node<'_>, it_parameter: bool) -> u32 {
+    complexity(node, false, it_parameter)
 }
 
 /// Port of `Metrics::PerceivedComplexity`'s scoring: `when` is replaced by
 /// `case` (scored by branch count) and an `if` with a real `else` counts
 /// double.
-pub(crate) fn perceived(node: &Node<'_>) -> u32 {
-    complexity(node, true)
+pub(crate) fn perceived(node: &Node<'_>, it_parameter: bool) -> u32 {
+    complexity(node, true, it_parameter)
 }
 
-fn complexity(node: &Node<'_>, perceived: bool) -> u32 {
+fn complexity(node: &Node<'_>, perceived: bool, it_parameter: bool) -> u32 {
     let mut score = 1;
     let mut csend = RepeatedCsend::default();
-    walk_with_parent(node, None, &mut |current, parent| {
-        score += complexity_score(current, parent, perceived, &mut csend);
+    walk_with_parent(node, None, false, &mut |current, parent, in_pattern| {
+        score += complexity_score(current, parent, perceived, it_parameter, &mut csend);
+        if in_pattern {
+            return;
+        }
         if let Some(name) = lvasgn_name(current) {
             csend.reset(name);
         }
@@ -720,19 +964,23 @@ fn complexity_score<'pr>(
     node: &Node<'pr>,
     parent: Option<&Node<'pr>>,
     perceived: bool,
+    it_parameter: bool,
     csend: &mut RepeatedCsend<'pr>,
 ) -> u32 {
     let kind = node.kind();
     if perceived {
-        // `COUNTED_NODES - [:when] + [:case]`.
-        if matches!(kind, NodeKind::WhenNode) {
+        // `COUNTED_NODES - [:when, :in_pattern] + [:case, :case_match]`.
+        if matches!(kind, NodeKind::WhenNode | NodeKind::InNode) {
             return 0;
         }
-        if matches!(kind, NodeKind::CaseNode) {
-            return case_score(node);
+        if let Some(case) = node.as_case_node() {
+            return case_score(&case);
+        }
+        if let Some(case) = node.as_case_match_node() {
+            return case_match_score(&case);
         }
     }
-    if !is_counted_cyclomatic(node) {
+    if is_pattern_guard(node, parent) || !is_counted_cyclomatic(node, it_parameter) {
         return implicit_call_score(node, csend);
     }
     if perceived {
@@ -766,16 +1014,87 @@ fn implicit_call_score<'pr>(node: &Node<'pr>, csend: &mut RepeatedCsend<'pr>) ->
     u32::from(!csend.discount(call.receiver.as_ref(), node.span().start))
 }
 
-/// Upstream's `PerceivedComplexity#complexity_score_for` for `case`.
-fn case_score(node: &Node<'_>) -> u32 {
-    let Some(case) = node.as_case_node() else { return 1 };
-    let branches = case.conditions().iter().count() + usize::from(case.else_clause().is_some());
-    #[allow(clippy::cast_precision_loss, clippy::cast_possible_truncation, clippy::cast_sign_loss)]
+/// whitequark keeps a `case`/`in` branch guard in its own `if_guard`/
+/// `unless_guard` node, which is not an `if` and so is never counted. Prism
+/// instead wraps the branch's pattern in a modifier `IfNode`/`UnlessNode`
+/// hanging straight off the `InNode`, which must not be counted either.
+fn is_pattern_guard(node: &Node<'_>, parent: Option<&Node<'_>>) -> bool {
+    matches!(node.kind(), NodeKind::IfNode | NodeKind::UnlessNode)
+        && parent.is_some_and(|parent| parent.kind() == NodeKind::InNode)
+}
+
+/// Upstream's `PerceivedComplexity#complexity_score_for` for `case`: `0.8`
+/// for the `case` plus `0.2` per branch, rounded -- computed in tenths, so
+/// the result never depends on binary floating point. `nb_branches * 0.2`
+/// can never land on a half, since `2 * nb_branches + 8` is always even.
+fn case_score(case: &CaseNode<'_>) -> u32 {
+    let branches = branch_count(case.conditions().iter().count(), case.else_clause().is_some());
     if case.predicate().is_none() {
-        u32::try_from(branches).unwrap_or(u32::MAX)
+        branches
     } else {
-        ((branches as f64).mul_add(0.2, 0.8).round()) as u32
+        (2 * branches + 13) / 10
     }
+}
+
+/// Upstream's `complexity_score_for` for `case_match`: a full point per
+/// structural or guarded `in` branch, `0.2` for a branch whose pattern is a
+/// plain literal or a constant, and `0.2` for an `else`. Again in tenths.
+fn case_match_score(case: &CaseMatchNode<'_>) -> u32 {
+    let mut tenths = 0;
+    for condition in &case.conditions() {
+        let simple = condition.as_in_node().is_some_and(|in_node| is_simple_in_pattern(&in_node));
+        tenths += if simple { 2 } else { 10 };
+    }
+    if case.else_clause().is_some() {
+        tenths += 2;
+    }
+    (tenths + 5) / 10
+}
+
+/// `nb_branches`: the `when`/`in` branches plus the `else`, saturating so no
+/// cast is needed.
+fn branch_count(conditions: usize, has_else: bool) -> u32 {
+    let branches = conditions + usize::from(has_else);
+    u32::try_from(branches).unwrap_or(u32::MAX)
+}
+
+/// Upstream's `simple_in_pattern?`: no guard, and a pattern that is a scalar
+/// literal, a literal range or a constant.
+fn is_simple_in_pattern(in_node: &InNode<'_>) -> bool {
+    let pattern = in_node.pattern();
+    if matches!(pattern.kind(), NodeKind::IfNode | NodeKind::UnlessNode) {
+        return false;
+    }
+    is_pattern_literal(&pattern)
+}
+
+/// `Node#literal?` (`RuboCop::AST::Node::LITERALS`) or `Node#const_type?`,
+/// restricted to what can appear in pattern position.
+fn is_pattern_literal(node: &Node<'_>) -> bool {
+    matches!(
+        node.kind(),
+        NodeKind::StringNode
+            | NodeKind::InterpolatedStringNode
+            | NodeKind::XStringNode
+            | NodeKind::InterpolatedXStringNode
+            | NodeKind::IntegerNode
+            | NodeKind::FloatNode
+            | NodeKind::ImaginaryNode
+            | NodeKind::RationalNode
+            | NodeKind::SymbolNode
+            | NodeKind::InterpolatedSymbolNode
+            | NodeKind::ArrayNode
+            | NodeKind::HashNode
+            | NodeKind::KeywordHashNode
+            | NodeKind::RegularExpressionNode
+            | NodeKind::InterpolatedRegularExpressionNode
+            | NodeKind::TrueNode
+            | NodeKind::FalseNode
+            | NodeKind::NilNode
+            | NodeKind::RangeNode
+            | NodeKind::ConstantReadNode
+            | NodeKind::ConstantPathNode
+    )
 }
 
 // ---------------------------------------------------------------------------
@@ -832,15 +1151,17 @@ fn implicit_call<'pr>(node: &Node<'pr>) -> Option<ImplicitCall<'pr>> {
 pub(crate) fn abc_size(
     node: &Node<'_>,
     discount_repeated_attributes: bool,
+    it_parameter: bool,
 ) -> (f64, u32, u32, u32) {
     let mut calc = Abc {
         assignment: 0,
         branch: 0,
         condition: 0,
+        it_parameter,
         csend: RepeatedCsend::default(),
         attrs: discount_repeated_attributes.then(AttrTrie::new),
     };
-    calc.visit_depth_last(node, None);
+    calc.visit_depth_last(node, None, false);
     let (a, b, c) = (f64::from(calc.assignment), f64::from(calc.branch), f64::from(calc.condition));
     let magnitude = (a.mul_add(a, b.mul_add(b, c * c))).sqrt();
     ((magnitude * 100.0).round() / 100.0, calc.assignment, calc.branch, calc.condition)
@@ -850,17 +1171,22 @@ struct Abc<'pr> {
     assignment: u32,
     branch: u32,
     condition: u32,
+    /// Whether a bare `it` is the block's implicit parameter rather than a
+    /// method call (`TargetRubyVersion` 3.4 and later).
+    it_parameter: bool,
     csend: RepeatedCsend<'pr>,
     attrs: Option<AttrTrie<'pr>>,
 }
 
 impl<'pr> Abc<'pr> {
-    fn visit_depth_last(&mut self, node: &Node<'pr>, parent: Option<&Node<'pr>>) {
-        for_each_child(node, |child| self.visit_depth_last(child, Some(node)));
-        self.calculate_node(node, parent);
+    fn visit_depth_last(&mut self, node: &Node<'pr>, parent: Option<&Node<'pr>>, in_pattern: bool) {
+        for_each_child(node, |child| {
+            self.visit_depth_last(child, Some(node), child_in_pattern(node, child, in_pattern));
+        });
+        self.calculate_node(node, parent, in_pattern);
     }
 
-    fn calculate_node(&mut self, node: &Node<'pr>, parent: Option<&Node<'pr>>) {
+    fn calculate_node(&mut self, node: &Node<'pr>, parent: Option<&Node<'pr>>, in_pattern: bool) {
         // whitequark wraps an abbreviated assignment around a target node --
         // `(or-asgn (lvasgn :x) ...)`, `(or-asgn (send _ :foo) ...)` -- that
         // is visited and charged in its own right just before the wrapper.
@@ -888,7 +1214,7 @@ impl<'pr> Abc<'pr> {
             self.update_repeated_attribute(node);
         }
 
-        if self.is_assignment(node) {
+        if self.is_assignment(node, in_pattern) {
             self.assignment += 1;
         }
 
@@ -910,7 +1236,15 @@ impl<'pr> Abc<'pr> {
             );
         } else if matches!(node.kind(), NodeKind::YieldNode | NodeKind::IndexTargetNode) {
             self.branch += 1;
-        } else if Self::is_condition(node, parent) {
+        } else if node.kind() == NodeKind::LambdaNode {
+            // whitequark builds `-> { ... }` as `(block (send nil :lambda)
+            // (args) body)`, so the arrow itself is an argument-less call.
+            self.evaluate_branch(None, b"lambda", false, node.span().start, true);
+        } else if node.kind() == NodeKind::ItLocalVariableReadNode && !self.it_parameter {
+            // Below Ruby 3.4 whitequark reads a bare `it` as `(send nil :it)`,
+            // an argument-less call, so it is a branch like any other.
+            self.evaluate_branch(None, b"it", false, node.span().start, true);
+        } else if self.is_condition(node, parent) {
             self.evaluate_condition_node(node);
         }
     }
@@ -958,15 +1292,15 @@ impl<'pr> Abc<'pr> {
     }
 
     /// `condition?`.
-    fn is_condition(node: &Node<'pr>, parent: Option<&Node<'pr>>) -> bool {
-        if iterating_block(node, parent) == Some(false) {
+    fn is_condition(&self, node: &Node<'pr>, parent: Option<&Node<'pr>>) -> bool {
+        if iterating_block(node, parent) == Some(false) || is_pattern_guard(node, parent) {
             return false;
         }
-        is_counted_cyclomatic(node)
+        is_counted_cyclomatic(node, self.it_parameter)
     }
 
     /// `assignment?`.
-    fn is_assignment(&mut self, node: &Node<'pr>) -> bool {
+    fn is_assignment(&mut self, node: &Node<'pr>, in_pattern: bool) -> bool {
         let kind = node.kind();
         if matches!(kind, NodeKind::MultiWriteNode) || is_shorthand_asgn(kind) {
             self.compound_assignment(node);
@@ -974,7 +1308,7 @@ impl<'pr> Abc<'pr> {
         }
         matches!(kind, NodeKind::ForNode)
             || is_setter_method(node)
-            || self.is_simple_assignment(node)
+            || self.is_simple_assignment(node, in_pattern)
             || is_argument(node)
     }
 
@@ -985,7 +1319,7 @@ impl<'pr> Abc<'pr> {
         if let Some(multi) = node.as_multi_write_node() {
             let mut count = 0;
             each_multi_target(&multi.lefts(), multi.rest(), &multi.rights(), &mut |target| {
-                count += u32::from(is_call_shaped(target) && !is_setter_method(target));
+                count += u32::from(responds_to_setter_method(target) && !is_setter_method(target));
             });
             self.assignment += count;
             return;
@@ -994,13 +1328,17 @@ impl<'pr> Abc<'pr> {
         // its value; the target of a `Call*Write`/`Index*Write` is a `send`.
         let mut count = u32::from(implicit_call(node).is_some());
         if let Some(value) = shorthand_value(node) {
-            count += u32::from(is_call_shaped(&value) && !is_setter_method(&value));
+            count += u32::from(responds_to_setter_method(&value) && !is_setter_method(&value));
         }
         self.assignment += count;
     }
 
     /// `simple_assignment?`.
-    fn is_simple_assignment(&mut self, node: &Node<'pr>) -> bool {
+    fn is_simple_assignment(&mut self, node: &Node<'pr>, in_pattern: bool) -> bool {
+        if in_pattern {
+            // whitequark's `match_var`/`match_rest`, which are not `lvasgn`.
+            return false;
+        }
         if let Some(name) = lvasgn_name(node) {
             // `LocalVariableTargetNode`/`LocalVariableWriteNode` only; the
             // abbreviated forms were handled by `compound_assignment`.
@@ -1039,10 +1377,35 @@ fn is_setter_method(node: &Node<'_>) -> bool {
     node.as_call_node().is_some_and(|call| call.is_attribute_write())
 }
 
-/// Whether the node is one whitequark would represent as `send`/`csend`, for
-/// `respond_to?(:setter_method?)` checks.
-fn is_call_shaped(node: &Node<'_>) -> bool {
-    matches!(node.kind(), NodeKind::CallNode | NodeKind::CallTargetNode | NodeKind::IndexTargetNode)
+/// `respond_to?(:setter_method?)`: whether whitequark would give the node a
+/// class including `MethodDispatchNode` -- `send`/`csend`, `super`/`zsuper`,
+/// `yield` and `defined?`.
+///
+/// A call that carries a literal block is wrapped in a `block` node
+/// upstream, and `BlockNode` includes only `MethodIdentifierPredicates`, so
+/// it does *not* respond. `&blk` is an ordinary `block_pass` argument of the
+/// `send` itself and leaves the shape alone.
+fn responds_to_setter_method(node: &Node<'_>) -> bool {
+    match node.kind() {
+        NodeKind::CallNode => {
+            node.as_call_node().is_some_and(|call| !has_literal_block(call.block().as_ref()))
+        }
+        NodeKind::SuperNode => {
+            node.as_super_node().is_some_and(|sup| !has_literal_block(sup.block().as_ref()))
+        }
+        NodeKind::ForwardingSuperNode => {
+            node.as_forwarding_super_node().is_some_and(|sup| sup.block().is_none())
+        }
+        NodeKind::CallTargetNode
+        | NodeKind::IndexTargetNode
+        | NodeKind::YieldNode
+        | NodeKind::DefinedNode => true,
+        _ => false,
+    }
+}
+
+fn has_literal_block(block: Option<&Node<'_>>) -> bool {
+    block.is_some_and(|block| block.as_block_node().is_some())
 }
 
 /// `Node#argument_type?` combined with `capturing_variable?`.
@@ -1320,8 +1683,13 @@ fn setter_to_getter<'pr>(node: &Node<'pr>) -> Option<Setter<'pr>> {
         ))),
         _ => {
             if is_shorthand_asgn(node.kind()) {
-                let call = implicit_call(node)?;
-                return Some(Setter::Attribute(call.receiver, call.name));
+                // whitequark visits the wrapped target node (`(lvasgn :x)`,
+                // `(send _ :foo)`) in its own right, so both shapes clear
+                // what is known about the thing being written.
+                return match implicit_call(node) {
+                    Some(call) => Some(Setter::Attribute(call.receiver, call.name)),
+                    None => shorthand_variable_key(node).map(Setter::Variable),
+                };
             }
             let call = node.as_call_node()?;
             if !call.is_attribute_write() {
@@ -1332,6 +1700,289 @@ fn setter_to_getter<'pr>(node: &Node<'pr>) -> Option<Setter<'pr>> {
             Some(Setter::Attribute(call.receiver(), getter))
         }
     }
+}
+
+/// The `VAR_SETTER_TO_GETTER` key of an abbreviated assignment to a plain
+/// variable. Constants have no entry there, so they clear nothing.
+fn shorthand_variable_key<'pr>(node: &Node<'pr>) -> Option<AttrKey<'pr>> {
+    macro_rules! key {
+        ($variant:ident, $($accessor:ident),+ $(,)?) => {
+            $(if let Some(write) = node.$accessor() {
+                return Some(AttrKey::$variant(write.name().as_slice()));
+            })+
+        };
+    }
+    key!(
+        Local,
+        as_local_variable_or_write_node,
+        as_local_variable_and_write_node,
+        as_local_variable_operator_write_node,
+    );
+    key!(
+        Instance,
+        as_instance_variable_or_write_node,
+        as_instance_variable_and_write_node,
+        as_instance_variable_operator_write_node,
+    );
+    key!(
+        Class,
+        as_class_variable_or_write_node,
+        as_class_variable_and_write_node,
+        as_class_variable_operator_write_node,
+    );
+    key!(
+        Global,
+        as_global_variable_or_write_node,
+        as_global_variable_and_write_node,
+        as_global_variable_operator_write_node,
+    );
+    None
+}
+
+// ---------------------------------------------------------------------------
+// MethodComplexity mixin
+// ---------------------------------------------------------------------------
+
+/// The `AllowedMethods`/`AllowedPatterns` pair the three complexity cops
+/// share. `IgnoredMethods`/`ExcludedMethods`/`IgnoredPatterns` are the
+/// deprecated spellings; none of these cops declares one in `default.yml`,
+/// so only the current names are read.
+#[derive(Debug, Clone)]
+pub(crate) struct AllowedNames {
+    methods: Vec<String>,
+    patterns: Vec<Regex>,
+}
+
+impl AllowedNames {
+    pub(crate) fn new(options: &RuleOptions) -> Self {
+        Self {
+            methods: options.str_list("AllowedMethods"),
+            patterns: options
+                .str_list("AllowedPatterns")
+                .iter()
+                .filter_map(|pattern| Regex::new(pattern).ok())
+                .collect(),
+        }
+    }
+
+    /// `allowed_method?(name) || matches_allowed_pattern?(name)`.
+    pub(crate) fn allows(&self, name: &[u8]) -> bool {
+        if self.methods.is_empty() && self.patterns.is_empty() {
+            return false;
+        }
+        let Ok(name) = std::str::from_utf8(name) else { return false };
+        self.methods.iter().any(|allowed| allowed == name)
+            || self.patterns.iter().any(|pattern| pattern.is_match(name))
+    }
+}
+
+/// What `MethodComplexity#check_complexity` measures: the reported range
+/// (`node.source_range`), the body to score, and the name for the message.
+pub(crate) struct ComplexityTarget<'pr> {
+    pub(crate) span: Span,
+    pub(crate) body: Node<'pr>,
+    pub(crate) name: &'pr [u8],
+}
+
+/// `on_def`/`on_defs`/`on_block`/`on_numblock`/`on_itblock`, fused: a method
+/// definition, or a `define_method(:name) { ... }` block.
+///
+/// whitequark's `block` node wraps the call it belongs to, so its
+/// `source_range` is the call's -- which in Prism is the `CallNode`'s own
+/// span, the block included. `node.body` being nil (an empty method or
+/// block) is upstream's early return, reported here as `None`.
+pub(crate) fn complexity_target<'pr>(node: &Node<'pr>) -> Option<ComplexityTarget<'pr>> {
+    if let Some(def) = node.as_def_node() {
+        return Some(ComplexityTarget {
+            span: node.span(),
+            body: def.body()?,
+            name: def.name().as_slice(),
+        });
+    }
+    let call = node.as_call_node()?;
+    if call.receiver().is_some()
+        || call.is_safe_navigation()
+        || call.name().as_slice() != b"define_method"
+    {
+        return None;
+    }
+    let block = call.block()?.as_block_node()?;
+    let arguments = call.arguments()?.arguments();
+    let mut arguments = arguments.iter();
+    let argument = arguments.next()?;
+    if arguments.next().is_some() {
+        return None;
+    }
+    // The literal's source text rather than its unescaped value: `unescaped`
+    // borrows from the node wrapper, and no `define_method` name in practice
+    // carries an escape sequence.
+    let name = match argument.kind() {
+        NodeKind::SymbolNode => argument.as_symbol_node()?.value_loc()?.as_slice(),
+        NodeKind::StringNode => argument.as_string_node()?.content_loc().as_slice(),
+        _ => return None,
+    };
+    Some(ComplexityTarget { span: node.span(), body: block.body()?, name })
+}
+
+/// Ruby's `format('%.4g', value)`: four significant digits, fixed notation
+/// while the decimal exponent stays in `-4..4`, trailing fractional zeros
+/// dropped.
+///
+/// Ruby does not round the exact binary value the way C's `printf` does. Its
+/// vendored `vsnprintf` asks David Gay's `dtoa` for the *shortest* decimal
+/// that round-trips and rounds *that*, half to even: `Math.sqrt(21713)
+/// .round(2)` is `147.34999999999999`, strictly below `147.35`, yet `%.4g`
+/// prints `147.4`, and `104.45` prints `104.4`. Rust's `{:e}` produces the
+/// same shortest decimal, so the rounding is done on its digits.
+///
+/// One more `dtoa` quirk shows up on real input: when the fifth significant
+/// digit makes the shortest decimal an exact half, `dtoa` cannot settle the
+/// direction in its floating-point fast path and falls through to the exact
+/// big-integer one, which does not strip the trailing zeros it produced --
+/// but only when the `double` sits *above* that decimal. `260.05` therefore
+/// prints as `260.0` while `111.05`, whose `double` is just below, prints as
+/// `111`.
+pub(crate) fn format_g4(value: f64) -> String {
+    if !value.is_finite() {
+        return format!("{value}");
+    }
+    let shortest = format!("{value:e}");
+    let (mantissa, exponent) = shortest.split_once('e').unwrap_or((shortest.as_str(), "0"));
+    let mut exponent: i32 = exponent.parse().unwrap_or(0);
+    let (sign, mantissa) = match mantissa.strip_prefix('-') {
+        Some(rest) => ("-", rest),
+        None => ("", mantissa),
+    };
+    let mut digits: Vec<u8> = mantissa.bytes().filter(u8::is_ascii_digit).collect();
+    let shortest_digits = digits.clone();
+    let rounding = round_to_significant(&mut digits, 4);
+    if rounding == Rounding::CarriedUp {
+        exponent += 1;
+    }
+    let keep_zeros =
+        rounding == Rounding::TiedDown && exceeds_decimal(value.abs(), &shortest_digits, exponent);
+    if !keep_zeros {
+        while digits.len() > 1 && digits.last() == Some(&b'0') {
+            digits.pop();
+        }
+    }
+    if digits == *b"0" {
+        exponent = 0;
+    }
+    let body = if (-4..4).contains(&exponent) {
+        fixed_notation(&digits, exponent)
+    } else {
+        let head = char::from(digits[0]);
+        let tail = String::from_utf8_lossy(&digits[1..]).into_owned();
+        let point = if tail.is_empty() { "" } else { "." };
+        let exponent_sign = if exponent < 0 { '-' } else { '+' };
+        format!("{head}{point}{tail}e{exponent_sign}{:02}", exponent.abs())
+    };
+    format!("{sign}{body}")
+}
+
+/// How `round_to_significant` resolved the digits it dropped.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum Rounding {
+    /// Nothing was dropped, or the dropped part was not an exact half and the
+    /// result fit in the same number of digits.
+    Plain,
+    /// The dropped part was exactly half and the last kept digit was even, so
+    /// the value was rounded down.
+    TiedDown,
+    /// Rounding up produced a new leading digit (`9999` -> `1000`, exponent
+    /// one higher).
+    CarriedUp,
+}
+
+/// Rounds `digits` (a bare digit string, one significant digit before an
+/// implied point) to `keep` significant digits, half to even.
+fn round_to_significant(digits: &mut Vec<u8>, keep: usize) -> Rounding {
+    if digits.len() <= keep {
+        return Rounding::Plain;
+    }
+    let first_dropped = digits[keep];
+    let rest_nonzero = digits[keep + 1..].iter().any(|digit| *digit != b'0');
+    digits.truncate(keep);
+    let tied = first_dropped == b'5' && !rest_nonzero;
+    let round_up = match first_dropped {
+        b'0'..=b'4' => false,
+        b'5' if !rest_nonzero => digits[keep - 1] % 2 == 1,
+        _ => true,
+    };
+    if !round_up {
+        return if tied { Rounding::TiedDown } else { Rounding::Plain };
+    }
+    for digit in digits.iter_mut().rev() {
+        if *digit == b'9' {
+            *digit = b'0';
+        } else {
+            *digit += 1;
+            return Rounding::Plain;
+        }
+    }
+    digits.insert(0, b'1');
+    digits.truncate(keep);
+    Rounding::CarriedUp
+}
+
+/// Whether `value` is strictly greater than the decimal `0.<digits> *
+/// 10^(exponent + 1)`, compared exactly. Overflow of the exact comparison --
+/// only reachable for magnitudes far outside a complexity metric -- answers
+/// `false`, the branch that strips trailing zeros.
+fn exceeds_decimal(value: f64, digits: &[u8], exponent: i32) -> bool {
+    let bits = value.to_bits();
+    let Ok(biased) = i32::try_from((bits >> 52) & 0x7ff) else { return false };
+    let fraction = bits & ((1_u64 << 52) - 1);
+    let (mantissa, binary_exponent) =
+        if biased == 0 { (fraction, -1074) } else { (fraction | (1_u64 << 52), biased - 1075) };
+    let mut decimal: u128 = 0;
+    for digit in digits {
+        let Some(next) = decimal.checked_mul(10) else { return false };
+        decimal = next + u128::from(digit - b'0');
+    }
+    let Ok(length) = i32::try_from(digits.len()) else { return false };
+    let decimal_exponent = exponent - (length - 1);
+    let (mut left, mut right) = (u128::from(mantissa), decimal);
+    let scaled = if binary_exponent < 0 {
+        power(&mut right, 2, -binary_exponent)
+    } else {
+        power(&mut left, 2, binary_exponent)
+    };
+    let scaled = scaled
+        && if decimal_exponent < 0 {
+            power(&mut left, 10, -decimal_exponent)
+        } else {
+            power(&mut right, 10, decimal_exponent)
+        };
+    scaled && left > right
+}
+
+/// `target *= base.pow(exponent)`, reporting whether it fit.
+fn power(target: &mut u128, base: u128, exponent: i32) -> bool {
+    for _ in 0..exponent {
+        match target.checked_mul(base) {
+            Some(next) => *target = next,
+            None => return false,
+        }
+    }
+    true
+}
+
+/// `d[0].d[1..] * 10^exponent` written without an exponent, with no trailing
+/// fractional zeros.
+fn fixed_notation(digits: &[u8], exponent: i32) -> String {
+    let text = String::from_utf8_lossy(digits);
+    if exponent < 0 {
+        let zeros = usize::try_from(-exponent - 1).unwrap_or(0);
+        return format!("0.{}{text}", "0".repeat(zeros));
+    }
+    let integer_len = usize::try_from(exponent).unwrap_or(0) + 1;
+    if digits.len() <= integer_len {
+        let zeros = integer_len - digits.len();
+        return format!("{text}{}", "0".repeat(zeros));
+    }
+    format!("{}.{}", &text[..integer_len], &text[integer_len..])
 }
 
 #[cfg(test)]
@@ -1580,7 +2231,7 @@ mod tests {
             ),
         ];
         for &(code, expected) in cases {
-            assert_eq!(on_def_body(code, cyclomatic), expected, "{code:?}");
+            assert_eq!(on_def_body(code, |body| cyclomatic(body, true)), expected, "{code:?}");
         }
     }
 
@@ -1600,7 +2251,10 @@ mod tests {
             ),
             ("def foo\n  case\n  when a then b\n  when c then d\n  else e\n  end\nend\n", 4),
             ("def foo\n  case var\n  when 1 then a\n  else b\n  end\nend\n", 2),
-            ("def foo\n  case x\n  in [1, 2] then a\n  in Integer then b\n  end\nend\n", 3),
+            // 1.88 gave `case`/`in` branches the `when` discount: a
+            // structural pattern still costs 1, a constant only 0.2, so
+            // `(1 + 0.2).round` is one point, not two.
+            ("def foo\n  case x\n  in [1, 2] then a\n  in Integer then b\n  end\nend\n", 2),
             ("def foo\n  a.each { |x| p x }\n  b.tap { |x| p x }\nend\n", 2),
             (
                 "def my_method\n  if cond\n    case var\n    when 1 then func_one\n    when 2 then func_two\n    when 3 then func_three\n    when 4..10 then func_other\n    end\n  else\n    do_something until a && b\n  end\nend\n",
@@ -1608,7 +2262,47 @@ mod tests {
             ),
         ];
         for &(code, expected) in cases {
-            assert_eq!(on_def_body(code, perceived), expected, "{code:?}");
+            assert_eq!(on_def_body(code, |body| perceived(body, true)), expected, "{code:?}");
+        }
+    }
+
+    #[test]
+    fn format_g4_matches_ruby() {
+        // `format('%.4g', value)` under Ruby 3.4.
+        let cases: &[(f64, &str)] = &[
+            (147.35, "147.4"),
+            (188.35, "188.4"),
+            (104.45, "104.4"),
+            (102.65, "102.6"),
+            (106.55, "106.6"),
+            (101.45, "101.4"),
+            (4.24, "4.24"),
+            (1.0, "1"),
+            (0.0, "0"),
+            (17.0, "17"),
+            (1.3, "1.3"),
+            (10.3, "10.3"),
+            (42.43, "42.43"),
+            (424.3, "424.3"),
+            (4243.0, "4243"),
+            (42430.0, "4.243e+04"),
+            (0.000_123_4, "0.0001234"),
+            (108.0, "108"),
+            (107.8, "107.8"),
+            // `dtoa`'s exact-half fall-through: zeros survive only when the
+            // `double` sits above the shortest decimal.
+            (260.05, "260.0"),
+            (111.05, "111"),
+            (2.0005, "2.000"),
+            (1.0005, "1"),
+            (12.005, "12.00"),
+            (0.10005, "0.1000"),
+            (260.15, "260.2"),
+            (1.2005, "1.2"),
+            (105.05, "105"),
+        ];
+        for &(value, expected) in cases {
+            assert_eq!(format_g4(value), expected, "{value}");
         }
     }
 
@@ -1643,7 +2337,7 @@ mod tests {
             ),
         ];
         for &(code, assignment, branch, condition, magnitude) in cases {
-            let got = on_def_body(code, |body| abc_size(body, false));
+            let got = on_def_body(code, |body| abc_size(body, false, true));
             assert_eq!(
                 (got.1, got.2, got.3),
                 (assignment, branch, condition),
@@ -1679,7 +2373,7 @@ mod tests {
             ("def foo\n  a.b(1)\n  a.b(1)\nend\n", 0, 3, 0),
         ];
         for &(code, assignment, branch, condition) in cases {
-            let got = on_def_body(code, |body| abc_size(body, true));
+            let got = on_def_body(code, |body| abc_size(body, true, true));
             assert_eq!(
                 (got.1, got.2, got.3),
                 (assignment, branch, condition),

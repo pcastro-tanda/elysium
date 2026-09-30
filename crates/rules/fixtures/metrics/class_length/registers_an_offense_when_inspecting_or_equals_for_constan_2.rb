@@ -1,0 +1,9 @@
+Foo ||= Struct.new(:foo, :bar) do
+        ^^^^^^^^^^^^^^^^^^^^^^^^^ Class has too many lines. [6/5]
+  a(_1)
+  b(_1)
+  c(_1)
+  d(_1)
+  e(_1)
+  f(_1)
+end

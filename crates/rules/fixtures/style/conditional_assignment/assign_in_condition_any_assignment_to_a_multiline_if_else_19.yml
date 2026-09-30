@@ -1,0 +1,8 @@
+Style/ConditionalAssignment:
+  EnforcedStyle: assign_inside_condition
+Layout/LineLength:
+  Max: 80
+  AllowHeredoc: false
+  AllowURI: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false

@@ -361,9 +361,20 @@ impl Directives {
     /// `CommentConfig#cop_enabled_at_line?` (negated).
     #[must_use]
     pub fn is_disabled(&self, cop_name: &str, line: u32) -> bool {
-        self.disabled_ranges(|d| d.cops.iter().any(|c| c.covers(cop_name)))
-            .into_iter()
-            .any(|(s, e)| line >= s && line <= e)
+        self.is_disabled_in(cop_name, line, line)
+    }
+
+    /// True when `cop_name` is disabled on any line of `first_line..=last_line`,
+    /// matching RuboCop's `CommentConfig#cop_enabled_at_lines?` (negated): a
+    /// directive on any line of a multi-line offense suppresses it
+    /// (`Cop::Base#enabled_lines?`).
+    #[must_use]
+    pub fn is_disabled_in(&self, cop_name: &str, first_line: u32, last_line: u32) -> bool {
+        overlaps(
+            &self.disabled_ranges(|d| d.cops.iter().any(|c| c.covers(cop_name))),
+            first_line,
+            last_line,
+        )
     }
 
     /// Like [`Self::is_disabled`], but ignores `# rubocop:disable all` coverage: only an
@@ -372,21 +383,25 @@ impl Directives {
     /// (`DirectiveComment#exclude_lint_department_cops`), so `all` never actually silences it,
     /// even though this crate's registry-less [`CopRef::All`] otherwise `covers` every name.
     #[must_use]
-    pub fn is_disabled_by_name(&self, cop_name: &str, line: u32) -> bool {
-        self.disabled_ranges(|d| {
-            d.cops.iter().any(|c| !matches!(c, CopRef::All) && c.covers(cop_name))
-        })
-        .into_iter()
-        .any(|(s, e)| line >= s && line <= e)
+    pub fn is_disabled_by_name(&self, cop_name: &str, first_line: u32, last_line: u32) -> bool {
+        overlaps(
+            &self.disabled_ranges(|d| {
+                d.cops.iter().any(|c| !matches!(c, CopRef::All) && c.covers(cop_name))
+            }),
+            first_line,
+            last_line,
+        )
     }
 
     /// True when a `# rubocop:disable all` (or `todo all`) directive covers
-    /// `line`.
+    /// any line of `first_line..=last_line`.
     #[must_use]
-    pub fn all_disabled_at(&self, line: u32) -> bool {
-        self.disabled_ranges(|d| d.cops.iter().any(|c| matches!(c, CopRef::All)))
-            .into_iter()
-            .any(|(s, e)| line >= s && line <= e)
+    pub fn all_disabled_in(&self, first_line: u32, last_line: u32) -> bool {
+        overlaps(
+            &self.disabled_ranges(|d| d.cops.iter().any(|c| matches!(c, CopRef::All))),
+            first_line,
+            last_line,
+        )
     }
 
     /// True when `cop_name` has been "opted in" for this file by an explicit
@@ -416,7 +431,8 @@ impl Directives {
     }
 
     /// True when `cop_name` -- a cop [`Self::is_opted_in`] has reactivated after it was
-    /// disabled by configuration -- is *still* disabled at `line`.
+    /// disabled by configuration -- is *still* disabled on any line of
+    /// `first_line..=last_line`.
     ///
     /// Mirrors `CommentConfig#inject_disabled_cops_directives` (`comment_config.rb:168-175`):
     /// before folding in the file's real directives, `#analyze` seeds every config-disabled
@@ -428,10 +444,17 @@ impl Directives {
     /// -- the entire file, absent such a directive -- is not. Line `0` (never a real 1-based
     /// source line) stands in for `-Infinity`: it sorts before every real line the same way.
     #[must_use]
-    pub fn is_disabled_for_opted_in_cop(&self, cop_name: &str, line: u32) -> bool {
-        self.disabled_ranges_from(|d| d.cops.iter().any(|c| c.covers(cop_name)), Some(0))
-            .into_iter()
-            .any(|(s, e)| line >= s && line <= e)
+    pub fn is_disabled_for_opted_in_cop(
+        &self,
+        cop_name: &str,
+        first_line: u32,
+        last_line: u32,
+    ) -> bool {
+        overlaps(
+            &self.disabled_ranges_from(|d| d.cops.iter().any(|c| c.covers(cop_name)), Some(0)),
+            first_line,
+            last_line,
+        )
     }
 
     /// Port of `CommentConfig#extra_enabled_comments` (`comment_config.rb:55-62`,
@@ -548,6 +571,12 @@ fn record_extra(extras: &mut Vec<(Span, Vec<String>)>, span: Span, name: &str) {
     if !names.iter().any(|existing| existing == name) {
         names.push(name.to_string());
     }
+}
+
+/// `CommentConfig#cop_enabled_at_lines?`'s overlap test between disabled
+/// line ranges and an offense's `first_line..=last_line`.
+fn overlaps(ranges: &[(u32, u32)], first_line: u32, last_line: u32) -> bool {
+    ranges.iter().any(|&(s, e)| e >= first_line && s <= last_line)
 }
 
 #[cfg(test)]
@@ -674,8 +703,8 @@ mod tests {
             assert!(d.is_disabled(cop, 2));
         }
         assert!(!d.is_disabled("Style/For", 4));
-        assert!(d.all_disabled_at(2));
-        assert!(!d.all_disabled_at(4));
+        assert!(d.all_disabled_in(2, 2));
+        assert!(!d.all_disabled_in(4, 4));
     }
 
     #[test]
@@ -684,7 +713,7 @@ mod tests {
         let d = directives_for("foo # rubocop:disable Style/MethodCallWithoutArgsParentheses\n");
         assert!(d.is_disabled("Style/MethodCallWithoutArgsParentheses", 1));
         assert!(!d.is_disabled("Alias", 1));
-        assert!(!d.all_disabled_at(1));
+        assert!(!d.all_disabled_in(1, 1));
     }
 
     #[test]
@@ -930,13 +959,13 @@ mod tests {
         assert!(d.is_opted_in("Layout/LineLength"));
         for line in 1..=3 {
             assert!(
-                d.is_disabled_for_opted_in_cop("Layout/LineLength", line),
+                d.is_disabled_for_opted_in_cop("Layout/LineLength", line, line),
                 "line {line} should still be disabled"
             );
         }
         for line in 4..=5 {
             assert!(
-                !d.is_disabled_for_opted_in_cop("Layout/LineLength", line),
+                !d.is_disabled_for_opted_in_cop("Layout/LineLength", line, line),
                 "line {line} should be reactivated"
             );
         }
@@ -949,8 +978,8 @@ mod tests {
         // independently mirrors the config-disabled synthetic range never
         // being closed: every line stays covered.
         let d = directives_for("x = 1\ny = 2\n");
-        assert!(d.is_disabled_for_opted_in_cop("Layout/LineLength", 1));
-        assert!(d.is_disabled_for_opted_in_cop("Layout/LineLength", 2));
+        assert!(d.is_disabled_for_opted_in_cop("Layout/LineLength", 1, 1));
+        assert!(d.is_disabled_for_opted_in_cop("Layout/LineLength", 2, 2));
     }
 
     #[test]
@@ -965,10 +994,10 @@ mod tests {
             "line1 = 1\n# rubocop:enable Layout/LineLength\nline3 = 3\n# rubocop:disable Layout\nline5 = 5\n# rubocop:enable Layout\nline7 = 7\n",
         );
         assert!(d.is_opted_in("Layout/LineLength"));
-        assert!(d.is_disabled_for_opted_in_cop("Layout/LineLength", 1));
-        assert!(!d.is_disabled_for_opted_in_cop("Layout/LineLength", 3));
-        assert!(d.is_disabled_for_opted_in_cop("Layout/LineLength", 5));
-        assert!(!d.is_disabled_for_opted_in_cop("Layout/LineLength", 7));
+        assert!(d.is_disabled_for_opted_in_cop("Layout/LineLength", 1, 1));
+        assert!(!d.is_disabled_for_opted_in_cop("Layout/LineLength", 3, 3));
+        assert!(d.is_disabled_for_opted_in_cop("Layout/LineLength", 5, 5));
+        assert!(!d.is_disabled_for_opted_in_cop("Layout/LineLength", 7, 7));
     }
 
     // Ports of spec/rubocop/cop/lint/redundant_cop_enable_directive_spec.rb

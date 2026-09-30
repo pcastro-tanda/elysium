@@ -1,0 +1,5 @@
+foo[1] = if foo
+  1
+else
+  2
+end

@@ -1,0 +1,9 @@
+Metrics/AbcSize
+Metrics/BlockLength
+Metrics/ClassLength
+Metrics/CyclomaticComplexity
+Metrics/MethodLength
+Metrics/ModuleLength
+Metrics/ParameterLists
+Metrics/PerceivedComplexity
+Style/ConditionalAssignment

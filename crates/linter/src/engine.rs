@@ -174,8 +174,9 @@ pub fn lint_parsed_with_injected<D: Dispatch>(
 /// survivors by position, and dedups repeats.
 ///
 /// A diagnostic is dropped when its rule is disabled in `settings`, or when
-/// `directives` disables it (by name or via `# rubocop:disable all`) at its
-/// line -- unless it is [`SYNTAX_RULE`], which is never dropped or
+/// `directives` disables it (by name or via `# rubocop:disable all`) on any
+/// line of its span (`Cop::Base#enabled_lines?`) -- unless it is
+/// [`SYNTAX_RULE`], which is never dropped or
 /// re-severitied.
 ///
 /// A rule `settings` disables is still reported -- from strictly after the
@@ -203,18 +204,21 @@ fn finish(
         if d.rule == SYNTAX_RULE {
             return true;
         }
-        let line = source.line_col(d.span.start).line;
+        // `Cop::Base#enabled_lines?`: a directive on any line of the offense's
+        // range suppresses it, not only one on its first line.
+        let first = source.line_col(d.span.start).line;
+        let last = source.line_col(d.span.end).line;
         if !settings.is_enabled(d.rule) {
             return directives.is_opted_in(d.rule)
-                && !directives.is_disabled_for_opted_in_cop(d.rule, line);
+                && !directives.is_disabled_for_opted_in_cop(d.rule, first, last);
         }
         // `Lint/RedundantCopDisableDirective` is excluded from `all`/`Lint` department
         // expansion (`DirectiveComment#exclude_lint_department_cops`), so `# rubocop:disable
         // all` never silences it -- but naming it explicitly still does, like any other cop.
         if d.rule == REDUNDANT_DISABLE_DIRECTIVE_RULE {
-            return !directives.is_disabled_by_name(d.rule, line);
+            return !directives.is_disabled_by_name(d.rule, first, last);
         }
-        !directives.is_disabled(d.rule, line) && !directives.all_disabled_at(line)
+        !directives.is_disabled_in(d.rule, first, last) && !directives.all_disabled_in(first, last)
     });
     diagnostics.sort_by_key(|d| (d.span.start, d.span.end, d.rule));
     diagnostics.dedup_by(|b, a| a.rule == b.rule && a.span == b.span);

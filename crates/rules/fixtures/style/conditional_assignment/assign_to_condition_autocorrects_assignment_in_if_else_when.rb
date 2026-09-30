@@ -1,0 +1,15 @@
+if foo
+^^^^^^ Use the return of the conditional for variable assignment and comparison.
+  foo = {
+    a: 1,
+    b: 2,
+    c: 2,
+    d: 2,
+    e: 2,
+    f: 2,
+    g: 2,
+    h: 2
+  }
+else
+  foo = { }
+end

@@ -58,6 +58,15 @@ macro_rules! rule_set {
 }
 
 rule_set! {
+    style::conditional_assignment::ConditionalAssignment,
+    metrics::perceived_complexity::PerceivedComplexity,
+    metrics::parameter_lists::ParameterLists,
+    metrics::module_length::ModuleLength,
+    metrics::method_length::MethodLength,
+    metrics::cyclomatic_complexity::CyclomaticComplexity,
+    metrics::class_length::ClassLength,
+    metrics::block_length::BlockLength,
+    metrics::abc_size::AbcSize,
     layout::space_inside_range_literal::SpaceInsideRangeLiteral,
     layout::space_inside_percent_literal_delimiters::SpaceInsidePercentLiteralDelimiters,
     layout::space_inside_array_percent_literal::SpaceInsideArrayPercentLiteral,
