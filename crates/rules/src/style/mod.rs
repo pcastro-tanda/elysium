@@ -25,6 +25,7 @@ pub mod combinable_loops;
 pub mod command_literal;
 pub mod comment_annotation;
 pub mod commented_keyword;
+pub mod conditional_assignment;
 pub mod def_with_parentheses;
 pub mod dir;
 pub mod disable_cops_within_source_code_directive;

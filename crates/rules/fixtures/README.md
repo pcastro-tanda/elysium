@@ -124,6 +124,11 @@ later tag's checkout instead:
   `layout/space_inside_array_percent_literal`,
   `layout/space_inside_percent_literal_delimiters`,
   `layout/space_inside_range_literal`.
+- Phase 5 wave 10 (all ported from 1.91.0 source directly):
+  `metrics/abc_size`, `metrics/block_length`, `metrics/class_length`,
+  `metrics/cyclomatic_complexity`, `metrics/method_length`,
+  `metrics/module_length`, `metrics/parameter_lists`,
+  `metrics/perceived_complexity`, `style/conditional_assignment`.
 
 A case that does not state `AllCops/TargetRubyVersion` in its `.yml` runs at
 3.3: the specs were ported with `PARSER_ENGINE=parser_prism`, where RuboCop's
@@ -209,6 +214,11 @@ after regeneration:
   no_empty_lines` and the modifier last in a block, upstream's
   `should_insert_line_after?` declines the fix, so a correctable offense
   survives; the spec checks one pass, the harness requires convergence.
+- `metrics/block_length/ignoredmethods_is_enabled_regex_does_not_report_an_offense`:
+  the spec passes a live Ruby `Regexp` in `IgnoredMethods`, which takes
+  `AllowedMethods`' `Regexp` branch. A YAML config can only carry its
+  `inspect` string, which real `rubocop` 1.91.0 treats as a plain method
+  name, so the case can't be expressed as a config file.
 - `style/word_array/registers_an_offense_for_arrays_of_unicode_word_characters_2`:
   the spec sets `Encoding.default_external` to US-ASCII; elysium assumes UTF-8.
 - `lint/debugger/does_not_register_an_offense_for_a_pry_debugger_call` and

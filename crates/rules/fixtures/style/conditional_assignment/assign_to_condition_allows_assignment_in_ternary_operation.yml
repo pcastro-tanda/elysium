@@ -1,0 +1,8 @@
+Style/ConditionalAssignment:
+  IncludeTernaryExpressions: false
+Layout/LineLength:
+  Max: 80
+  AllowHeredoc: false
+  AllowURI: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false

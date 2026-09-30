@@ -196,7 +196,15 @@ Lint/UselessMethodDefinition
 Lint/UselessSetterCall
 Lint/UselessTimes
 Lint/Void
+Metrics/AbcSize
+Metrics/BlockLength
 Metrics/BlockNesting
+Metrics/ClassLength
+Metrics/CyclomaticComplexity
+Metrics/MethodLength
+Metrics/ModuleLength
+Metrics/ParameterLists
+Metrics/PerceivedComplexity
 Migration/DepartmentName
 Naming/AccessorMethodName
 Naming/AsciiIdentifiers
@@ -244,6 +252,7 @@ Style/CombinableLoops
 Style/CommandLiteral
 Style/CommentAnnotation
 Style/CommentedKeyword
+Style/ConditionalAssignment
 Style/DefWithParentheses
 Style/Dir
 Style/DisableCopsWithinSourceCodeDirective
