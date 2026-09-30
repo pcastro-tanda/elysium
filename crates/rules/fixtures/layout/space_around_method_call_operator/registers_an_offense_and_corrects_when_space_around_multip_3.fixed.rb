@@ -1,0 +1,1 @@
+::RuboCop::Cop::Cop::Cop

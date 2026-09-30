@@ -1,0 +1,2 @@
+var << begin
+end

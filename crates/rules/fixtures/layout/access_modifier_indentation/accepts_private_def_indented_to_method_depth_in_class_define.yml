@@ -1,0 +1,3 @@
+Layout/AccessModifierIndentation:
+  EnforcedStyle: outdent
+  SupportedStyles: [indent, outdent]

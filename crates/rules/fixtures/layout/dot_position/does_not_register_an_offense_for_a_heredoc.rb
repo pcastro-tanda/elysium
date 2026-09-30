@@ -1,0 +1,3 @@
+<<~HEREDOC.squish
+  something
+HEREDOC

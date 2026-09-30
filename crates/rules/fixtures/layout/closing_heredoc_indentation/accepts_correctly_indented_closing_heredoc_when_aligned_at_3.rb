@@ -1,0 +1,2 @@
+let(:source) { <<~EOS }
+EOS

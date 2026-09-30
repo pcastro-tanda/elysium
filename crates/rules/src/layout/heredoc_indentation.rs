@@ -101,7 +101,7 @@ impl HeredocIndentation {
     /// `InterpolatedXStringNode`; `None` for anything else (or a heredoc
     /// missing a location, which cannot happen but Prism's API is
     /// `Option`-typed).
-    fn heredoc_locs(node: &Node<'_>) -> Option<(Span, Span)> {
+    pub(crate) fn heredoc_locs(node: &Node<'_>) -> Option<(Span, Span)> {
         if !ext::is_heredoc(node) {
             return None;
         }

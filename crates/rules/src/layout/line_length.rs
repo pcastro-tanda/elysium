@@ -672,7 +672,7 @@ fn compute_semicolons(ctx: &Context<'_>, opaque: &[Span]) -> HashMap<u32, Breaka
 }
 
 /// Every entry in a `def`'s parameter list, in declaration order.
-fn def_parameter_list(params: Option<ParametersNode<'_>>) -> Vec<Node<'_>> {
+pub(crate) fn def_parameter_list(params: Option<ParametersNode<'_>>) -> Vec<Node<'_>> {
     let mut out = Vec::new();
     let Some(params) = params else { return out };
     out.extend(params.requireds().iter());

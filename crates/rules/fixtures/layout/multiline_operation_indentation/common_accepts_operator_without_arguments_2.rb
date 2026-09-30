@@ -1,0 +1,4 @@
+begin
+rescue =>
+  A[]
+end

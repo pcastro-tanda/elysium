@@ -580,7 +580,7 @@ fn styles_for(rule: &HashAlignment, hash_rocket: bool) -> &[AlignKind] {
 
 /// RuboCop-AST's `HashNode#pairs`/`#elements`: every `AssocNode`/`AssocSplatNode`
 /// child, for either hash flavor Prism produces (see the module doc comment).
-fn hash_elements<'pr>(node: &Node<'pr>) -> Vec<Node<'pr>> {
+pub(crate) fn hash_elements<'pr>(node: &Node<'pr>) -> Vec<Node<'pr>> {
     match node.kind() {
         NodeKind::HashNode => {
             node.as_hash_node().expect("kind matched").elements().iter().collect()
@@ -594,7 +594,7 @@ fn hash_elements<'pr>(node: &Node<'pr>) -> Vec<Node<'pr>> {
 
 /// RuboCop-AST's `hash_type?` (covers both `HashNode` and `KeywordHashNode`)
 /// plus `braces?`; `None` when `node` is not a hash at all.
-fn as_hash_like(node: &Node<'_>) -> Option<bool> {
+pub(crate) fn as_hash_like(node: &Node<'_>) -> Option<bool> {
     if node.as_hash_node().is_some() {
         Some(true)
     } else if node.as_keyword_hash_node().is_some() {

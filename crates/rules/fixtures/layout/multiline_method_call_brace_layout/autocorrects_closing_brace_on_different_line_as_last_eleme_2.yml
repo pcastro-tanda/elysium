@@ -1,0 +1,2 @@
+Layout/MultilineMethodCallBraceLayout:
+  EnforcedStyle: same_line

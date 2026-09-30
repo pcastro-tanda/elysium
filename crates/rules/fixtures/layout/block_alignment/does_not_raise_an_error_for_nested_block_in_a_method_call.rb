@@ -1,0 +1,1 @@
+expect(arr.all? { |o| o.valid? })

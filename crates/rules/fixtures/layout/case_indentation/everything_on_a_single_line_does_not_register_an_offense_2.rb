@@ -1,0 +1,1 @@
+case foo; in pattern then 1; else 0; end

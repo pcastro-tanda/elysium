@@ -1,0 +1,5 @@
+Layout/SpaceAroundBlockParameters:
+  EnforcedStyleInsidePipes: space
+Layout/SpaceInsideParens:
+  Enabled: false
+  EnforcedStyle: no_space

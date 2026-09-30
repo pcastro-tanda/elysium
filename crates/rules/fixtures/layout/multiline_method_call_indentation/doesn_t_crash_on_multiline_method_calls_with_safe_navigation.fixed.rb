@@ -1,0 +1,2 @@
+MyClass.
+  foo&.bar = 'baz'

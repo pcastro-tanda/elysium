@@ -1,0 +1,3 @@
+receiver&.foo(
+  bar
+)

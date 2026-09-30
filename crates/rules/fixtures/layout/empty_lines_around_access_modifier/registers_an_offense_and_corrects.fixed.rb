@@ -1,0 +1,5 @@
+foo
+
+private
+
+bar
