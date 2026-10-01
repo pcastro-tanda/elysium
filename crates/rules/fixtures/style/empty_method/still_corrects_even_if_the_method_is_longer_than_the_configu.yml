@@ -1,5 +1,9 @@
 Style/EmptyMethod:
   EnforcedStyle: expanded
 Layout/LineLength:
-  Enabled: true
   Max: 20
+  AllowHeredoc: false
+  AllowURI: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false
+  Enabled: true

@@ -1,2 +1,4 @@
 Layout/AccessModifierIndentation:
   EnforcedStyle: outdent
+Layout/IndentationStyle:
+  EnforcedStyle: ~

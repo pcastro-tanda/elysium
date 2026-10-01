@@ -1,0 +1,438 @@
+Bundler/GemComment:
+  Enabled: true
+Bundler/GemVersion:
+  Enabled: true
+Gemspec/AddRuntimeDependency:
+  Enabled: true
+Gemspec/AttributeAssignment:
+  Enabled: true
+Gemspec/DependencyVersion:
+  Enabled: true
+Gemspec/DeprecatedAttributeAssignment:
+  Enabled: true
+Gemspec/DevelopmentDependencies:
+  Enabled: true
+Gemspec/RequireMFA:
+  Enabled: true
+Layout/ClassStructure:
+  Enabled: true
+Layout/EmptyLineAfterMultilineCondition:
+  Enabled: true
+Layout/EmptyLinesAfterModuleInclusion:
+  Enabled: true
+Layout/FirstArrayElementLineBreak:
+  Enabled: true
+Layout/FirstHashElementLineBreak:
+  Enabled: true
+Layout/FirstMethodArgumentLineBreak:
+  Enabled: true
+Layout/FirstMethodParameterLineBreak:
+  Enabled: true
+Layout/HeredocArgumentClosingParenthesis:
+  Enabled: true
+Layout/LineContinuationLeadingSpace:
+  Enabled: true
+Layout/LineContinuationSpacing:
+  Enabled: true
+Layout/LineEndStringConcatenationIndentation:
+  Enabled: true
+Layout/MultilineArrayLineBreaks:
+  Enabled: true
+Layout/MultilineAssignmentLayout:
+  Enabled: true
+Layout/MultilineHashKeyLineBreaks:
+  Enabled: true
+Layout/MultilineMethodArgumentLineBreaks:
+  Enabled: true
+Layout/MultilineMethodParameterLineBreaks:
+  Enabled: true
+Layout/RedundantLineBreak:
+  Enabled: true
+Layout/SingleLineBlockChain:
+  Enabled: true
+Layout/SpaceBeforeBrackets:
+  Enabled: true
+Lint/AmbiguousAssignment:
+  Enabled: true
+Lint/AmbiguousOperatorPrecedence:
+  Enabled: true
+Lint/AmbiguousRange:
+  Enabled: true
+Lint/ArgumentMismatch:
+  Enabled: true
+Lint/ArrayLiteralInRegexp:
+  Enabled: true
+Lint/ConstantOverwrittenInRescue:
+  Enabled: true
+Lint/ConstantReassignment:
+  Enabled: true
+Lint/ConstantResolution:
+  Enabled: true
+Lint/DataDefineOverride:
+  Enabled: true
+Lint/DeprecatedConstants:
+  Enabled: true
+Lint/DeprecatedReference:
+  Enabled: true
+Lint/DuplicateBranch:
+  Enabled: true
+Lint/DuplicateMagicComment:
+  Enabled: true
+Lint/DuplicateMatchPattern:
+  Enabled: true
+Lint/DuplicateRegexpCharacterClassElement:
+  Enabled: true
+Lint/DuplicateSetElement:
+  Enabled: true
+Lint/EmptyBlock:
+  Enabled: true
+Lint/EmptyClass:
+  Enabled: true
+Lint/EmptyInPattern:
+  Enabled: true
+Lint/SharedMutableDefault:
+  Enabled: true
+Lint/HashNewWithKeywordArgumentsAsDefault:
+  Enabled: true
+Lint/HeredocMethodCallPosition:
+  Enabled: true
+Lint/IncompatibleIoSelectWithFiberScheduler:
+  Enabled: true
+Lint/ItWithoutArgumentsInBlock:
+  Enabled: true
+Lint/LambdaWithoutLiteralBlock:
+  Enabled: true
+Lint/LiteralAssignmentInCondition:
+  Enabled: true
+Lint/MisplacedMagicComment:
+  Enabled: true
+Lint/MixedCaseRange:
+  Enabled: true
+Lint/NameTypo:
+  Enabled: true
+Lint/NoReturnInBeginEndBlocks:
+  Enabled: true
+Lint/NonAtomicFileOperation:
+  Enabled: true
+Lint/NumberConversion:
+  Enabled: true
+Lint/NumberedParameterAssignment:
+  Enabled: true
+Lint/NumericOperationWithConstantResult:
+  Enabled: true
+Lint/OrAssignmentToConstant:
+  Enabled: true
+Lint/RedundantDirGlobSort:
+  Enabled: true
+Lint/RedundantRegexpQuantifiers:
+  Enabled: true
+Lint/RedundantTypeConversion:
+  Enabled: true
+Lint/RefinementImportMethods:
+  Enabled: true
+Lint/RequireRangeParentheses:
+  Enabled: true
+Lint/RequireRelativeSelfPath:
+  Enabled: true
+Lint/ShadowingOuterLocalVariable:
+  Enabled: true
+Lint/SuperArgumentMismatch:
+  Enabled: true
+Lint/SuppressedExceptionInNumberConversion:
+  Enabled: true
+Lint/SymbolConversion:
+  Enabled: true
+Lint/ToEnumArguments:
+  Enabled: true
+Lint/TripleQuotes:
+  Enabled: true
+Lint/UnescapedBracketInRegexp:
+  Enabled: true
+Lint/UnexpectedBlockArity:
+  Enabled: true
+Lint/UnmodifiedReduceAccumulator:
+  Enabled: true
+Lint/UnreachablePatternBranch:
+  Enabled: true
+Lint/UnusedPrivateMethod:
+  Enabled: true
+Lint/UselessConstantScoping:
+  Enabled: true
+Lint/UselessDefaultValueArgument:
+  Enabled: true
+Lint/UselessDefined:
+  Enabled: true
+Lint/UselessNumericOperation:
+  Enabled: true
+Lint/UselessOr:
+  Enabled: true
+Lint/UselessRescue:
+  Enabled: true
+Lint/UselessRuby2Keywords:
+  Enabled: true
+Metrics/CollectionLiteralLength:
+  Enabled: true
+Naming/BlockForwarding:
+  Enabled: true
+Naming/InclusiveLanguage:
+  Enabled: true
+Naming/PredicateMethod:
+  Enabled: true
+Security/CompoundHash:
+  Enabled: true
+Security/IoMethods:
+  Enabled: true
+Style/AmbiguousEndlessMethodDefinition:
+  Enabled: true
+Style/ArgumentsForwarding:
+  Enabled: true
+Style/ArrayCoercion:
+  Enabled: true
+Style/ArrayFirstLast:
+  Enabled: true
+Style/ArrayIntersect:
+  Enabled: true
+Style/ArrayIntersectWithSingleElement:
+  Enabled: true
+Style/AsciiComments:
+  Enabled: true
+Style/AutoResourceCleanup:
+  Enabled: true
+Style/BitwisePredicate:
+  Enabled: true
+Style/ClassMethodsDefinitions:
+  Enabled: true
+Style/CollectionCompact:
+  Enabled: true
+Style/CollectionMethods:
+  Enabled: true
+Style/CollectionQuerying:
+  Enabled: true
+Style/CombinableDefined:
+  Enabled: true
+Style/ComparableBetween:
+  Enabled: true
+Style/ComparableClamp:
+  Enabled: true
+Style/ConcatArrayLiterals:
+  Enabled: true
+Style/ConstantVisibility:
+  Enabled: true
+Style/Copyright:
+  Enabled: true
+Style/DataInheritance:
+  Enabled: true
+Style/DateTime:
+  Enabled: true
+Style/DigChain:
+  Enabled: true
+Style/DirEmpty:
+  Enabled: true
+Style/DirectiveScope:
+  Enabled: true
+Style/DisableCopsWithinSourceCodeDirective:
+  Enabled: true
+Style/DocumentationMethod:
+  Enabled: true
+Style/DocumentDynamicEvalDefinition:
+  Enabled: true
+Style/EmptyClassDefinition:
+  Enabled: true
+Style/EmptyHeredoc:
+  Enabled: true
+Style/EmptyStringInsideInterpolation:
+  Enabled: true
+Style/EndlessMethod:
+  Enabled: true
+Style/EnvHome:
+  Enabled: true
+Style/ExactRegexpMatch:
+  Enabled: true
+Style/FetchEnvVar:
+  Enabled: true
+Style/FileEmpty:
+  Enabled: true
+Style/FileNull:
+  Enabled: true
+Style/FileOpen:
+  Enabled: true
+Style/FileRead:
+  Enabled: true
+Style/FileTouch:
+  Enabled: true
+Style/FileWrite:
+  Enabled: true
+Style/HashConversion:
+  Enabled: true
+Style/HashExcept:
+  Enabled: true
+Style/HashFetchChain:
+  Enabled: true
+Style/HashLookupMethod:
+  Enabled: true
+Style/HashSlice:
+  Enabled: true
+Style/IfWithBooleanLiteralBranches:
+  Enabled: true
+Style/ImplicitRuntimeError:
+  Enabled: true
+Style/InPatternThen:
+  Enabled: true
+Style/ReduceToHash:
+  Enabled: true
+Style/InlineComment:
+  Enabled: true
+Style/InvertibleUnlessCondition:
+  Enabled: true
+Style/IpAddresses:
+  Enabled: true
+Style/ItAssignment:
+  Enabled: true
+Style/ItBlockParameter:
+  Enabled: true
+Style/KeywordArgumentsMerging:
+  Enabled: true
+Style/MagicCommentFormat:
+  Enabled: true
+Style/MapIntoArray:
+  Enabled: true
+Style/MapJoin:
+  Enabled: true
+Style/MapToHash:
+  Enabled: true
+Style/MapToSet:
+  Enabled: true
+Style/MethodCallWithArgsParentheses:
+  Enabled: true
+Style/MinMaxComparison:
+  Enabled: true
+Style/ModuleMemberExistenceCheck:
+  Enabled: true
+Style/MultilineInPatternThen:
+  Enabled: true
+Style/NumberedParameters:
+  Enabled: true
+Style/OneClassPerFile:
+  Enabled: true
+Style/OpenStructUse:
+  Enabled: true
+Style/OperatorMethodCall:
+  Enabled: true
+Style/PartitionInsteadOfDoubleSelect:
+  Enabled: true
+Style/RedundantArrayConstructor:
+  Enabled: true
+Style/RedundantArrayFlatten:
+  Enabled: true
+Style/RedundantConstantBase:
+  Enabled: true
+Style/RedundantCurrentDirectoryInPath:
+  Enabled: true
+Style/RedundantDoubleSplatHashBraces:
+  Enabled: true
+Style/RedundantEach:
+  Enabled: true
+Style/RedundantFilterChain:
+  Enabled: true
+Style/RedundantFormat:
+  Enabled: true
+Style/RedundantHeredocDelimiterQuotes:
+  Enabled: true
+Style/RedundantInitialize:
+  Enabled: true
+Style/RedundantInterpolationUnfreeze:
+  Enabled: true
+Style/RedundantLineContinuation:
+  Enabled: true
+Style/RedundantMinMaxBy:
+  Enabled: true
+Style/RedundantRegexpArgument:
+  Enabled: true
+Style/RedundantRegexpConstructor:
+  Enabled: true
+Style/RedundantSelfAssignmentBranch:
+  Enabled: true
+Style/RedundantStructKeywordInit:
+  Enabled: true
+Style/RequireOrder:
+  Enabled: true
+Style/ReverseFind:
+  Enabled: true
+Style/SafeNavigationChainLength:
+  Enabled: true
+Style/SingleLineDoEndBlock:
+  Enabled: true
+Style/StaticClass:
+  Enabled: true
+Style/MapCompactWithConditionalBlock:
+  Enabled: true
+Style/MethodCalledOnDoEndBlock:
+  Enabled: true
+Style/MissingElse:
+  Enabled: true
+Style/MultilineMethodSignature:
+  Enabled: true
+Style/NegatedIfElseCondition:
+  Enabled: true
+Style/NegativeArrayIndex:
+  Enabled: true
+Style/NestedFileDirname:
+  Enabled: true
+Style/NilLambda:
+  Enabled: true
+Style/NumberedParametersLimit:
+  Enabled: true
+Style/ObjectThen:
+  Enabled: true
+Style/OptionHash:
+  Enabled: true
+Style/PredicateWithKind:
+  Enabled: true
+Style/QuotedSymbols:
+  Enabled: true
+Style/RedundantArgument:
+  Enabled: true
+Style/RedundantStringEscape:
+  Enabled: true
+Style/ReturnNil:
+  Enabled: true
+Style/ReturnNilInPredicateMethodDefinition:
+  Enabled: true
+Style/SelectByKind:
+  Enabled: true
+Style/SelectByRange:
+  Enabled: true
+Style/SelectByRegexp:
+  Enabled: true
+Style/Send:
+  Enabled: true
+Style/SendWithLiteralMethodName:
+  Enabled: true
+Style/SingleLineBlockParams:
+  Enabled: true
+Style/StringChars:
+  Enabled: true
+Style/StringHashKeys:
+  Enabled: true
+Style/StringMethods:
+  Enabled: true
+Style/SuperArguments:
+  Enabled: true
+Style/SuperWithArgsParentheses:
+  Enabled: true
+Style/SwapValues:
+  Enabled: true
+Style/TallyMethod:
+  Enabled: true
+Style/TimeNow:
+  Enabled: true
+Style/TopLevelMethodDefinition:
+  Enabled: true
+Style/TrailingCommaInBlockArgs:
+  Enabled: true
+Style/UnlessLogicalOperators:
+  Enabled: true
+Style/YAMLFileRead:
+  Enabled: true
+Style/YodaExpression:
+  Enabled: true

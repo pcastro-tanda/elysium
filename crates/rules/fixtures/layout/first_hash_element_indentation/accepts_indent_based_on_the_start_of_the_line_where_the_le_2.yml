@@ -2,3 +2,5 @@ Layout/FirstHashElementIndentation:
   Preview: ~
 Layout/HashAlignment:
   AllowMultipleStyles: false
+Layout/ArgumentAlignment:
+  EnforcedStyle: ~

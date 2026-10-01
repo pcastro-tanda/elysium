@@ -1,2 +1,4 @@
 Layout/ArrayAlignment:
   SupportedStyles: ~
+Layout/IndentationStyle:
+  EnforcedStyle: ~

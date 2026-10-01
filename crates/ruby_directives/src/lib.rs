@@ -30,17 +30,6 @@
 //!   recognized cop list (including a `-- reason` suffix) and any `push`/`next`
 //!   argument that carries no `+`/`-` sign, matching the *parsing* behaviour but
 //!   not upstream's "is this malformed" diagnostic.
-//! - **Inline detection is byte-positional, not comment-text-positional.**
-//!   Upstream's `DirectiveComment#single_line?` checks whether the
-//!   *comment's own text* starts with the directive marker (so
-//!   `#=SomeDslDirective # rubocop:disable Foo` is inline even though it is
-//!   the only thing on its physical line, because the directive marker is
-//!   not at the very start of the comment token). Per this phase's contract,
-//!   [`Directive::inline`] instead checks whether the *physical source line*
-//!   has any non-whitespace byte before the comment starts. The two agree
-//!   for the overwhelming majority of real directive comments (a directive
-//!   is essentially always either the entire comment or nothing in it is
-//!   before the marker); they differ only for the contrived case above.
 //! - **Department membership is a generic prefix match, not a registry
 //!   lookup.** Upstream resolves `department?(name)` and
 //!   `names_for_department(name)` against the live cop registry. Without a
@@ -202,8 +191,16 @@ pub struct Directive {
     /// the same order and of the same length, for the signed modes
     /// (`push`/`next`); empty for every other mode.
     pub signs: Vec<Sign>,
-    /// True when this comment is an end-of-line directive: something other
-    /// than whitespace precedes it on its physical source line. Inline
+    /// True when this directive is scoped to a single line: upstream's
+    /// `CommentConfig#analyze_cop`'s `!comment_only_line?(line) ||
+    /// directive.single_line?`. The first half is
+    /// [`is_inline`]: something other than whitespace precedes the comment
+    /// on its physical source line (a trailing end-of-line directive). The
+    /// second half is upstream's `DirectiveComment#single_line?`: the
+    /// directive marker does not start the *comment's own text* (e.g. `#
+    /// typed: false # rubocop:disable Sorbet/TrueSigil`, where `# typed:
+    /// false ` precedes the marker within the one comment token), even
+    /// though the comment begins its physical line. Inline/single-line
     /// directives affect only their own line; own-line directives affect
     /// every line from themselves to a matching `enable` (or end of file).
     pub inline: bool,
@@ -344,7 +341,7 @@ fn parse_comment(source: &SourceFile, span: Span, text: &[u8]) -> Option<Directi
         span.start + u32::try_from(whole.end()).unwrap_or(u32::MAX),
     );
     let line = source.line_col(span.start).line;
-    let inline = is_inline(source, span.start);
+    let inline = is_inline(source, span.start) || whole.start() != 0;
     Some(Directive { span: directive_span, line, kind, cops, signs, inline, scope: None })
 }
 
@@ -1049,6 +1046,19 @@ mod tests {
         );
         assert!(d.is_disabled("Layout/LineLength", 2));
         assert!(!d.is_disabled("Layout/LineLength", 3));
+    }
+
+    #[test]
+    fn directive_not_starting_its_own_comment_disables_only_its_own_line() {
+        // A directive preceded by other text within the *same* comment token
+        // (not by code on the physical line) is still single-line: upstream's
+        // `DirectiveComment#single_line?` checks the comment's own text, not
+        // the physical line, so `# typed: false # rubocop:disable ...` on a
+        // line by itself does not open an unpaired disable through EOF.
+        let d = directives_for("# typed: false # rubocop:disable Sorbet/TrueSigil\nfoo\nbar\n");
+        assert!(d.is_disabled("Sorbet/TrueSigil", 1));
+        assert!(!d.is_disabled("Sorbet/TrueSigil", 2));
+        assert!(!d.is_disabled("Sorbet/TrueSigil", 3));
     }
 
     #[test]

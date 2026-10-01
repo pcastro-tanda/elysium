@@ -1,2 +1,4 @@
 Layout/ClosingParenthesisIndentation:
   IndentationWidth: 1
+Layout/IndentationStyle:
+  EnforcedStyle: ~

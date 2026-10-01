@@ -1,3 +1,4 @@
 Style/TernaryParentheses:
-  Enabled: true
   EnforcedStyle: require_parentheses
+  AllowSafeAssignment: false
+  Enabled: true

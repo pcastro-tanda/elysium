@@ -130,16 +130,25 @@ fn build_parent_map<'pr>(root: &Node<'pr>) -> ParentMap<'pr> {
 
 fn fill_parent_map<'pr>(node: &Node<'pr>, map: &mut ParentMap<'pr>) {
     // Whitequark's `(block SEND ARGS BODY)` makes a block's own call a
-    // *sibling* of its body, never an ancestor -- `each_ancestor` climbing
-    // from inside the block stops at the `:block` node itself. Prism
-    // instead attaches the block to its `CallNode` as a field, so without
-    // this the climb would wrongly continue past the block into the call
-    // that owns it (e.g. treating a bare `a do ... end`'s receiver-less
-    // `a` as an "unsafe" ancestor of everything inside the block).
+    // *sibling* of its body, never an ancestor: `BLOCK`'s parent is
+    // whatever lies *outside* the whole `SEND do...end` expression, not
+    // `SEND` itself. Prism instead attaches the block to its `CallNode` as
+    // a field (the same single node represents both whitequark's `SEND`
+    // and `BLOCK`), so an unrestricted `each_ancestor` climb starting
+    // *inside* the block's body must skip straight from the block to that
+    // owning call's own parent -- never stopping at, or counting, the
+    // owning call itself at this hop -- to land where whitequark's `BLOCK`
+    // ancestor really points. `node`'s own parent is already in `map` by
+    // now (inserted by `node`'s caller before recursing here), so the
+    // lookup below sees it.
     let block_child = node.as_call_node().and_then(|c| c.block());
     for_each_child(node, |child| {
         let is_block_boundary = block_child.is_some_and(|b| same_position(&b, child));
-        if !is_block_boundary {
+        if is_block_boundary {
+            if let Some(owner_parent) = parent_of(map, node) {
+                map.insert((child.kind(), child.span()), owner_parent);
+            }
+        } else {
             map.insert((child.kind(), child.span()), *node);
         }
         fill_parent_map(child, map);
@@ -455,10 +464,26 @@ fn find_matching_receiver<'pr>(
     }
 }
 
+/// Whether `node` is whitequark's `:send`/`:csend` shape rather than its
+/// separate `:block` node: a Prism `CallNode` only stands in for a
+/// `call_type?`/`send_type?` ancestor in the unrestricted-climb matchers
+/// below (`find_method_chain`, `chain_length`, `negated?`,
+/// `unsafe_method_used?`, `dotless_operator_call?`) when it has *no*
+/// attached block -- one that does is whitequark's `:block` node wrapping
+/// it instead, which those matchers climb straight through uncounted.
+fn ancestor_call<'pr>(node: &Node<'pr>) -> Option<CallNode<'pr>> {
+    let call = node.as_call_node()?;
+    if call.block().is_some() {
+        None
+    } else {
+        Some(call)
+    }
+}
+
 /// RuboCop's `find_method_chain`.
 fn find_method_chain<'pr>(map: &ParentMap<'pr>, node: Node<'pr>) -> Node<'pr> {
     match parent_of(map, &node) {
-        Some(parent) if parent.as_call_node().is_some() => find_method_chain(map, parent),
+        Some(parent) if ancestor_call(&parent).is_some() => find_method_chain(map, parent),
         _ => node,
     }
 }
@@ -466,13 +491,22 @@ fn find_method_chain<'pr>(map: &ParentMap<'pr>, node: Node<'pr>) -> Node<'pr> {
 /// RuboCop's `chain_length`: counts ancestor calls of `method` up to and
 /// including `method_chain`, skipping non-call ancestors without stopping
 /// the climb.
+///
+/// A Prism `CallNode` always stands for whitequark's inner `send` -- real
+/// and `call_type?` whether or not it carries a trailing block -- so it is
+/// always counted here. Only a block-less call's span can ever coincide
+/// with `method_chain`'s own span, though: one *with* a block merges that
+/// inner `send` with the separate outer `:block` node whitequark would
+/// wrap it in, and if `method_chain` is this same span it stands for that
+/// *outer* `:block` -- which `each_ancestor(:call)` never yields, so it can
+/// never terminate the climb here.
 fn chain_length(map: &ParentMap<'_>, method_chain: &Node<'_>, method: &Node<'_>) -> i64 {
     let mut total = 0i64;
     let mut current = *method;
     loop {
         let Some(parent) = parent_of(map, &current) else { return total };
-        if parent.as_call_node().is_some() {
-            if same_position(&parent, method_chain) {
+        if let Some(call) = parent.as_call_node() {
+            if call.block().is_none() && same_position(&parent, method_chain) {
                 return total + 1;
             }
             total += 1;
@@ -486,7 +520,7 @@ fn chain_length(map: &ParentMap<'_>, method_chain: &Node<'_>, method: &Node<'_>)
 /// the outermost one is `!`.
 fn negated(map: &ParentMap<'_>, node: &Node<'_>) -> bool {
     if let Some(parent) = parent_of(map, node) {
-        if parent.as_call_node().is_some() {
+        if ancestor_call(&parent).is_some() {
             return negated(map, &parent);
         }
     }
@@ -505,7 +539,10 @@ fn unsafe_method(map: &ParentMap<'_>, is_ternary: bool, node: &Node<'_>) -> bool
     call.is_attribute_write() || (call.call_operator_loc().is_none() && !call.is_safe_navigation())
 }
 
-/// RuboCop's `unsafe_method_used?`.
+/// RuboCop's `unsafe_method_used?`. See [`chain_length`]'s doc for why a
+/// call ancestor is always processed here regardless of an attached
+/// block, but only a block-less one's span can ever terminate the climb
+/// by matching `method_chain`.
 fn unsafe_method_used(
     map: &ParentMap<'_>,
     is_ternary: bool,
@@ -530,7 +567,7 @@ fn unsafe_method_used(
             if nil_methods.contains(call.name().as_slice()) {
                 return true;
             }
-            if same_position(&parent, method_chain) {
+            if call.block().is_none() && same_position(&parent, method_chain) {
                 return false;
             }
         }
@@ -558,7 +595,7 @@ fn dotless_operator_call(map: &ParentMap<'_>, method_call: &Node<'_>) -> bool {
     }
     let mut current = *method_call;
     while let Some(parent) = parent_of(map, &current) {
-        if parent.as_call_node().is_some() {
+        if ancestor_call(&parent).is_some() {
             current = parent;
         } else {
             break;

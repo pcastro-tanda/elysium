@@ -1,0 +1,2 @@
+Lint/AmbiguousOperatorPrecedence:
+  Enabled: true

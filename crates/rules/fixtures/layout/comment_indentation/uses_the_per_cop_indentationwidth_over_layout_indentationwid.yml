@@ -1,2 +1,4 @@
 Layout/CommentIndentation:
   IndentationWidth: 1
+Layout/AccessModifierIndentation:
+  EnforcedStyle: ~

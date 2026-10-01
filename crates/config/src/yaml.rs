@@ -141,6 +141,18 @@ impl Mapping {
         self.get(key).map(YamlValue::to_string_list).unwrap_or_default()
     }
 
+    /// The path patterns of an `Include`/`Exclude`-style list at `key`: its
+    /// string and `!ruby/regexp` elements, kept typed so a regexp is never
+    /// mistaken for a glob.
+    pub fn get_pattern_list(&self, key: &str) -> Vec<YamlValue> {
+        self.get(key)
+            .map(YamlValue::to_array)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|value| matches!(value, YamlValue::String(_) | YamlValue::Regexp(_)))
+            .collect()
+    }
+
     #[must_use]
     /// Ruby's `Hash#merge`: `other`'s values win, `self`'s order is kept and
     /// keys new to `other` are appended.

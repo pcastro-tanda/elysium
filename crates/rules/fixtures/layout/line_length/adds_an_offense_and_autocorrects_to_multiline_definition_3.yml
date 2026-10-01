@@ -9,3 +9,8 @@ Layout/LineLength:
   AllowCopDirectives: false
 Layout/IndentationStyle:
   IndentationWidth: 2
+Style/EndlessMethod:
+  Enabled: true
+  EnforcedStyle: ~
+Layout/IndentationWidth:
+  Width: ~

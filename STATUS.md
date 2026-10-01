@@ -140,8 +140,6 @@ semantic cops (60 rules total).
 - Remote `inherit_from: https://...` is rejected instead of fetched.
 - No `ConfigValidator`: a config with a wrong-typed value or an unknown cop
   name does not produce an error the way RuboCop's own validator does.
-- `!ruby/regexp` YAML tags inside `Exclude`/`Include` entries are not
-  matched; only plain glob-string entries work.
 - Extension-gem cops (`Rails/*`, `RSpec/*`, ...) load their defaults from the
   installed gem but have no implementations yet (Phase 6).
 - `TargetRubyVersion` is not inferred from a gemspec's `required_ruby_version`
@@ -250,7 +248,7 @@ CI needs its own recorded baseline before `--check` is a hard gate
 
 ## Next milestones
 
-**Default-cop parity: 392 of RuboCop 1.91.0's 393 default-enabled core cops
+**Default-cop parity: 393 of RuboCop 1.91.0's 394 default-enabled core cops
 are implemented;** only `Lint/Syntax` is not a rule, since the engine reports
 syntax errors itself. Inventory: `docs/planning/default-parity.md`.
 
@@ -312,7 +310,7 @@ syntax errors itself. Inventory: `docs/planning/default-parity.md`.
    the "What does not work yet" list above]`: config/CLI hardening — a
    `ConfigValidator` (type/unknown-cop errors), a minimal ERB subset
    evaluator for `.rubocop.yml` (unblocking GitLab's real config), remote
-   `inherit_from` fetching, `!ruby/regexp` `Include`/`Exclude` tags,
+   `inherit_from` fetching,
    `TargetRubyVersion` inference from a gemspec's `required_ruby_version`,
    and non-UTF-8 `# encoding:` column handling.
 4. Phase 7: extension-gem cop implementations (`Rails/*`, `RSpec/*`,

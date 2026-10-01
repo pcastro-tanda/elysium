@@ -10,6 +10,7 @@ pub mod boolean_symbol;
 pub mod circular_argument_reference;
 pub mod constant_definition_in_block;
 pub mod constant_resolution;
+pub mod cop_directive_syntax;
 pub mod debugger;
 pub mod deprecated_class_methods;
 pub mod deprecated_open_ssl_constant;

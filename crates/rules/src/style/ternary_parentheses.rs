@@ -344,9 +344,15 @@ fn is_non_complex_expression(node: &Node<'_>) -> bool {
     ) || is_non_complex_send(node)
 }
 
-/// RuboCop's `non_complex_send?`.
+/// RuboCop's `non_complex_send?`: `node.call_type?` is false whenever
+/// whitequark would have wrapped the call in a `block` node instead --
+/// Prism keeps a call's attached block as a field on the same `CallNode`,
+/// so that case needs an explicit check here.
 fn is_non_complex_send(node: &Node<'_>) -> bool {
     let Some(call) = node.as_call_node() else { return false };
+    if call.block().is_some_and(|b| b.as_block_node().is_some()) {
+        return false;
+    }
     let name = call.name();
     let name = name.as_slice();
     !is_operator_method(name) || name == b"[]"

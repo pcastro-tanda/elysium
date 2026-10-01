@@ -420,14 +420,29 @@ fn is_keyword(k: NodeKind, facts: Option<&Facts>) -> bool {
 /// Builds the whitequark-shaped ancestor chain (nearest first) by skipping
 /// Prism-only wrapper kinds over the engine's raw ancestor stack. See the
 /// module doc for why each kind is (or isn't) transparent.
+///
+/// A `StatementsNode` whose own parent is a `BeginNode` (Prism's `begin`/
+/// `end` keyword block, whitequark's `kwbegin`) is always fully transparent
+/// -- contributing no ancestor frame at all, not even when it holds 2+
+/// children -- because whitequark's `kwbegin` already takes the statement
+/// list as its own children directly; there is no intervening `:begin` node
+/// to stand in for the way there is for every other multi-statement body
+/// position (`if`/method/block bodies, ...). `kwbegin.begin_type?` is false,
+/// so e.g. `Style/RedundantParentheses`' assignment check
+/// (`begin_node.parent.begin_type?`) must see the `BeginNode` itself as the
+/// parent here, not a synthetic `:begin` standing in for the
+/// `StatementsNode`.
 fn normalized_chain(ctx: &Context<'_>, facts: &HashMap<Key, Facts>) -> Vec<(Span, NodeKind)> {
     let mut out = Vec::new();
-    for info in ctx.ancestors().iter().rev() {
+    let ancestors = ctx.ancestors();
+    for i in (0..ancestors.len()).rev() {
+        let info = ancestors[i];
         match info.kind {
             NodeKind::ArgumentsNode | NodeKind::ProgramNode | NodeKind::ElseNode => {}
             NodeKind::StatementsNode => {
+                let parent_is_begin = i > 0 && ancestors[i - 1].kind == NodeKind::BeginNode;
                 let single = facts.get(&(info.span, info.kind)).is_some_and(|f| f.stmt_count == 1);
-                if !single {
+                if !parent_is_begin && !single {
                     out.push((info.span, info.kind));
                 }
             }

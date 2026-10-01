@@ -19,9 +19,13 @@
 //! `(?!`, `(?>`, `(?#...)` comments -- consumed up to their own closing
 //! `)`, since Oniguruma gives that content no special syntax --, or any
 //! other `(?`-prefixed option/modifier group), or else a plain numbered
-//! capture. Because only "does a named/numbered capture exist anywhere"
-//! matters (not nesting or matching close parens), the scanner never needs
-//! to track paren depth: every `)` is otherwise just an ordinary character.
+//! capture. In extended mode (`/x`), an unescaped `#` outside a class also
+//! starts a comment running to end of line (matching
+//! `redundant_regexp_escape`'s `scan_escapes`), so stray parens inside a
+//! free-spacing comment are never misclassified as groups. Because only
+//! "does a named/numbered capture exist anywhere" matters (not nesting or
+//! matching close parens), the scanner never needs to track paren depth:
+//! every `)` is otherwise just an ordinary character.
 //!
 //! Like the sibling regexp-content rules, this only needs the byte range
 //! for a `RegularExpressionNode`'s content; `return if node.interpolation?`
@@ -98,7 +102,7 @@ the two.",
         let NodeKind::RegularExpressionNode = node.kind() else { return };
         let Some(n) = node.as_regular_expression_node() else { return };
         let buf = ctx.text(n.content_loc().span());
-        let (has_named, has_numbered) = scan_captures(buf);
+        let (has_named, has_numbered) = scan_captures(buf, n.is_extended());
         if has_named && has_numbered {
             ctx.report(&Self::META, node.span(), MSG);
         }
@@ -157,9 +161,12 @@ fn classify_group(buf: &[u8], pos: usize, len: usize) -> (GroupKind, usize) {
 /// numbered capture groups, tracking character-class depth (any unescaped
 /// `[`/`]`, matching POSIX bracket expressions along with real/nested
 /// classes, since only whether depth is non-zero matters here) so that a
-/// `(` inside `[...]` is never mistaken for a group. Returns whether any
-/// named capture and whether any numbered capture was found.
-fn scan_captures(buf: &[u8]) -> (bool, bool) {
+/// `(` inside `[...]` is never mistaken for a group, and, outside a class
+/// in extended mode (`/x`), skipping `#`-to-end-of-line comments (matching
+/// `redundant_regexp_escape`'s `scan_escapes`) so a stray `)`/`(` inside a
+/// free-spacing comment is never mistaken for a group either. Returns
+/// whether any named capture and whether any numbered capture was found.
+fn scan_captures(buf: &[u8], extended: bool) -> (bool, bool) {
     let len = buf.len();
     let mut pos = 0usize;
     let mut depth: u32 = 0;
@@ -183,6 +190,12 @@ fn scan_captures(buf: &[u8]) -> (bool, bool) {
         if c == b']' && depth > 0 {
             depth -= 1;
             pos += 1;
+            continue;
+        }
+        if depth == 0 && extended && c == b'#' {
+            while pos < len && buf[pos] != b'\n' {
+                pos += 1;
+            }
             continue;
         }
         if depth == 0 && c == b'(' {

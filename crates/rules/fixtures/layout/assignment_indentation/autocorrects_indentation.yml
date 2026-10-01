@@ -1,2 +1,4 @@
 Layout/AssignmentIndentation:
   IndentationWidth: 7
+Layout/IndentationStyle:
+  EnforcedStyle: ~

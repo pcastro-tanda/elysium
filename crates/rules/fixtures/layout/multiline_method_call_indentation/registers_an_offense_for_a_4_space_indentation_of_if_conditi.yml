@@ -1,3 +1,5 @@
 Layout/MultilineMethodCallIndentation:
   EnforcedStyle: indented
   IndentationWidth: 7
+Layout/IndentationStyle:
+  EnforcedStyle: ~

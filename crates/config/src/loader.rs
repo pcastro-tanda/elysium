@@ -381,7 +381,8 @@ impl ConfigLoader {
         let mut nested = LoadState { stack: Vec::new(), ..LoadState::default() };
         let highest = self.load_file(&highest, &mut nested)?;
         state.warnings.extend(nested.warnings);
-        let Some(extra) = highest.hash.get_mapping("AllCops").map(|a| a.get_string_list("Exclude"))
+        let Some(extra) =
+            highest.hash.get_mapping("AllCops").map(|a| a.get_pattern_list("Exclude"))
         else {
             return Ok(());
         };
@@ -392,16 +393,13 @@ impl ConfigLoader {
             config.hash.insert("AllCops", YamlValue::Mapping(Mapping::new()));
         }
         let all_cops = config.hash.get_mapping_mut("AllCops").expect("AllCops is a mapping");
-        let mut excludes = all_cops.get_string_list("Exclude");
+        let mut excludes = all_cops.get_pattern_list("Exclude");
         for path in extra {
             if !excludes.contains(&path) {
                 excludes.push(path);
             }
         }
-        all_cops.insert(
-            "Exclude",
-            YamlValue::Array(excludes.into_iter().map(YamlValue::String).collect()),
-        );
+        all_cops.insert("Exclude", YamlValue::Array(excludes));
         Ok(())
     }
 
@@ -502,15 +500,14 @@ fn merge_extension_defaults(base: &Mapping, extension: &Mapping) -> Mapping {
         return merged;
     }
     let mut excludes =
-        base.get_mapping("AllCops").map(|a| a.get_string_list("Exclude")).unwrap_or_default();
-    for path in extension_all_cops.get_string_list("Exclude") {
+        base.get_mapping("AllCops").map(|a| a.get_pattern_list("Exclude")).unwrap_or_default();
+    for path in extension_all_cops.get_pattern_list("Exclude") {
         if !excludes.contains(&path) {
             excludes.push(path);
         }
     }
     let all_cops = merged.get_mapping_mut("AllCops").expect("extension set AllCops");
-    all_cops
-        .insert("Exclude", YamlValue::Array(excludes.into_iter().map(YamlValue::String).collect()));
+    all_cops.insert("Exclude", YamlValue::Array(excludes));
     merged
 }
 
@@ -657,12 +654,17 @@ fn fix_include_paths(base_config_path: &Path, hash: &mut Mapping, path: &Path, k
     let base_dir = base_config_path.parent().unwrap_or(Path::new("."));
     let derived_dir = path.parent().unwrap_or(Path::new("."));
     let Some(params) = hash.get_mapping_mut(key) else { return };
-    let includes = params.get_string_list("Include");
-    let fixed: Vec<YamlValue> = includes
-        .iter()
-        .map(|include| {
-            let joined = paths::expand(Path::new(include), base_dir);
-            YamlValue::String(paths::relative(&joined, derived_dir).to_string_lossy().into_owned())
+    let fixed: Vec<YamlValue> = params
+        .get_pattern_list("Include")
+        .into_iter()
+        .map(|include| match include {
+            YamlValue::String(include) => {
+                let joined = paths::expand(Path::new(&include), base_dir);
+                YamlValue::String(
+                    paths::relative(&joined, derived_dir).to_string_lossy().into_owned(),
+                )
+            }
+            regexp => regexp,
         })
         .collect();
     params.insert("Include", YamlValue::Array(fixed));

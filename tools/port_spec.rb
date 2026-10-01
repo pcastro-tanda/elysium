@@ -137,6 +137,35 @@ begin
     require 'json'
 
     CAPTURES = []
+    # Every (peer cop, option key) the code under test reads from a `Config#for_cop` hash
+    # during an example. A key the spec's bespoke `RuboCop::Config` never sets reads as nil
+    # there (a peer it never mentions is `{}` plus `Enabled`), whereas the fixture harness
+    # merges RuboCop's real defaults; `effective_peer_overrides` reproduces the spec's view
+    # for exactly these keys. Paused while the capture code itself inspects the config.
+    PEER_READS = Hash.new { |h, name| h[name] = Set.new }
+    module PeerRecording
+      class << self
+        attr_accessor :paused
+      end
+    end
+    module RecordKeyReads
+      %i[[] fetch key? dig].each do |meth|
+        define_method(meth) do |key, *rest, &blk|
+          PEER_READS[@__port_peer_name] << key unless PeerRecording.paused
+          super(key, *rest, &blk)
+        end
+      end
+    end
+    module RecordPeerReads
+      def for_cop(cop)
+        conf = super
+        unless conf.frozen? || conf.is_a?(RecordKeyReads)
+          conf.instance_variable_set(:@__port_peer_name, cop.respond_to?(:cop_name) ? cop.cop_name : cop.to_s)
+          conf.extend(RecordKeyReads)
+        end
+        conf
+      end
+    end
 
     module CaptureOffense
       # Pure documentation/metadata keys never belong in a fixture .yml override.
@@ -178,12 +207,14 @@ begin
         end
       end
 
-      def diff_against_defaults(hash, real_defaults, exclude: [], keys: hash.keys)
+      # `literal` keys skip `normalize_option`: a peer key the cop under test read may be
+      # compared with `== false`, where nil and false differ, so it keeps its exact value.
+      def diff_against_defaults(hash, real_defaults, exclude: [], keys: hash.keys, literal: [])
         keys.each_with_object({}) do |k, acc|
           next if exclude.include?(k) || k.match?(SUPPORTED_STYLES_KEY)
 
-          normalized = normalize_option(hash[k], real_defaults[k])
-          acc[k] = normalized unless normalized == real_defaults[k]
+          value = literal.include?(k) ? hash[k] : normalize_option(hash[k], real_defaults[k])
+          acc[k] = value unless value == real_defaults[k]
         end
       end
 
@@ -256,11 +287,17 @@ begin
       # other bare CamelCase key present is necessarily a spec-local `RuboCop::Config.new('Metrics'
       # => { 'Enabled' => false })`-style override, kept verbatim (department hashes are small and
       # never contain doc-only keys worth filtering).
+      # A key the cop under test actually read (`PEER_READS`) keeps a nil value as `~`, and a
+      # peer the spec's config never mentions is emitted for exactly its read keys: there,
+      # `for_cop` gave `{}` plus `Enabled`, so e.g. `conf['Enabled'] &&
+      # conf['EnforcedStyleAlignWith']` is nil, not the harness's merged default.
       def effective_peer_overrides
+        PeerRecording.paused = true
         default_config = RuboCop::ConfigLoader.default_configuration
         effective = cop.config
+        configured = effective.to_h.keys
         peers = {}
-        effective.to_h.each_key do |key|
+        (configured | PEER_READS.keys.select { |name| name.include?('/') }).each do |key|
           if key != 'AllCops' && !key.include?('/') && key =~ /\\A[A-Z]/
             peers[key] = effective[key]
             next
@@ -268,14 +305,16 @@ begin
           next unless key.include?('/')
           next if key == port_cop_class.cop_name
 
+          read_keys = PEER_READS.fetch(key, Set.new)
           cop_effective = effective.for_cop(key)
           real_defaults = default_config.for_cop(key)
           diffed = diff_against_defaults(
             cop_effective, real_defaults,
             exclude: DOC_ONLY_KEYS,
-            keys: cop_effective.keys | real_defaults.keys
+            keys: configured.include?(key) ? cop_effective.keys | real_defaults.keys : read_keys.to_a,
+            literal: read_keys
           )
-          diffed.reject! { |_, v| v.nil? }
+          diffed.reject! { |k, v| v.nil? && !read_keys.include?(k) }
           peers[key] = diffed unless diffed.empty?
         end
         all_cops_effective = effective['AllCops'] || {}
@@ -288,6 +327,13 @@ begin
         all_cops_diff.reject! { |_, v| v.nil? }
         peers['AllCops'] = all_cops_diff unless all_cops_diff.empty?
         peers
+      ensure
+        PeerRecording.paused = false
+      end
+
+      # `other_cops` is the spec's literal input; it wins key by key over the effective view.
+      def merge_peers(effective, literal)
+        effective.merge(literal) { |_, a, b| a.is_a?(Hash) && b.is_a?(Hash) ? a.merge(b) : b }
       end
 
       # The example's injected `offenses` array, when its example group defines one (only
@@ -324,7 +370,7 @@ begin
         }
         result = super
         entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
-        entry['other_cops'] = effective_peer_overrides.merge(entry['other_cops'])
+        entry['other_cops'] = merge_peers(effective_peer_overrides, entry['other_cops'])
         entry['offenses'] = injected_offenses
         # Reuse the offenses `super` already found instead of re-parsing annotations via
         # `parse_annotations`, which also calls `set_formatter_options` and would wipe out
@@ -380,7 +426,7 @@ begin
             'path' => current_path,
             'file' => nil,
             'cop_config' => raw.merge(effective_cop_config_extra(raw)),
-            'other_cops' => effective_peer_overrides.merge(port_other_cops),
+            'other_cops' => merge_peers(effective_peer_overrides, port_other_cops),
             'offenses' => injected_offenses,
             'ruby_version' => ruby_version,
             'annotated' => annotated
@@ -415,7 +461,7 @@ begin
         }
         result = super
         entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
-        entry['other_cops'] = effective_peer_overrides.merge(entry['other_cops'])
+        entry['other_cops'] = merge_peers(effective_peer_overrides, entry['other_cops'])
         entry['offenses'] = injected_offenses
         CAPTURES << entry
         @__last_entry = entry
@@ -431,7 +477,11 @@ begin
       config.filter_run_excluding broken_on: :prism
       config.filter_run_excluding unsupported_on: :prism
 
-      config.before(:each) { @__captures_before = CAPTURES.size }
+      config.before(:suite) { RuboCop::Config.prepend(RecordPeerReads) }
+      config.before(:each) do
+        @__captures_before = CAPTURES.size
+        PEER_READS.clear
+      end
       config.after(:each) do |example|
         next if example.pending? || example.skipped?
         # expect_offense/expect_no_offenses push their own entry synchronously;

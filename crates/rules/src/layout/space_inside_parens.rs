@@ -45,7 +45,7 @@ use linter::{
     Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule, RuleMeta,
     RuleOptions, Severity, Stability,
 };
-use ruby_ast::{LocationExt as _, Node, NodeKind};
+use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::{is_ruby_whitespace, Span};
 
 /// RuboCop's `MSG`: reported whenever a space is present but forbidden.
@@ -139,8 +139,85 @@ fn parens(node: &Node<'_>, ctx: &Context<'_>) -> Option<(Span, Span)> {
 #[derive(Debug, Clone)]
 pub struct SpaceInsideParens {
     style: Style,
+    /// Opening-paren byte offsets already identified (while visiting their
+    /// owning `CallNode`/`YieldNode`/`SuperNode`/`DefinedNode`, which is
+    /// always entered first in this rule's pre-order traversal) as RuboCop's
+    /// `tLPAREN_ARG` -- a paren-less command's receiver (`not (expr)`) or
+    /// first argument (`foo (expr)`, `yield (expr)`, `super (expr)`,
+    /// `defined? (expr)`), directly preceded by nothing but horizontal
+    /// whitespace. `left_parens?`/`right_parens?` upstream only ever match
+    /// `tLPAREN`/`tLPAREN2`/`tRPAREN`, never `tLPAREN_ARG`, so this specific
+    /// open paren's own left-hand space is never checked (its matching
+    /// close paren is an ordinary `tRPAREN` and is unaffected).
+    exempt_opens: std::collections::HashSet<u32>,
 }
 
+/// RuboCop's lexer-level `tLPAREN_ARG` distinction (MRI's `IS_SPCARG`):
+/// resolves to `Some` open-paren span when `node` is a paren-less
+/// `CallNode`/`YieldNode`/`SuperNode`/`DefinedNode` whose receiver (`not
+/// (expr)`, a `CallNode` named `!` whose own source is the `not` keyword) or
+/// literal first argument/value is a `ParenthesesNode` directly preceded --
+/// skipping only horizontal whitespace, and at least one byte of it -- by
+/// the command's own message/keyword end. A later/non-first argument, or a
+/// command that already owns its own call-parens, never matches (Ruby's
+/// lexer only emits `tLPAREN_ARG` for the first token of a paren-less
+/// command's argument list).
+fn tlparen_arg_exemption(node: &Node<'_>, ctx: &Context<'_>) -> Option<Span> {
+    let (preceding_end, candidate) = match node {
+        Node::CallNode { .. } => {
+            let call = node.as_call_node()?;
+            let message = call.message_loc()?;
+            if call.name().as_slice() == b"!" && ctx.text(message.span()) == b"not" {
+                (message.span().end, call.receiver()?)
+            } else {
+                if call.opening_loc().is_some() {
+                    return None;
+                }
+                (message.span().end, call.arguments()?.arguments().first()?)
+            }
+        }
+        Node::YieldNode { .. } => {
+            let y = node.as_yield_node()?;
+            if y.lparen_loc().is_some() {
+                return None;
+            }
+            (y.keyword_loc().span().end, y.arguments()?.arguments().first()?)
+        }
+        Node::SuperNode { .. } => {
+            let s = node.as_super_node()?;
+            if s.lparen_loc().is_some() {
+                return None;
+            }
+            (s.keyword_loc().span().end, s.arguments()?.arguments().first()?)
+        }
+        Node::DefinedNode { .. } => {
+            let d = node.as_defined_node()?;
+            if d.lparen_loc().is_some() {
+                return None;
+            }
+            (d.keyword_loc().span().end, d.value())
+        }
+        _ => return None,
+    };
+    // `candidate` need not be the `ParenthesesNode` itself: a receiver-chain
+    // built on it (`foo ( 1 )[0]`'s index call, `foo ( 1 ).bar`'s method
+    // call, ...) shares the exact same start offset as its own deepest
+    // receiver, since Ruby's grammar can only begin such an expression with
+    // a literal `(` byte by it being this `ParenthesesNode`'s own opening
+    // paren -- so checking the leading byte directly (rather than
+    // `candidate.as_parentheses_node()`, which only matches when the
+    // argument/receiver *is* the paren, not merely starts with it) covers
+    // both shapes uniformly.
+    let start = candidate.span().start;
+    if ctx.text(Span::new(start, start + 1)) != b"(" {
+        return None;
+    }
+    let gap = ctx.text(Span::new(preceding_end, start));
+    if gap.is_empty() || gap.iter().any(|&b| b != b' ' && b != b'\t') {
+        return None;
+    }
+    Some(Span::new(start, start + 1))
+}
 impl SpaceInsideParens {
     /// Reports an offense removing `span` (RuboCop's `corrector.remove`).
     fn remove(ctx: &mut Context<'_>, span: Span, message: &'static str) {
@@ -169,7 +246,7 @@ impl SpaceInsideParens {
     /// between them -- exactly the region a token-stream walk would ever
     /// need to inspect to decide this pair's own offenses (see module
     /// docs).
-    fn check(&self, ctx: &mut Context<'_>, open: Span, close: Span) {
+    fn check(&self, ctx: &mut Context<'_>, open: Span, close: Span, open_is_tlparen_arg: bool) {
         let content = ctx.text(Span::new(open.end, close.start));
 
         if content.is_empty() {
@@ -179,12 +256,16 @@ impl SpaceInsideParens {
 
         if content.iter().all(|&b| is_ruby_whitespace(b)) {
             // `correct_extraneous_space_in_empty_parens`: unconditional for
-            // `space`/`compact`. For `no_space` this is just an ordinary
-            // extraneous-space pair, so it still needs `same_line?`
-            // (`correct_extraneous_space`'s own guard).
+            // `space`/`compact`, but (like every other check of this open
+            // paren) skipped when `open` is an exempt `tLPAREN_ARG` -- it
+            // requires `token1.left_parens?`, which a `tLPAREN_ARG` never
+            // satisfies. For `no_space` this is just an ordinary
+            // extraneous-space pair driven by `token2.right_parens?` alone,
+            // so it still applies regardless (and still needs
+            // `same_line?`, i.e. `correct_extraneous_space`'s own guard).
             let offense = match self.style {
                 Style::NoSpace => !content.contains(&b'\n'),
-                Style::Space | Style::Compact => true,
+                Style::Space | Style::Compact => !open_is_tlparen_arg,
             };
             if offense {
                 Self::remove(ctx, Span::new(open.end, close.start), MSG);
@@ -204,7 +285,7 @@ impl SpaceInsideParens {
             // skip. Never reached on the trailing side: a comment always
             // runs to end of line, so it can never be the byte immediately
             // preceding a close paren on the same line.
-        } else if !content[..first].contains(&b'\n') {
+        } else if !open_is_tlparen_arg && !content[..first].contains(&b'\n') {
             let consecutive_open = content[first] == b'(';
             let has_space = first > 0;
             match self.style {
@@ -370,11 +451,15 @@ expected to be exercised only by deliberately adversarial input.",
             "compact" => Style::Compact,
             _ => Style::NoSpace,
         };
-        Ok(Self { style })
+        Ok(Self { style, exempt_opens: std::collections::HashSet::new() })
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
+        if let Some(open) = tlparen_arg_exemption(node, ctx) {
+            self.exempt_opens.insert(open.start);
+        }
         let Some((open, close)) = parens(node, ctx) else { return };
-        self.check(ctx, open, close);
+        let open_is_tlparen_arg = self.exempt_opens.remove(&open.start);
+        self.check(ctx, open, close, open_is_tlparen_arg);
     }
 }

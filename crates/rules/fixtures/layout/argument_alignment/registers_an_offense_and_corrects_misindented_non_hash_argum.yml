@@ -5,3 +5,5 @@ Layout/ArgumentAlignment:
 Layout/HashAlignment:
   EnforcedColonStyle: separator
   AllowMultipleStyles: false
+Layout/IndentationStyle:
+  EnforcedStyle: ~

@@ -120,7 +120,7 @@ impl MultilineIfModifier {
         body: &Node<'_>,
         ctx: &mut Context<'_>,
     ) {
-        if ctx.is_single_line(body.span()) {
+        if !is_body_multiline(ctx, body) {
             return;
         }
         let message = MSG.replace("%<keyword>s", keyword);
@@ -179,6 +179,31 @@ impl MultilineIfModifier {
         }
         result
     }
+}
+
+/// RuboCop-AST's `Node#multiline?`, which `BlockNode`/`LambdaNode` override
+/// from the generic first-to-last-line-of-the-whole-node check to just their
+/// own opening/closing delimiter lines (`{`/`}` or `do`/`end`, or `->`'s
+/// `(`/`)`/`{`/`}`). Without this, a modifier `if` whose body is a one-line
+/// block call reached through a multi-line method chain (e.g.
+/// `foo\n  .bar { baz } if cond`) would wrongly count as a multiline body.
+fn is_body_multiline(ctx: &Context<'_>, body: &Node<'_>) -> bool {
+    // `if_node.statements()` always wraps the body in a `StatementsNode`,
+    // even for a single statement (unlike whitequark, which elides a
+    // single-statement wrapper); unwrap it so the block/lambda checks
+    // below see the actual statement, matching whitequark's `node.body`.
+    let body = match body.as_statements_node() {
+        Some(s) if s.body().len() == 1 => s.body().first().expect("len==1"),
+        _ => *body,
+    };
+    if let Some(block) = body.as_call_node().and_then(|c| c.block()).and_then(|b| b.as_block_node())
+    {
+        return !ctx.same_line(block.opening_loc().span(), block.closing_loc().span());
+    }
+    if let Some(lambda) = body.as_lambda_node() {
+        return !ctx.same_line(lambda.opening_loc().span(), lambda.closing_loc().span());
+    }
+    !ctx.is_single_line(body.span())
 }
 
 /// Ruby's `String#each_line`: splits after every `\n`, keeping it attached to

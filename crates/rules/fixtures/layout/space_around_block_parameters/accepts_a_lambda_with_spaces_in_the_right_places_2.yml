@@ -1,2 +1,4 @@
 Layout/SpaceAroundBlockParameters:
   EnforcedStyleInsidePipes: space
+Layout/SpaceInsideParens:
+  EnforcedStyle: ~

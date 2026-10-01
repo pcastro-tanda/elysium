@@ -231,7 +231,7 @@ impl LoadedConfig {
             let department = name.rsplit_once('/').and_then(|(dept, _)| raw.get_mapping(dept));
             let badge = badge_clusivity(department, &params);
             if badge.include.is_some() || badge.exclude.is_some() {
-                if let Ok(matcher) = FileMatcher::rooted(
+                if let Ok(matcher) = FileMatcher::rooted_cop(
                     root.clone(),
                     badge.include.as_deref(),
                     badge.exclude.as_deref(),
@@ -276,9 +276,12 @@ impl LoadedConfig {
             &mut cops,
         );
 
-        let matcher =
-            FileMatcher::rooted(root.clone(), Some(&all_cops.include), Some(&all_cops.exclude))
-                .unwrap_or_else(|_| FileMatcher::rubocop_defaults());
+        let matcher = FileMatcher::rooted(
+            root.clone(),
+            Some(&all_cops.raw.get_pattern_list("Include")),
+            Some(&all_cops.raw.get_pattern_list("Exclude")),
+        )
+        .unwrap_or_else(|_| FileMatcher::rubocop_defaults());
 
         Self {
             raw,
@@ -552,23 +555,23 @@ fn enabled_value(
 /// (RuboCop 1.91.0). `None` means neither side sets the key, which RuboCop
 /// answers with the clusivity default.
 struct BadgeClusivity {
-    include: Option<Vec<String>>,
-    exclude: Option<Vec<String>>,
+    include: Option<Vec<YamlValue>>,
+    exclude: Option<Vec<YamlValue>>,
 }
 
 fn badge_clusivity(department: Option<&Mapping>, params: &Mapping) -> BadgeClusivity {
     let pick = |key: &str| {
         if params.contains_key(key) {
-            Some(params.get_string_list(key))
+            Some(params.get_pattern_list(key))
         } else {
-            department.filter(|dept| dept.contains_key(key)).map(|dept| dept.get_string_list(key))
+            department.filter(|dept| dept.contains_key(key)).map(|dept| dept.get_pattern_list(key))
         }
     };
     let mut exclude = pick("Exclude");
     if let Some(dept) = department.filter(|dept| dept.contains_key("Exclude")) {
         if params.contains_key("Exclude") {
-            let mut unioned = dept.get_string_list("Exclude");
-            for path in params.get_string_list("Exclude") {
+            let mut unioned = dept.get_pattern_list("Exclude");
+            for path in params.get_pattern_list("Exclude") {
                 if !unioned.contains(&path) {
                     unioned.push(path);
                 }

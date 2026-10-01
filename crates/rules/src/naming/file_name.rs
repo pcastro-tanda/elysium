@@ -351,9 +351,19 @@ fn to_namespace(path: &str, roots: &[String]) -> Vec<String> {
     }
 }
 
-/// RuboCop's `match_acronym?`: `expected.gsub(acronym.capitalize, acronym) == name`.
+/// RuboCop's `match_acronym?`: `name = allowed_acronyms.reduce(name) { |r,
+/// acronym| r.gsub(acronym, acronym.capitalize) }; expected == name`. Every
+/// acronym is applied in configured order to `actual`, each replacing every
+/// occurrence of its literal (upper-case) form with its capitalized form
+/// (`String#capitalize`: first letter upper, rest lower) -- so an earlier,
+/// coincidentally-overlapping acronym (e.g. `RDO` inside `IRDOauth`) can
+/// consume characters before a later, intended one (`IRD`) ever matches.
 fn match_acronym(expected: &str, actual: &str, acronyms: &[String]) -> bool {
-    acronyms.iter().any(|acronym| expected.replace(&capitalize(acronym), acronym) == actual)
+    let mut name = actual.to_string();
+    for acronym in acronyms {
+        name = name.replace(acronym.as_str(), &capitalize(acronym));
+    }
+    expected == name
 }
 
 /// RuboCop's `partial_matcher!`'s inner loop body, applied to one candidate

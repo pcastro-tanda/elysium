@@ -1,3 +1,5 @@
 Layout/MultilineOperationIndentation:
   EnforcedStyle: indented
   IndentationWidth: 6
+Layout/IndentationStyle:
+  EnforcedStyle: ~

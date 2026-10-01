@@ -58,6 +58,7 @@ macro_rules! rule_set {
 }
 
 rule_set! {
+    lint::cop_directive_syntax::CopDirectiveSyntax,
     style::conditional_assignment::ConditionalAssignment,
     metrics::perceived_complexity::PerceivedComplexity,
     metrics::parameter_lists::ParameterLists,
