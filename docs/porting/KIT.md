@@ -33,6 +33,72 @@ created and registered, and its fixtures are already generated.
 Keep the port literal: same conditions, same message strings, same offense
 ranges as upstream. No extra heuristics.
 
+## Extension cops (Rails, Performance, ThreadSafety, Minitest, Sorbet)
+
+Same job, different places. Each gem is pinned in `tools/extension_gems.rb`
+and has its own crate, `crates/rules_<key>` (`rules_rails`,
+`rules_performance`, `rules_thread_safety`, `rules_minitest`,
+`rules_sorbet`); fixtures still live in `crates/rules/fixtures/<key>/` and
+run through the same harness.
+
+| Gem | Source (`$GEM`) | Upstream test |
+| --- | --- | --- |
+| rubocop-rails | `/Users/paulo/Work/lab/corpus/rubocop-rails-2.38.0` | `spec/rubocop/cop/rails/<cop>_spec.rb` |
+| rubocop-performance | `/Users/paulo/Work/lab/corpus/rubocop-performance-1.27.0` | `spec/rubocop/cop/performance/<cop>_spec.rb` |
+| rubocop-thread_safety | `/Users/paulo/Work/lab/corpus/rubocop-thread_safety-0.8.0` | `spec/rubocop/cop/thread_safety/<cop>_spec.rb` |
+| rubocop-minitest | `/Users/paulo/Work/lab/corpus/rubocop-minitest-0.40.0` | `test/rubocop/cop/minitest/<cop>_test.rb` |
+| rubocop-sorbet | `/Users/paulo/Work/lab/corpus/rubocop-sorbet-0.16.0` | `test/rubocop/cop/sorbet/**/<cop>_test.rb` |
+
+For a Rails cop (`Rails/ApplicationRecord`, snake `application_record`):
+
+1. Read `$GEM/lib/rubocop/cop/rails/application_record.rb` (plus any mixin
+   under `$GEM/lib/rubocop/cop/mixin/`), its spec, and its options in
+   `crates/rules_rails/rubocop-rails/default.yml`.
+2. Fill in `crates/rules_rails/src/rails/application_record.rs` only.
+3. Iterate on
+   `FIXTURE_COP=application_record cargo test -p rules --test fixtures -- --exact rails`.
+4. Done when the fixtures pass and
+   `cargo clippy -p rules_rails 2>&1 | grep -A5 'application_record.rs'` is
+   empty.
+
+For a Minitest cop (`Minitest/AssertNil`, snake `assert_nil`) the same with
+`$GEM/lib/rubocop/cop/minitest/assert_nil.rb`,
+`$GEM/test/rubocop/cop/minitest/assert_nil_test.rb`,
+`crates/rules_minitest/rubocop-minitest/default.yml`,
+`crates/rules_minitest/src/minitest/assert_nil.rs`,
+`FIXTURE_COP=assert_nil cargo test -p rules --test fixtures -- --exact minitest`
+and `cargo clippy -p rules_minitest 2>&1 | grep -A5 'assert_nil.rs'`.
+ThreadSafety's department directory is `thread_safety`
+(`-- --exact thread_safety`). Messages are upstream's verbatim, including
+mixin messages (`NilAssertionHandleable::MSG` and the like).
+
+What differs from core cops:
+
+- `minimum_target_rails_version N` (Rails): RuboCop skips the cop when
+  the target is below `N`, so the rule reports nothing then. The target is
+  `options.peer("AllCops", "TargetRailsVersion")`, which is `null` unless
+  set; unset means 5.0 in the fixtures (the specs stub `railties` at 5.0).
+  `TargetRailsVersion: 4.2` in a case's `.yml` comes from `:rails42`.
+- Minitest suites parse at Ruby 3.4, so `target_ruby_version()` is 3.4 in
+  minitest/sorbet fixtures unless the `.yml` says otherwise.
+- A sorbet case whose `.yml` has `AllCops: DisplayCopNames: true` expects
+  `Sorbet/Foo: ` before each message; the harness adds that prefix. Report
+  the plain upstream `MSG`.
+
+The integrator creates the skeleton and fixtures exactly as for core:
+
+```sh
+ruby tools/scaffold_cop.rb Rails/ApplicationRecord Minitest/AssertNil
+ruby tools/port_spec.rb --cop Rails/ApplicationRecord \
+  --rubocop-src /Users/paulo/Work/lab/corpus/rubocop-1.91.0 --out crates/rules/fixtures
+ruby tools/port_spec.rb --cop Minitest/AssertNil \
+  --rubocop-src /Users/paulo/Work/lab/corpus/rubocop-1.91.0 --out crates/rules/fixtures
+```
+
+`port_spec.rb` finds each gem's checkout next to `--rubocop-src`
+(`<gem>-<version>`); pass `--gem-src rails=PATH,minitest=PATH` for any other
+location.
+
 ## Rule shape
 
 ```rust

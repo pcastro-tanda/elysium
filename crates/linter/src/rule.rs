@@ -23,6 +23,9 @@ pub enum Department {
     Style,
     Rails,
     Performance,
+    Minitest,
+    Sorbet,
+    ThreadSafety,
     RSpec,
 }
 
@@ -41,6 +44,9 @@ impl Department {
             Self::Style => "Style",
             Self::Rails => "Rails",
             Self::Performance => "Performance",
+            Self::Minitest => "Minitest",
+            Self::Sorbet => "Sorbet",
+            Self::ThreadSafety => "ThreadSafety",
             Self::RSpec => "RSpec",
         }
     }

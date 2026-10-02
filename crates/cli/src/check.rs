@@ -105,7 +105,9 @@ fn selects(selector: &str, cop: &str) -> bool {
 
 /// Builds the rule set for this run, applying `--only`/`--except` on top
 /// of the configuration. `--only` enables a cop the configuration
-/// disabled, like RuboCop's.
+/// disabled, like RuboCop's. A cop the configuration does not know at all
+/// belongs to an extension gem the project did not load, so it never runs
+/// from the configuration alone.
 fn select_rules(
     cfg: &LoadedConfig,
     only: &[String],
@@ -115,7 +117,7 @@ fn select_rules(
         .iter()
         .filter(|meta| {
             let selected = if only.is_empty() {
-                cfg.cop(meta.name).map_or(meta.enabled_by_default, |cop| cop.enabled)
+                cfg.cop(meta.name).is_some_and(|cop| cop.enabled)
             } else {
                 only.iter().any(|sel| selects(sel, meta.name))
             };
@@ -147,7 +149,10 @@ fn effective_rule_set(
         .iter()
         .filter_map(|meta| {
             let name = meta.name;
-            (!session.rule_names.contains(&name) && directives.is_opted_in(name)).then_some(name)
+            (!session.rule_names.contains(&name)
+                && session.cfg.cop(name).is_some()
+                && directives.is_opted_in(name))
+            .then_some(name)
         })
         .collect();
     if extra.is_empty() {

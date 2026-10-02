@@ -769,7 +769,12 @@ dependencies = [
  "linter",
  "ruby_ast",
  "rules",
+ "rules_minitest",
+ "rules_performance",
+ "rules_rails",
+ "rules_sorbet",
  "rules_support",
+ "rules_thread_safety",
 ]
 
 [[package]]
@@ -837,6 +842,67 @@ dependencies = [
  "ruby_directives",
  "ruby_semantic",
  "ruby_source",
+ "rules_minitest",
+ "rules_performance",
+ "rules_rails",
+ "rules_sorbet",
+ "rules_support",
+ "rules_thread_safety",
+]
+
+[[package]]
+name = "rules_minitest"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "linter",
+ "regex",
+ "ruby_ast",
+ "ruby_directives",
+ "ruby_semantic",
+ "ruby_source",
+ "rules_support",
+]
+
+[[package]]
+name = "rules_performance"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "linter",
+ "regex",
+ "ruby_ast",
+ "ruby_directives",
+ "ruby_semantic",
+ "ruby_source",
+ "rules_support",
+]
+
+[[package]]
+name = "rules_rails"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "linter",
+ "regex",
+ "ruby_ast",
+ "ruby_directives",
+ "ruby_semantic",
+ "ruby_source",
+ "rules_support",
+]
+
+[[package]]
+name = "rules_sorbet"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "linter",
+ "regex",
+ "ruby_ast",
+ "ruby_directives",
+ "ruby_semantic",
+ "ruby_source",
  "rules_support",
 ]
 
@@ -847,6 +913,20 @@ dependencies = [
  "config",
  "linter",
  "ruby_ast",
+]
+
+[[package]]
+name = "rules_thread_safety"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "linter",
+ "regex",
+ "ruby_ast",
+ "ruby_directives",
+ "ruby_semantic",
+ "ruby_source",
+ "rules_support",
 ]
 
 [[package]]

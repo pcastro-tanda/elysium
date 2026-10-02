@@ -1,0 +1,1 @@
+Other.start { do_work }

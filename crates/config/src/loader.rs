@@ -38,6 +38,9 @@ pub struct ConfigLoader {
     gem_search: GemSearch,
     allow_gem_lookup: bool,
     ignore_parent_exclusion: bool,
+    /// `(gem, config/default.yml text)` merged into the defaults as though
+    /// that gem were a loaded plugin; see [`Self::with_extension_defaults`].
+    extension_defaults: Vec<(&'static str, &'static str)>,
 }
 
 impl Default for ConfigLoader {
@@ -76,6 +79,7 @@ impl ConfigLoader {
             gem_search: GemSearch { extra_roots: Vec::new(), use_environment: true },
             allow_gem_lookup: true,
             ignore_parent_exclusion: false,
+            extension_defaults: Vec::new(),
         }
     }
 
@@ -129,6 +133,20 @@ impl ConfigLoader {
     #[must_use]
     pub fn ignore_parent_exclusion(mut self, ignore: bool) -> Self {
         self.ignore_parent_exclusion = ignore;
+        self
+    }
+
+    /// Merges `default_yml`, the text of extension gem `gem`'s own
+    /// `config/default.yml`, into the defaults below the user's
+    /// configuration exactly as a `plugins:` entry found on disk is, but
+    /// without looking the gem up and whether or not the configuration
+    /// names it. This is how an extension's own specs see RuboCop's default
+    /// configuration (its `CopHelper`/`AssertOffense` integrates the
+    /// installed `lint_roller` plugin), so the fixture harness resolves a
+    /// ported case with it.
+    #[must_use]
+    pub fn with_extension_defaults(mut self, gem: &'static str, default_yml: &'static str) -> Self {
+        self.extension_defaults.push((gem, default_yml));
         self
     }
 
@@ -424,9 +442,18 @@ impl ConfigLoader {
         make_excludes_absolute(&mut default, &self.cwd);
 
         let mut resolved_extensions = Vec::new();
+        for &(gem, yml) in &self.extension_defaults {
+            let mut extension_default =
+                parse_yaml_configuration(yml, &Path::new(gem).join("config/default.yml"))?;
+            make_excludes_absolute(&mut extension_default, &self.cwd);
+            default = merge_extension_defaults(&default, &extension_default);
+            if extensions.iter().any(|name| name == gem) {
+                resolved_extensions.push(gem.to_string());
+            }
+        }
         if self.allow_gem_lookup {
             for gem in extensions {
-                if gem == "rubocop" {
+                if gem == "rubocop" || self.extension_defaults.iter().any(|(name, _)| name == gem) {
                     continue;
                 }
                 match self.gem_search.extension_defaults(gem_search_start, gem) {
@@ -574,10 +601,16 @@ fn read_yaml_configuration(path: &Path) -> Result<Mapping, ConfigError> {
         }
         Err(source) => return Err(ConfigError::Io { path: path.to_path_buf(), source }),
     };
+    parse_yaml_configuration(&contents, path)
+}
+
+/// [`read_yaml_configuration`] of already-read `contents`; `path` names
+/// the document in errors.
+fn parse_yaml_configuration(contents: &str, path: &Path) -> Result<Mapping, ConfigError> {
     if contents.contains("<%") {
         return Err(ConfigError::ErbUnsupported(path.to_path_buf()));
     }
-    match parse_document(&contents) {
+    match parse_document(contents) {
         Ok(None) => Ok(Mapping::new()),
         Ok(Some(YamlValue::Mapping(hash))) => Ok(hash),
         Ok(Some(_)) => Err(ConfigError::Malformed(path.to_path_buf())),

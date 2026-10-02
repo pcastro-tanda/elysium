@@ -9,11 +9,28 @@ use linter::{Context, Diagnostic, Dispatch, OptionError, RuleMeta};
 use ruby_ast::{Node, NodeKind};
 use rules_support::{Builder, SlotList};
 
-/// Every rule crate's slot list, chained.
-type Slots = rules::Slots;
+/// Every rule crate's slot list, chained: core RuboCop, then one crate per
+/// extension gem.
+type Slots = (
+    rules::Slots,
+    (
+        rules_rails::Slots,
+        (
+            rules_performance::Slots,
+            (rules_minitest::Slots, (rules_sorbet::Slots, rules_thread_safety::Slots)),
+        ),
+    ),
+);
 
 /// Every crate's `ALL_RULES`, in [`Slots`] order.
-const CRATE_RULES: &[&[&RuleMeta]] = &[rules::ALL_RULES];
+const CRATE_RULES: &[&[&RuleMeta]] = &[
+    rules::ALL_RULES,
+    rules_rails::ALL_RULES,
+    rules_performance::ALL_RULES,
+    rules_minitest::ALL_RULES,
+    rules_sorbet::ALL_RULES,
+    rules_thread_safety::ALL_RULES,
+];
 
 const RULE_COUNT: usize = {
     let mut count = 0;

@@ -1,5 +1,9 @@
 //! Fixture harness: runs every `crates/rules/fixtures/<dept>/<snake>/*.rb`
-//! case, which is a verbatim port of a RuboCop `expect_offense` example.
+//! case, which is a verbatim port of a RuboCop `expect_offense` example --
+//! or, for the extension departments (`rails`, `performance`,
+//! `thread_safety`, `minitest`, `sorbet`), of that gem's own spec or test,
+//! resolved against the gem's vendored `default.yml` the way its suite is
+//! (see [`Suite`]).
 //!
 //! One `#[test]` per department, so a failure lists every failing case in
 //! that department at once. `cargo test -p rules --test fixtures -- layout`
@@ -74,6 +78,77 @@ fn style() {
     run_department("style");
 }
 
+#[test]
+fn rails() {
+    run_department("rails");
+}
+
+#[test]
+fn performance() {
+    run_department("performance");
+}
+
+#[test]
+fn minitest() {
+    run_department("minitest");
+}
+
+#[test]
+fn sorbet() {
+    run_department("sorbet");
+}
+
+#[test]
+fn thread_safety() {
+    run_department("thread_safety");
+}
+
+/// How an extension gem's own suite sets up the cops a department's
+/// fixtures were ported from (see `tools/extension_gems.rb`).
+struct Suite {
+    /// The gem and its vendored `config/default.yml`, which its
+    /// `spec_helper`/`test_helper` merges into RuboCop's defaults:
+    /// rubocop-rails, rubocop-performance, rubocop-thread_safety and
+    /// rubocop-minitest through `lint_roller` plugin integration (RuboCop's
+    /// `CopHelper`, rubocop-minitest's `AssertOffense`), rubocop-sorbet
+    /// through `ConfigLoader.inject_defaults!`, which for every key its
+    /// `default.yml` sets comes to the same merge. `None` for core RuboCop.
+    extension: Option<(&'static str, &'static str)>,
+    /// The target Ruby version a case that does not state one runs at; see
+    /// [`CORE_TARGET_RUBY_VERSION`].
+    target_ruby_version: &'static str,
+}
+
+/// The target Ruby version a core (and RSpec-suite) case that does not
+/// state one runs at.
+///
+/// The specs these fixtures were ported from run under
+/// `PARSER_ENGINE=parser_prism`, where RuboCop's `CopHelper` resolves
+/// `let(:ruby_version)` to 3.3 rather than `TargetRuby::DEFAULT_VERSION`
+/// (2.7), and `tools/port_spec.rb` only writes `AllCops/TargetRubyVersion`
+/// into a case's yml when the spec asked for a *different* version. So an
+/// unset version means 3.3 here, even though the engine's own default
+/// (`linter::DEFAULT_RUBY_VERSION`, what a real project gets) is 2.7.
+/// rubocop-minitest's `AssertOffense`, which the Minitest suites use,
+/// parses at 3.4 instead.
+const CORE_TARGET_RUBY_VERSION: &str = "3.3";
+
+fn suite(dept: &str) -> Suite {
+    let (extension, target_ruby_version) = match dept {
+        "rails" => ((rules_rails::GEM, rules_rails::DEFAULT_YML), CORE_TARGET_RUBY_VERSION),
+        "performance" => {
+            ((rules_performance::GEM, rules_performance::DEFAULT_YML), CORE_TARGET_RUBY_VERSION)
+        }
+        "thread_safety" => {
+            ((rules_thread_safety::GEM, rules_thread_safety::DEFAULT_YML), CORE_TARGET_RUBY_VERSION)
+        }
+        "minitest" => ((rules_minitest::GEM, rules_minitest::DEFAULT_YML), "3.4"),
+        "sorbet" => ((rules_sorbet::GEM, rules_sorbet::DEFAULT_YML), "3.4"),
+        _ => return Suite { extension: None, target_ruby_version: CORE_TARGET_RUBY_VERSION },
+    };
+    Suite { extension: Some(extension), target_ruby_version }
+}
+
 fn fixtures_root() -> PathBuf {
     Path::new(env!("CARGO_MANIFEST_DIR")).join("fixtures")
 }
@@ -85,20 +160,27 @@ fn updating() -> bool {
 /// `Layout/TrailingWhitespace` -> `("layout", "trailing_whitespace")`.
 fn cop_path(meta: &RuleMeta) -> (String, String) {
     let (dept, name) = meta.name.split_once('/').expect("cop names are Dept/Name");
-    (dept.to_ascii_lowercase(), snake_case(name))
+    (snake_case(dept), snake_case(name))
 }
 
+/// RuboCop's file naming, acronyms included (`tools/extension_gems.rb`'s
+/// `snake`): `YAMLFileRead` -> `yaml_file_read`, `ThreadSafety` ->
+/// `thread_safety`.
 fn snake_case(name: &str) -> String {
+    let chars: Vec<char> = name.chars().collect();
     let mut out = String::with_capacity(name.len() + 8);
-    for (i, ch) in name.char_indices() {
-        if ch.is_ascii_uppercase() {
-            if i > 0 {
+    for (i, &ch) in chars.iter().enumerate() {
+        if ch.is_ascii_uppercase() && i > 0 {
+            let prev = chars[i - 1];
+            let next_is_lower = chars.get(i + 1).is_some_and(char::is_ascii_lowercase);
+            if prev.is_ascii_lowercase()
+                || prev.is_ascii_digit()
+                || (prev.is_ascii_uppercase() && next_is_lower)
+            {
                 out.push('_');
             }
-            out.push(ch.to_ascii_lowercase());
-        } else {
-            out.push(ch);
         }
+        out.push(ch.to_ascii_lowercase());
     }
     out
 }
@@ -121,6 +203,7 @@ fn run_department(dept: &str) {
         return;
     }
     let filter = case_filter(dept);
+    let suite = suite(dept);
 
     let mut cop_dirs: Vec<PathBuf> = std::fs::read_dir(&dir)
         .expect("read department directory")
@@ -157,7 +240,7 @@ fn run_department(dept: &str) {
         cases.sort();
 
         for case in cases {
-            if let Err(message) = run_case(meta, &case) {
+            if let Err(message) = run_case(meta, &case, &suite) {
                 failures.push(format!("{}\n{message}", case.display()));
             }
         }
@@ -263,28 +346,37 @@ fn parse_annotation(line: &str, previous_source_line: u32) -> Option<Annotation>
     })
 }
 
-/// The target Ruby version a case that does not state one runs at.
-///
-/// The specs these fixtures were ported from run under
-/// `PARSER_ENGINE=parser_prism`, where RuboCop's `CopHelper` resolves
-/// `let(:ruby_version)` to 3.3 rather than `TargetRuby::DEFAULT_VERSION`
-/// (2.7), and `tools/port_spec.rb` only writes `AllCops/TargetRubyVersion`
-/// into a case's yml when the spec asked for a *different* version. So an
-/// unset version means 3.3 here, even though the engine's own default
-/// (`linter::DEFAULT_RUBY_VERSION`, what a real project gets) is 2.7.
-const FIXTURE_TARGET_RUBY_VERSION: f32 = 3.3;
+/// `AllCops` settings a case runs with unless its `.yml` states them: the
+/// suite's target Ruby version, and `DisplayCopNames: false`, since a
+/// spec's bespoke `RuboCop::Config` never sets it while the merged
+/// `default.yml` says `true` (`tools/port_spec.rb` writes
+/// `DisplayCopNames: true` for the cases whose messages carry the cop name).
+fn unstated_all_cops(stated: &str, suite: &Suite) -> Vec<(&'static str, &'static str)> {
+    [("TargetRubyVersion", suite.target_ruby_version), ("DisplayCopNames", "false")]
+        .into_iter()
+        .filter(|(key, _)| {
+            !stated.lines().any(|line| {
+                line.trim_start().strip_prefix(key).is_some_and(|rest| rest.starts_with(':'))
+            })
+        })
+        .collect()
+}
 
-fn load_config(case: &Path) -> LoadedConfig {
+fn load_config(case: &Path, suite: &Suite) -> LoadedConfig {
     let yml = case.with_extension("yml");
-    let loader = ConfigLoader::new()
+    let mut loader = ConfigLoader::new()
         .with_cwd(case.parent().expect("case has a parent"))
         .with_project_root(case.parent().expect("case has a parent"))
         .with_gem_lookup(false);
+    if let Some((gem, default_yml)) = suite.extension {
+        loader = loader.with_extension_defaults(gem, default_yml);
+    }
     let stated = std::fs::read_to_string(&yml).unwrap_or_default();
-    if stated.lines().any(|line| line.trim_start().starts_with("TargetRubyVersion:")) {
+    let settings = unstated_all_cops(&stated, suite);
+    if settings.is_empty() {
         return loader.load(Some(&yml)).expect("load fixture config");
     }
-    // `LoadedConfig` is immutable once resolved, so the version goes in
+    // `LoadedConfig` is immutable once resolved, so the settings go in
     // through the YAML the loader reads: a scratch copy of the case's
     // configuration next to it (same directory, so every relative path in it
     // still resolves identically), removed as soon as it is loaded.
@@ -292,30 +384,33 @@ fn load_config(case: &Path) -> LoadedConfig {
         ".{}.target-ruby.yml",
         case.file_stem().expect("case has a stem").to_string_lossy()
     ));
-    let injected = inject_target_ruby(&stated);
+    let injected = inject_all_cops(&stated, &settings);
     std::fs::write(&scratch, injected).expect("write scratch fixture config");
     let config = loader.load(Some(&scratch)).expect("load fixture config");
     std::fs::remove_file(&scratch).expect("remove scratch fixture config");
     config
 }
 
-/// Adds `AllCops/TargetRubyVersion` to a case's YAML text, either into its
+/// Adds `settings` under `AllCops` to a case's YAML text, either into its
 /// existing `AllCops` section or as a new one.
-fn inject_target_ruby(yml: &str) -> String {
-    let setting = format!("  TargetRubyVersion: {FIXTURE_TARGET_RUBY_VERSION}\n");
+fn inject_all_cops(yml: &str, settings: &[(&str, &str)]) -> String {
+    let mut block = String::new();
+    for (key, value) in settings {
+        let _ = writeln!(block, "  {key}: {value}");
+    }
     if let Some(position) = yml.lines().position(|line| line.trim_end() == "AllCops:") {
-        let mut out = String::with_capacity(yml.len() + setting.len());
+        let mut out = String::with_capacity(yml.len() + block.len());
         for (index, line) in yml.lines().enumerate() {
             out.push_str(line);
             out.push('\n');
             if index == position {
-                out.push_str(&setting);
+                out.push_str(&block);
             }
         }
         out
     } else {
         let separator = if yml.is_empty() || yml.ends_with('\n') { "" } else { "\n" };
-        format!("{yml}{separator}AllCops:\n{setting}")
+        format!("{yml}{separator}AllCops:\n{block}")
     }
 }
 
@@ -329,7 +424,14 @@ fn ruby_version(target: Option<f32>) -> RubyVersion {
     }
 }
 
-fn to_annotations(source: &SourceFile, diagnostics: &[Diagnostic]) -> Vec<Annotation> {
+/// The annotations RuboCop would render for `diagnostics`; with `cop_name`
+/// (`AllCops/DisplayCopNames`), each message carries its `Cop/Name: `
+/// prefix the way RuboCop's `MessageAnnotator` adds it.
+fn to_annotations(
+    source: &SourceFile,
+    diagnostics: &[Diagnostic],
+    cop_name: Option<&str>,
+) -> Vec<Annotation> {
     diagnostics
         .iter()
         .map(|d| {
@@ -342,11 +444,15 @@ fn to_annotations(source: &SourceFile, diagnostics: &[Diagnostic]) -> Vec<Annota
                 let line_len = char_count(source.line_text(start.line));
                 line_len.saturating_sub(start.column)
             };
+            let message = d.message.replace('\n', " ");
             Annotation {
                 line: start.line,
                 column: start.column,
                 length,
-                message: d.message.replace('\n', " "),
+                message: match cop_name {
+                    Some(name) => format!("{name}: {message}"),
+                    None => message,
+                },
             }
         })
         .collect()
@@ -387,11 +493,11 @@ fn injected_offenses(case: &Path) -> Vec<(&'static str, u32)> {
         .collect()
 }
 
-fn run_case(meta: &'static RuleMeta, case: &Path) -> Result<(), String> {
+fn run_case(meta: &'static RuleMeta, case: &Path, suite: &Suite) -> Result<(), String> {
     let bytes = std::fs::read(case).map_err(|err| format!("cannot read case: {err}"))?;
     let (source_bytes, expected) = parse_annotated(&bytes);
 
-    let cfg = load_config(case);
+    let cfg = load_config(case, suite);
     let rule_set = RuleSet::isolated(&[meta.name], &cfg).map_err(|err| err.to_string())?;
     let options = ParseOptions {
         version: ruby_version(cfg.all_cops().target_ruby_version),
@@ -412,7 +518,8 @@ fn run_case(meta: &'static RuleMeta, case: &Path) -> Result<(), String> {
         &FileSettings::all_enabled(),
         &offenses,
     );
-    let actual = to_annotations(&source, &result.diagnostics);
+    let cop_name = cfg.all_cops().display_cop_names.then_some(meta.name);
+    let actual = to_annotations(&source, &result.diagnostics, cop_name);
 
     let expected_text = render(&source_bytes, &expected);
     let actual_text = render(&source_bytes, &actual);

@@ -1,0 +1,1 @@
+class MyModel < ApplicationRecord; end

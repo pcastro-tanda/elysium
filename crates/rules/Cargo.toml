@@ -18,6 +18,11 @@ rules_support.workspace = true
 
 [dev-dependencies]
 registry.workspace = true
+rules_rails.workspace = true
+rules_performance.workspace = true
+rules_minitest.workspace = true
+rules_sorbet.workspace = true
+rules_thread_safety.workspace = true
 
 [lints]
 workspace = true
