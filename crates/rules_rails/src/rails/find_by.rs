@@ -52,7 +52,8 @@ impl Rule for FindBy {
             return;
         }
         // `node.arguments.empty?`: an `&block` argument counts as an argument.
-        if call.arguments().is_some() || call.block().is_some_and(|b| b.as_block_argument_node().is_some())
+        if call.arguments().is_some()
+            || call.block().is_some_and(|b| b.as_block_argument_node().is_some())
         {
             return;
         }

@@ -68,13 +68,13 @@ impl Rule for RenderPlainText {
             _ => None,
         }
         .unwrap_or_default();
-        let pairs: Vec<_> = elements.iter().filter_map(|e| e.as_assoc_node()).collect();
+        let pairs: Vec<_> = elements.iter().filter_map(ruby_ast::Node::as_assoc_node).collect();
 
         let Some(text_pair) = pairs.iter().find(|pair| key_is_sym(&pair.key(), b"text")) else {
             return;
         };
         let content_type = pairs.iter().find(|pair| key_is_value(&pair.key(), b"content_type"));
-        if !self.compatible_content_type(content_type.map(|pair| pair.value())) {
+        if !self.compatible_content_type(content_type.map(ruby_ast::node::AssocNode::value)) {
             return;
         }
 
@@ -111,9 +111,7 @@ impl RenderPlainText {
     fn compatible_content_type(&self, value: Option<Node<'_>>) -> bool {
         match value {
             None => !self.content_type_compatibility,
-            Some(value) => {
-                value.as_string_node().is_some_and(|s| s.unescaped() == b"text/plain")
-            }
+            Some(value) => value.as_string_node().is_some_and(|s| s.unescaped() == b"text/plain"),
         }
     }
 }

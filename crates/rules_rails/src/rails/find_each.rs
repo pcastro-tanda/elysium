@@ -142,14 +142,11 @@ impl FindEach {
     fn ignored(&self, call: &CallNode<'_>, receiver: &CallNode<'_>) -> bool {
         // `active_model_error_where?`
         if receiver.name().as_slice() == b"where"
-            && receiver
-                .receiver()
-                .and_then(|r| r.as_call_node())
-                .is_some_and(|r| {
-                    !r.is_safe_navigation()
-                        && r.name().as_slice() == b"errors"
-                        && !r.block().is_some_and(|b| b.as_block_node().is_some())
-                })
+            && receiver.receiver().and_then(|r| r.as_call_node()).is_some_and(|r| {
+                !r.is_safe_navigation()
+                    && r.name().as_slice() == b"errors"
+                    && r.block().is_none_or(|b| b.as_block_node().is_none())
+            })
         {
             return true;
         }
@@ -189,8 +186,5 @@ impl FindEach {
 /// rooted at `::`.
 fn is_active_record(node: &Node<'_>) -> bool {
     matches!(node.kind(), NodeKind::ConstantReadNode | NodeKind::ConstantPathNode)
-        && matches!(
-            const_name(node).as_deref(),
-            Some("ApplicationRecord" | "ActiveRecord::Base")
-        )
+        && matches!(const_name(node).as_deref(), Some("ApplicationRecord" | "ActiveRecord::Base"))
 }

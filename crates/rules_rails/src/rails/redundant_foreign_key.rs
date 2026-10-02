@@ -4,7 +4,7 @@
 //! The default foreign key of `has_one`/`has_many`/`has_and_belongs_to_many`
 //! comes from rubocop-ast's `Node#parent_module_name` (this module's
 //! [`Frame`] stack models the ancestors it inspects) fed through
-//! ActiveSupport's `String#foreign_key`.
+//! `ActiveSupport`'s `String#foreign_key`.
 //!
 //! In whitequark a `block` node wraps the `send` it is attached to, so a
 //! call with a literal block is an ancestor of its own receiver, arguments
@@ -175,11 +175,8 @@ impl RedundantForeignKey {
         }
         // `new_class_or_module_block?`: `^(casgn _ _ (block (send (const _
         // {:Class :Module}) :new) ...))`.
-        let direct_value = self
-            .frames
-            .last()
-            .and_then(|f| f.casgn_value)
-            .is_some_and(|span| span == node.span());
+        let direct_value =
+            self.frames.last().and_then(|f| f.casgn_value).is_some_and(|span| span == node.span());
         if direct_value && is_class_or_module_new_without_args(call) {
             Part::Skip
         } else {
@@ -218,7 +215,8 @@ impl RedundantForeignKey {
         }
         let Some(arguments) = call.arguments() else { return };
         let mut arguments = arguments.arguments().iter();
-        let (Some(name), Some(options), None) = (arguments.next(), arguments.next(), arguments.next())
+        let (Some(name), Some(options), None) =
+            (arguments.next(), arguments.next(), arguments.next())
         else {
             return;
         };
@@ -231,10 +229,10 @@ impl RedundantForeignKey {
             _ => None,
         }
         .unwrap_or_default();
-        let pairs: Vec<_> = elements.iter().filter_map(|e| e.as_assoc_node()).collect();
+        let pairs: Vec<_> = elements.iter().filter_map(ruby_ast::Node::as_assoc_node).collect();
         let found = pairs.iter().find_map(|pair| {
             let key = pair.key();
-            if !key.as_symbol_node().is_some_and(|s| s.unescaped() == b"foreign_key") {
+            if key.as_symbol_node().is_none_or(|s| s.unescaped() != b"foreign_key") {
                 return None;
             }
             Some((pair, sym_or_str(&pair.value())?))
@@ -302,7 +300,8 @@ fn is_class_new(node: &Node<'_>) -> bool {
         return false;
     }
     call.receiver().is_some_and(|r| {
-        is_bare_or_toplevel_const(&r) && matches!(const_name(&r).as_deref(), Some("Class" | "Module"))
+        is_bare_or_toplevel_const(&r)
+            && matches!(const_name(&r).as_deref(), Some("Class" | "Module"))
     })
 }
 
@@ -322,7 +321,7 @@ fn is_class_or_module_new_without_args(call: &CallNode<'_>) -> bool {
     })
 }
 
-/// ActiveSupport's `String#foreign_key`: `underscore(demodulize(name)) + "_id"`.
+/// `ActiveSupport`'s `String#foreign_key`: `underscore(demodulize(name)) + "_id"`.
 fn foreign_key_of(class_name: &str) -> String {
     let demodulized = class_name.rsplit("::").next().unwrap_or(class_name);
     let chars: Vec<char> = demodulized.chars().collect();
