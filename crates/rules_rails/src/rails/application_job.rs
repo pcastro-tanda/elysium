@@ -3,8 +3,8 @@
 //! `EnforceSuperclass` mixin, `lib/rubocop/cop/mixin/enforce_superclass.rb`).
 
 use linter::{
-    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule,
-    RuleMeta, RuleOptions, Severity, Stability,
+    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule, RuleMeta,
+    RuleOptions, Severity, Stability,
 };
 use ruby_ast::ext::{const_name, is_bare_or_toplevel_const};
 use ruby_ast::{Node, NodeExt as _, NodeKind};

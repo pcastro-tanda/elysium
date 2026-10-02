@@ -9,7 +9,7 @@ use ruby_ast::{Node, NodeExt as _, NodeKind};
 
 const MSG: &str = "Use `Arel.star` instead of `\"*\"` for expanded column lists.";
 
-/// Prevents usage of `"*"` on an Arel::Table column reference.
+/// Prevents usage of `"*"` on an `Arel::Table` column reference.
 #[derive(Debug, Clone)]
 pub struct ArelStar;
 

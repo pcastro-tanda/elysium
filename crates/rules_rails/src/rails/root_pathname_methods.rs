@@ -2,6 +2,7 @@
 //! `lib/rubocop/cop/rails/root_pathname_methods.rb`.
 
 use std::collections::HashSet;
+use std::fmt::Write as _;
 
 use linter::{
     Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, OptionValue, Rule,
@@ -135,7 +136,8 @@ impl Rule for RootPathnameMethods {
         name: "Rails/RootPathnameMethods",
         department: Department::Rails,
         summary: "Use `Rails.root` IO methods instead of passing it to `File`.",
-        explanation: "Use `Rails.root` IO methods instead of passing it to `File`.\n\n`Rails.root` \
+        explanation:
+            "Use `Rails.root` IO methods instead of passing it to `File`.\n\n`Rails.root` \
                       is an instance of `Pathname` so we can apply many IO methods directly.\n\n\
                       This cop works best when used together with `Style/FileRead`, \
                       `Style/FileWrite` and `Rails/RootJoinChain`.\n\nThis cop is unsafe for \
@@ -176,7 +178,7 @@ impl Rule for RootPathnameMethods {
                 self.send_children.insert((receiver.span().start, receiver.span().end));
             }
             if let Some(arguments) = call.arguments() {
-                for argument in arguments.arguments().iter() {
+                for argument in &arguments.arguments() {
                     self.send_children.insert((argument.span().start, argument.span().end));
                 }
             }
@@ -184,7 +186,7 @@ impl Rule for RootPathnameMethods {
         // `[]` is an `index` node, not a `send`.
         if call.name().as_slice() == b"[]" && call.receiver().is_some() {
             if let Some(arguments) = call.arguments() {
-                for argument in arguments.arguments().iter() {
+                for argument in &arguments.arguments() {
                     self.send_children.remove(&(argument.span().start, argument.span().end));
                 }
             }
@@ -370,7 +372,7 @@ fn build_path_replacement(
                 }
             })
             .collect();
-        replacement.push_str(&format!("({})", formatted.join(", ")));
+        let _ = write!(replacement, "({})", formatted.join(", "));
     }
     replacement
 }
@@ -387,7 +389,7 @@ fn literal_value(node: &Node<'_>, ctx: &Context<'_>) -> Option<String> {
         }
         NodeKind::InterpolatedStringNode => {
             let mut value = String::new();
-            for part in node.as_interpolated_string_node()?.parts().iter() {
+            for part in &node.as_interpolated_string_node()?.parts() {
                 match literal_value(&part, ctx) {
                     Some(text) => value.push_str(&text),
                     None => value.push_str(&String::from_utf8_lossy(ctx.text(part.span()))),
@@ -398,7 +400,9 @@ fn literal_value(node: &Node<'_>, ctx: &Context<'_>) -> Option<String> {
         NodeKind::IntegerNode
         | NodeKind::FloatNode
         | NodeKind::RationalNode
-        | NodeKind::ImaginaryNode => Some(String::from_utf8_lossy(ctx.text(node.span())).into_owned()),
+        | NodeKind::ImaginaryNode => {
+            Some(String::from_utf8_lossy(ctx.text(node.span())).into_owned())
+        }
         _ => None,
     }
 }
@@ -407,9 +411,11 @@ fn literal_value(node: &Node<'_>, ctx: &Context<'_>) -> Option<String> {
 /// `begin` node (an interpolation or parenthesised expression).
 fn include_interpolation(argument: &Node<'_>) -> bool {
     match argument.kind() {
-        NodeKind::InterpolatedStringNode => argument.as_interpolated_string_node().is_some_and(|s| {
-            s.parts().iter().any(|part| part.kind() == NodeKind::EmbeddedStatementsNode)
-        }),
+        NodeKind::InterpolatedStringNode => {
+            argument.as_interpolated_string_node().is_some_and(|s| {
+                s.parts().iter().any(|part| part.kind() == NodeKind::EmbeddedStatementsNode)
+            })
+        }
         NodeKind::CallNode => argument.as_call_node().is_some_and(|call| {
             call.receiver().is_some_and(|r| r.kind() == NodeKind::ParenthesesNode)
                 || call.arguments().is_some_and(|list| {

@@ -48,7 +48,10 @@ impl Rule for ToFormattedS {
             "to_formatted_s" => "to_formatted_s",
             _ => "to_fs",
         };
-        Ok(Self { supported: options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION, style })
+        Ok(Self {
+            supported: options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION,
+            style,
+        })
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {

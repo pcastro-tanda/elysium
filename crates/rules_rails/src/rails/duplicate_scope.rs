@@ -51,7 +51,7 @@ impl Rule for DuplicateScope {
         let Some(statements) = body.as_statements_node() else { return };
 
         let mut scopes: Vec<(Span, Vec<String>)> = Vec::new();
-        for statement in statements.body().iter() {
+        for statement in &statements.body() {
             // `class_send_nodes`: only `send` children; a call with a block is a `block`.
             let Some(call) = statement.as_call_node() else { continue };
             if call.receiver().is_some()
@@ -64,7 +64,7 @@ impl Rule for DuplicateScope {
             let mut expression: Vec<String> = Vec::new();
             let mut arguments = 0;
             if let Some(list) = call.arguments() {
-                for argument in list.arguments().iter() {
+                for argument in &list.arguments() {
                     if arguments > 0 {
                         expression.push(fingerprint(&argument, ctx));
                     }
