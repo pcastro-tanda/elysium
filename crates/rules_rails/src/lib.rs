@@ -17,5 +17,10 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::delegate_allow_blank::DelegateAllowBlank,
+    rails::application_controller::ApplicationController,
+    rails::scope_args::ScopeArgs,
+    rails::has_and_belongs_to_many::HasAndBelongsToMany,
+    rails::dangerous_column_names::DangerousColumnNames,
     rails::application_record::ApplicationRecord,
 }
