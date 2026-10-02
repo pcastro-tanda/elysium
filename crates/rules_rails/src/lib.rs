@@ -40,5 +40,10 @@ rules_support::rule_set! {
     rails::time_zone_assignment::TimeZoneAssignment,
     rails::i18n_locale_assignment::I18nLocaleAssignment,
     rails::reversible_migration::ReversibleMigration,
+    rails::safe_navigation_with_blank::SafeNavigationWithBlank,
+    rails::top_level_hash_with_indifferent_access::TopLevelHashWithIndifferentAccess,
+    rails::action_controller_test_case::ActionControllerTestCase,
+    rails::active_record_aliases::ActiveRecordAliases,
+    rails::redundant_presence_validation_on_belongs_to::RedundantPresenceValidationOnBelongsTo,
     rails::application_record::ApplicationRecord,
 }
