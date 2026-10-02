@@ -17,5 +17,6 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::http_status_name_consistency::HttpStatusNameConsistency,
     rails::application_record::ApplicationRecord,
 }
