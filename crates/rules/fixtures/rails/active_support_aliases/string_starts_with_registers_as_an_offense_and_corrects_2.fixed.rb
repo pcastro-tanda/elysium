@@ -1,0 +1,1 @@
+'some_string'&.start_with?('prefix')

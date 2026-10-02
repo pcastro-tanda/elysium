@@ -1,0 +1,5 @@
+AllCops:
+  MigratedSchemaVersion: '20240101010101'
+Rails/DangerousColumnNames:
+  Severity: ~
+  Include: ~

@@ -1,0 +1,1 @@
+User.references(:association_name).limit(10).each { |u| u.something }

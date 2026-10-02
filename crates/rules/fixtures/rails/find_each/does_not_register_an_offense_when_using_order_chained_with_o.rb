@@ -1,0 +1,1 @@
+User.order(:name).includes(:company).each { |u| u.something }
