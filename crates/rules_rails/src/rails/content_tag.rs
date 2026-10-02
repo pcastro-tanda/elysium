@@ -6,7 +6,6 @@
 //! nests the body inside the call, so the rule keeps its own stack of
 //! enclosing calls and skips those whose block contains the node asked about.
 
-use super::rails_version::target_rails_version;
 use linter::{
     Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule, RuleMeta,
     RuleOptions, Severity, Stability,
@@ -62,7 +61,7 @@ impl Rule for ContentTag {
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
         Ok(Self {
-            supported: target_rails_version(options) >= MINIMUM_TARGET_RAILS_VERSION,
+            supported: options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION,
             stack: Vec::new(),
             // Ruby's `^`/`$` match at every line.
             allowed_name: Regex::new(r"(?m)^[a-zA-Z-][a-zA-Z\-0-9]*$").expect("static regex"),
