@@ -114,8 +114,8 @@ fn is_frozen_literal_default(value: &Node<'_>) -> bool {
 fn is_offender(value: &Node<'_>) -> bool {
     if let Some(call) = value.as_call_node() {
         // `csend` and calls with a literal block are other node types.
-        return !call.is_safe_navigation()
-            && !call.block().is_some_and(|block| block.as_block_node().is_some());
+        return !(call.is_safe_navigation()
+            || call.block().is_some_and(|block| block.as_block_node().is_some()));
     }
     value.as_array_node().is_some()
         || value.as_hash_node().is_some()

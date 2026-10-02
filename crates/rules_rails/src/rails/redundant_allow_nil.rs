@@ -99,7 +99,7 @@ fn find_allow_nil_and_allow_blank<'pr>(
     for_each_child(node, |child| {
         // A literal block belongs to the `block` node, not the `send`.
         if !(root && child.as_block_node().is_some()) {
-            children.push(child.clone());
+            children.push(*child);
         }
     });
     // Whitequark has no `arguments` node: its children are the call's.

@@ -12,16 +12,25 @@ use ruby_source::Span;
 const MSG_NIL_OR_EMPTY: &str = "Use `{prefer}` instead of `{current}`.";
 const MSG_UNLESS_PRESENT: &str = "Use `if {prefer}` instead of `{current}`.";
 
+/// Whether `Style/UnlessElse` is enabled (`config.cop_enabled?`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnlessElse {
+    Enabled,
+    Disabled,
+}
+
+/// A captured receiver; `None` when absent (a bare `nil?`).
+struct Capture<'pr>(Option<Node<'pr>>);
+
 /// Enforces use of `blank?`.
 #[derive(Debug, Clone)]
 pub struct Blank {
     nil_or_empty: bool,
     not_present: bool,
     unless_present: bool,
-    /// `Style/UnlessElse` is enabled (`config.cop_enabled?`).
-    unless_else_enabled: bool,
+    unless_else: UnlessElse,
     /// The sole statement of a `def blank?` body (`defining_blank?`).
-    blank_body: Option<Span>,
+    defining_body: Option<Span>,
 }
 
 impl Rule for Blank {
@@ -73,11 +82,15 @@ impl Rule for Blank {
             nil_or_empty: options.bool("NilOrEmpty"),
             not_present: options.bool("NotPresent"),
             unless_present: options.bool("UnlessPresent"),
-            unless_else_enabled: !matches!(
+            unless_else: if matches!(
                 options.peer("Style/UnlessElse", "Enabled"),
                 Some(OptionValue::Bool(false))
-            ),
-            blank_body: None,
+            ) {
+                UnlessElse::Disabled
+            } else {
+                UnlessElse::Enabled
+            },
+            defining_body: None,
         })
     }
 
@@ -107,7 +120,7 @@ impl Blank {
         let Some(statements) = body.as_statements_node() else { return };
         let mut iter = statements.body().iter();
         if let (Some(only), None) = (iter.next(), iter.next()) {
-            self.blank_body = Some(only.span());
+            self.defining_body = Some(only.span());
         }
     }
 
@@ -125,7 +138,7 @@ impl Blank {
         if inner.name().as_slice() != b"present?" || !is_plain_send(&inner, true) {
             return;
         }
-        if self.blank_body == Some(node.span()) {
+        if self.defining_body == Some(node.span()) {
             return;
         }
         let receiver = inner.receiver();
@@ -143,7 +156,7 @@ impl Blank {
         let Some(or) = node.as_or_node() else { return };
         let Some(var1) = left_variable(&or.left()) else { return };
         let Some(var2) = right_variable(&or.right()) else { return };
-        let same = match (&var1, &var2) {
+        let same = match (&var1.0, &var2.0) {
             (Some(a), Some(b)) => ctx.text(a.span()) == ctx.text(b.span()),
             (None, None) => true,
             _ => false,
@@ -151,7 +164,7 @@ impl Blank {
         if !same {
             return;
         }
-        let prefer = replacement(ctx, var1.as_ref());
+        let prefer = replacement(ctx, var1.0.as_ref());
         let current = String::from_utf8_lossy(ctx.text(node.span())).into_owned();
         let message = MSG_NIL_OR_EMPTY.replace("{prefer}", &prefer).replace("{current}", &current);
         let span = node.span();
@@ -163,7 +176,7 @@ impl Blank {
             return;
         }
         let Some(unless) = node.as_unless_node() else { return };
-        if unless.else_clause().is_some() && self.unless_else_enabled {
+        if unless.else_clause().is_some() && self.unless_else == UnlessElse::Enabled {
             return;
         }
         // `(:if $(send $_ :present?) ...)`
@@ -217,9 +230,8 @@ fn replacement(ctx: &Context<'_>, node: Option<&Node<'_>>) -> String {
     )
 }
 
-/// Left alternatives of `nil_or_empty?`; the outer `Option` is the match, the
-/// inner one the captured receiver (absent for a bare `nil?`).
-fn left_variable<'pr>(node: &Node<'pr>) -> Option<Option<Node<'pr>>> {
+/// Left alternatives of `nil_or_empty?`; `None` is no match.
+fn left_variable<'pr>(node: &Node<'pr>) -> Option<Capture<'pr>> {
     let call = node.as_call_node()?;
     if call.is_safe_navigation() || call.block().is_some() {
         return None;
@@ -228,26 +240,26 @@ fn left_variable<'pr>(node: &Node<'pr>) -> Option<Option<Node<'pr>>> {
         call.arguments().map(|args| args.arguments().iter().collect()).unwrap_or_default();
     match (call.name().as_slice(), arguments.as_slice()) {
         // (send $_ :!) -- the receiver must exist for `!` to be a call.
-        (b"!" | b"nil?", []) => Some(call.receiver()),
+        (b"!" | b"nil?", []) => Some(Capture(call.receiver())),
         // (send $_ :== nil)
-        (b"==", [argument]) if argument.as_nil_node().is_some() => Some(call.receiver()),
+        (b"==", [argument]) if argument.as_nil_node().is_some() => Some(Capture(call.receiver())),
         // (send nil :== $_)
         (b"==", [argument]) if call.receiver().is_some_and(|r| r.as_nil_node().is_some()) => {
-            Some(Some(argument.clone()))
+            Some(Capture(Some(*argument)))
         }
         _ => None,
     }
 }
 
 /// Right alternatives of `nil_or_empty?`.
-fn right_variable<'pr>(node: &Node<'pr>) -> Option<Option<Node<'pr>>> {
+fn right_variable<'pr>(node: &Node<'pr>) -> Option<Capture<'pr>> {
     let call = node.as_call_node()?;
     if call.is_safe_navigation() || call.block().is_some() || call.arguments().is_some() {
         return None;
     }
     match call.name().as_slice() {
         // (send $_ :empty?)
-        b"empty?" => Some(call.receiver()),
+        b"empty?" => Some(Capture(call.receiver())),
         // (send (send (send $_ :empty?) :!) :!)
         b"!" => {
             let middle_node = call.receiver()?;
@@ -260,7 +272,7 @@ fn right_variable<'pr>(node: &Node<'pr>) -> Option<Option<Node<'pr>>> {
             if inner.name().as_slice() != b"empty?" || !is_plain_send(&inner, true) {
                 return None;
             }
-            Some(inner.receiver())
+            Some(Capture(inner.receiver()))
         }
         _ => None,
     }
