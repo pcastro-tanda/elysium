@@ -71,7 +71,9 @@ fn is_timestamps_proc(call: &ruby_ast::node::CallNode<'_>, arguments: &[Node<'_>
     arguments.first().is_some_and(|first| first.as_symbol_node().is_some())
         && block
             .expression()
-            .and_then(|expression| expression.as_symbol_node().map(|s| s.unescaped() == b"timestamps"))
+            .and_then(|expression| {
+                expression.as_symbol_node().map(|s| s.unescaped() == b"timestamps")
+            })
             .unwrap_or(false)
 }
 

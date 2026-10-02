@@ -68,6 +68,9 @@ pub struct Session {
     /// to detect, per file, a cop this run's base selection left out that the
     /// file nonetheless "opts in" via a `# rubocop:enable <Cop>` directive.
     pub rule_names: Vec<&'static str>,
+    /// The source of `db/schema.rb`, found the way rubocop-rails'
+    /// `SchemaLoader.db_schema_path` finds it, for the rules that read it.
+    pub db_schema: Option<Arc<str>>,
 }
 
 /// Loads the configuration, prints its warnings, and precomputes the
@@ -89,10 +92,32 @@ pub fn prepare(args: &CheckArgs) -> Result<Session> {
         version: ruby_version(cfg.all_cops().target_ruby_version),
         partial_script: true,
     };
-    let (rule_set, rule_names) = select_rules(&cfg, &args.only, &args.except)?;
+    let db_schema = load_db_schema(&cwd);
+    let (rule_set, rule_names) = select_rules(&cfg, &args.only, &args.except, db_schema.as_ref())?;
     let overrides = cop_overrides(&cfg, &args.only);
     let annotations = Arc::new(style_guide_annotations(&cfg));
-    Ok(Session { cfg, root, overrides, annotations, parse_options, rule_set, rule_names })
+    Ok(Session {
+        cfg,
+        root,
+        overrides,
+        annotations,
+        parse_options,
+        rule_set,
+        rule_names,
+        db_schema,
+    })
+}
+
+/// rubocop-rails' `SchemaLoader.db_schema_path`: the first `db/schema.rb`
+/// found walking up from the working directory (`Pathname.pwd`), stopping
+/// before the filesystem root. `None` when there is none or it cannot be read.
+fn load_db_schema(cwd: &Path) -> Option<Arc<str>> {
+    let path = cwd.ancestors().take_while(|dir| dir.parent().is_some()).find_map(|dir| {
+        let candidate = dir.join("db/schema.rb");
+        candidate.exists().then_some(candidate)
+    })?;
+    let bytes = std::fs::read(path).ok()?;
+    Some(Arc::from(String::from_utf8_lossy(&bytes).as_ref()))
 }
 
 /// True when `selector` names `cop` exactly or names its department.
@@ -112,6 +137,7 @@ fn select_rules(
     cfg: &LoadedConfig,
     only: &[String],
     except: &[String],
+    db_schema: Option<&Arc<str>>,
 ) -> Result<(registry::RuleSet, Vec<&'static str>)> {
     let names: Vec<&str> = registry::ALL_RULES
         .iter()
@@ -125,7 +151,8 @@ fn select_rules(
         })
         .map(|meta| meta.name)
         .collect();
-    let rule_set = registry::RuleSet::only(&names, cfg).map_err(|err| anyhow::anyhow!("{err}"))?;
+    let rule_set = registry::RuleSet::only(&names, cfg, db_schema.cloned())
+        .map_err(|err| anyhow::anyhow!("{err}"))?;
     Ok((rule_set, names))
 }
 
@@ -160,7 +187,7 @@ fn effective_rule_set(
     }
     let mut names = session.rule_names.clone();
     names.extend(extra);
-    registry::RuleSet::only(&names, &session.cfg).unwrap_or_else(|err| {
+    registry::RuleSet::only(&names, &session.cfg, session.db_schema.clone()).unwrap_or_else(|err| {
         eprintln!("warning: cannot opt a disabled cop in for this file: {err}");
         session.rule_set.clone()
     })
@@ -432,11 +459,20 @@ mod tests {
                 version: ruby_version(cfg.all_cops().target_ruby_version),
                 partial_script: true,
             };
-            let (rule_set, rule_names) = select_rules(&cfg, &[], &[]).expect("rule set builds");
+            let (rule_set, rule_names) =
+                select_rules(&cfg, &[], &[], None).expect("rule set builds");
             let overrides = cop_overrides(&cfg, &[]);
             let annotations = Arc::new(style_guide_annotations(&cfg));
-            let session =
-                Session { cfg, root, overrides, annotations, parse_options, rule_set, rule_names };
+            let session = Session {
+                cfg,
+                root,
+                overrides,
+                annotations,
+                parse_options,
+                rule_set,
+                rule_names,
+                db_schema: None,
+            };
             let io_errors = AtomicUsize::new(0);
             let bytes = AtomicU64::new(0);
             let nodes = AtomicU64::new(0);

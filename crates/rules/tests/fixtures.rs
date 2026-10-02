@@ -28,6 +28,10 @@
 //! A `# gem_versions: rack=3.1.0` comment line in a case's `.yml` gives the
 //! locked gem versions the spec stubbed into `Config#gem_versions_in_target`
 //! (what `requires_gem` checks); without it the case's lockfile is empty.
+//!
+//! A sibling `<case>.schema.rb` is the `db/schema.rb` the spec wrote through
+//! RuboCop's 'with SchemaLoader' context (its `let(:schema)`); it reaches the
+//! rules as `RuleOptions::db_schema`. Without one the case has no schema.
 
 use config::{ConfigLoader, GemVersions, LoadedConfig};
 use linter::{Diagnostic, FileSettings, RuleMeta};
@@ -36,6 +40,7 @@ use ruby_ast::{ParseOptions, Parsed, RubyVersion};
 use ruby_source::SourceFile;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 #[test]
 fn bundler() {
@@ -239,6 +244,7 @@ fn run_department(dept: &str) {
             .filter(|path| {
                 path.extension().is_some_and(|ext| ext == "rb")
                     && !path.to_string_lossy().ends_with(".fixed.rb")
+                    && !path.to_string_lossy().ends_with(".schema.rb")
             })
             .collect();
         cases.sort();
@@ -517,7 +523,10 @@ fn run_case(meta: &'static RuleMeta, case: &Path, suite: &Suite) -> Result<(), S
     let (source_bytes, expected) = parse_annotated(&bytes);
 
     let cfg = load_config(case, suite);
-    let rule_set = RuleSet::isolated(&[meta.name], &cfg).map_err(|err| err.to_string())?;
+    // The spec's `let(:schema)` (RuboCop's 'with SchemaLoader' context), when it had one.
+    let db_schema = std::fs::read_to_string(case.with_extension("schema.rb")).ok().map(Arc::from);
+    let rule_set =
+        RuleSet::isolated(&[meta.name], &cfg, db_schema).map_err(|err| err.to_string())?;
     let options = ParseOptions {
         version: ruby_version(cfg.all_cops().target_ruby_version),
         partial_script: true,

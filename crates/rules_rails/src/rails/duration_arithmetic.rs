@@ -85,7 +85,10 @@ impl Rule for DurationArithmetic {
             &Self::META,
             span,
             MSG,
-            Fix { applicability: Applicability::Safe, edits: vec![Edit::replace(span, replacement)] },
+            Fix {
+                applicability: Applicability::Safe,
+                edits: vec![Edit::replace(span, replacement)],
+            },
         );
     }
 }
@@ -128,9 +131,8 @@ fn is_duration(node: &Node<'_>) -> bool {
     let Some(receiver) = call.receiver() else { return false };
     match receiver.kind() {
         NodeKind::IntegerNode | NodeKind::FloatNode => true,
-        NodeKind::CallNode => {
-            plain_call(&receiver).is_some_and(|inner| inner.receiver().is_none() && inner.arguments().is_none())
-        }
+        NodeKind::CallNode => plain_call(&receiver)
+            .is_some_and(|inner| inner.receiver().is_none() && inner.arguments().is_none()),
         _ => false,
     }
 }

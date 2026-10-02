@@ -28,7 +28,8 @@ impl Rule for RedirectBackOrTo {
     const META: RuleMeta = RuleMeta {
         name: "Rails/RedirectBackOrTo",
         department: Department::Rails,
-        summary: "Use `redirect_back_or_to` instead of `redirect_back` with `fallback_location` option.",
+        summary:
+            "Use `redirect_back_or_to` instead of `redirect_back` with `fallback_location` option.",
         explanation: "Prefer `redirect_back_or_to` over `redirect_back` with a \
                       `fallback_location` keyword argument (Rails 7.0+).\n\n\
                       ```ruby\n# bad\nredirect_back(fallback_location: root_path)\n\n\
@@ -112,7 +113,8 @@ impl Rule for RedirectBackOrTo {
         }
         if call.opening_loc().is_none() {
             // `wrap_with_parentheses`.
-            edits.push(Edit::replace(Span::new(selector.end, hash_arg.span().start), b"(".to_vec()));
+            edits
+                .push(Edit::replace(Span::new(selector.end, hash_arg.span().start), b"(".to_vec()));
             let end = call.as_node().span().end;
             edits.push(Edit::replace(Span::new(end, end), b")".to_vec()));
         }

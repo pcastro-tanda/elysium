@@ -9,6 +9,7 @@
 //! entry's.
 
 pub mod rails;
+pub mod schema;
 
 /// The gem whose cops this crate ports.
 pub const GEM: &str = "rubocop-rails";
