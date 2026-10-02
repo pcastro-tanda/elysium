@@ -5,8 +5,8 @@
 use std::collections::HashSet;
 
 use linter::{
-    Context, Department, FixAvailability, OptionError, Rule, RuleMeta, RuleOptions,
-    Severity, Stability,
+    Context, Department, FixAvailability, OptionError, Rule, RuleMeta, RuleOptions, Severity,
+    Stability,
 };
 use ruby_ast::ext::{call_span_excluding_block, const_name, is_bare_or_toplevel_const};
 use ruby_ast::node::{CallNode, ClassNode};
@@ -48,7 +48,8 @@ impl Rule for ReversibleMigration {
         stability: Stability::Nursery,
         kinds: &[NodeKind::ClassNode, NodeKind::DefNode, NodeKind::CallNode],
         config: &[],
-        blind_spots: "Inside `change_table`, only sends that are statements of the block (or the sole \
+        blind_spots:
+            "Inside `change_table`, only sends that are statements of the block (or the sole \
                       statement's call) are inspected, not those nested in other constructs.",
     };
 
@@ -100,10 +101,10 @@ impl Rule for ReversibleMigration {
                     self.change_depth -= 1;
                 }
             }
-            NodeKind::CallNode => {
-                if node.as_call_node().is_some_and(|call| opens_reversible_block(&call)) {
-                    self.reversible_depth -= 1;
-                }
+            NodeKind::CallNode
+                if node.as_call_node().is_some_and(|call| opens_reversible_block(&call)) =>
+            {
+                self.reversible_depth -= 1;
             }
             _ => {}
         }
@@ -154,7 +155,7 @@ impl ReversibleMigration {
             for statement in &statements {
                 if let Some(send) = statement.as_call_node() {
                     if !send.is_safe_navigation()
-                        && !send.block().is_some_and(|block| block.as_block_node().is_some())
+                        && send.block().is_none_or(|block| block.as_block_node().is_none())
                     {
                         children.push(send);
                     }
