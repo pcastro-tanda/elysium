@@ -274,6 +274,16 @@ pub(crate) fn parse_document(source: &str) -> Result<Option<YamlValue>, String> 
     }
 }
 
+/// [`parse_document`] for rules that read other YAML files (such as
+/// `config/database.yml`) with the same value model.
+///
+/// # Errors
+///
+/// Returns the scanner's message for malformed YAML or a disallowed tag.
+pub fn parse_yaml(source: &str) -> Result<Option<YamlValue>, String> {
+    parse_document(source)
+}
+
 fn convert(node: &Yaml<'_>) -> Result<YamlValue, String> {
     match node {
         Yaml::Value(scalar) => Ok(convert_scalar(scalar)),

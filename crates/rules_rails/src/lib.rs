@@ -59,5 +59,10 @@ rules_support::rule_set! {
     rails::request_referer::RequestReferer,
     rails::multiple_route_paths::MultipleRoutePaths,
     rails::time_zone::TimeZone,
+    rails::migration_class_name::MigrationClassName,
+    rails::add_column_index::AddColumnIndex,
+    rails::active_support_aliases::ActiveSupportAliases,
+    rails::root_public_path::RootPublicPath,
+    rails::bulk_change_table::BulkChangeTable,
     rails::application_record::ApplicationRecord,
 }
