@@ -48,21 +48,18 @@ impl Rule for TopLevelHashWithIndifferentAccess {
             return;
         }
         // `(const {nil? cbase} :HashWithIndifferentAccess)`.
-        let name_start = match node.kind() {
-            NodeKind::ConstantReadNode => {
-                let Some(read) = node.as_constant_read_node() else { return };
-                if read.name().as_slice() != NAME {
-                    return;
-                }
-                node.span().start
+        let name_start = if node.kind() == NodeKind::ConstantReadNode {
+            let Some(read) = node.as_constant_read_node() else { return };
+            if read.name().as_slice() != NAME {
+                return;
             }
-            _ => {
-                let Some(path) = node.as_constant_path_node() else { return };
-                if path.name().is_none_or(|name| name.as_slice() != NAME) || path.parent().is_some() {
-                    return;
-                }
-                node.span().end - u32::try_from(NAME.len()).expect("name length fits u32")
+            node.span().start
+        } else {
+            let Some(path) = node.as_constant_path_node() else { return };
+            if path.name().is_none_or(|name| name.as_slice() != NAME) || path.parent().is_some() {
+                return;
             }
+            node.span().end - u32::try_from(NAME.len()).expect("name length fits u32")
         };
         // `node.parent&.class_type? && node.parent.ancestors.any?(&:module_type?)`.
         // A lone statement of a class body is the class's direct child in

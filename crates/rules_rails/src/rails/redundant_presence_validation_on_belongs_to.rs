@@ -17,7 +17,7 @@ const MINIMUM_TARGET_RAILS_VERSION: f64 = 5.0;
 const NON_VALIDATION_OPTIONS: [&[u8]; 6] =
     [b"if", b"unless", b"on", b"allow_blank", b"allow_nil", b"strict"];
 
-/// Checks for redundant presence validation on belongs_to association.
+/// Checks for redundant presence validation on `belongs_to` association.
 #[derive(Debug, Clone)]
 pub struct RedundantPresenceValidationOnBelongsTo {
     supported: bool,
@@ -31,7 +31,7 @@ impl Rule for RedundantPresenceValidationOnBelongsTo {
     const META: RuleMeta = RuleMeta {
         name: "Rails/RedundantPresenceValidationOnBelongsTo",
         department: Department::Rails,
-        summary: "Checks for redundant presence validation on belongs_to association.",
+        summary: "Checks for redundant presence validation on `belongs_to` association.",
         explanation: "Since Rails 5.0 the default for `belongs_to` is `optional: false` unless \
                       `config.active_record.belongs_to_required_by_default` is explicitly set \
                       to `false`. The presence validator is added automatically, and explicit \
@@ -145,9 +145,10 @@ fn check_validates(statement: &Node<'_>, siblings: &[Node<'_>], ctx: &mut Contex
     let Some(elements) = hash_elements(options) else { return };
 
     // presence: true
-    let Some(presence) = elements.iter().find(|e| {
-        pair_value(e, b"presence").is_some_and(|value| value.as_true_node().is_some())
-    }) else {
+    let Some(presence) = elements
+        .iter()
+        .find(|e| pair_value(e, b"presence").is_some_and(|value| value.as_true_node().is_some()))
+    else {
         return;
     };
     // !strict: true / const, !if: _
@@ -161,9 +162,10 @@ fn check_validates(statement: &Node<'_>, siblings: &[Node<'_>], ctx: &mut Contex
     // Prior validations remaining once presence is removed.
     let option_keys: Vec<Node<'_>> =
         elements.iter().filter_map(|e| e.as_assoc_node().map(|p| p.key())).collect();
-    let remaining_validations = option_keys.iter().filter_map(symbol_value).any(|name| {
-        name != b"presence" && !NON_VALIDATION_OPTIONS.contains(&name.as_slice())
-    });
+    let remaining_validations = option_keys
+        .iter()
+        .filter_map(symbol_value)
+        .any(|name| name != b"presence" && !NON_VALIDATION_OPTIONS.contains(&name.as_slice()));
     if !remaining_validations && option_keys.len() > 1 {
         return;
     }
@@ -189,7 +191,7 @@ fn check_validates(statement: &Node<'_>, siblings: &[Node<'_>], ctx: &mut Contex
         if keys == all_keys {
             vec![Edit::delete(ctx.whole_lines(statement.span()))]
         } else {
-            remove_keys_from_validation(ctx, keys_of(statement), &keys)
+            remove_keys_from_validation(ctx, &keys_of(statement), &keys)
         }
     } else if keys == all_keys {
         // remove_presence_option
@@ -214,7 +216,11 @@ fn keys_of<'a>(statement: &Node<'a>) -> Vec<Node<'a>> {
 }
 
 /// `remove_keys_from_validation`.
-fn remove_keys_from_validation(ctx: &Context<'_>, key_nodes: Vec<Node<'_>>, keys: &[Vec<u8>]) -> Vec<Edit> {
+fn remove_keys_from_validation(
+    ctx: &Context<'_>,
+    key_nodes: &[Node<'_>],
+    keys: &[Vec<u8>],
+) -> Vec<Edit> {
     let source = ctx.source().bytes();
     keys.iter()
         .filter_map(|key| {
@@ -224,7 +230,8 @@ fn remove_keys_from_validation(ctx: &Context<'_>, key_nodes: Vec<Node<'_>>, keys
             while source.get(end as usize) == Some(&b',') {
                 end += 1;
             }
-            let range = ctx.with_surrounding_space(Span::new(span.start, end), Side::Right, true, false);
+            let range =
+                ctx.with_surrounding_space(Span::new(span.start, end), Side::Right, true, false);
             Some(Edit::delete(range))
         })
         .collect()
@@ -251,7 +258,7 @@ fn extract_validation_for_keys(
         inspected.join(", "),
         options_without_presence.join(", ")
     );
-    let mut edits = remove_keys_from_validation(ctx, keys_of(statement), keys);
+    let mut edits = remove_keys_from_validation(ctx, &keys_of(statement), keys);
     edits.push(Edit::insert(ctx.whole_lines(span).end, source.into_bytes()));
     edits
 }
@@ -288,16 +295,17 @@ fn belongs_to_for<'a>(siblings: &[Node<'a>], key: &[u8]) -> Option<Node<'a>> {
                 belongs_to_without_fk(sibling, normalized.as_bytes())
                     || belongs_to_with_matching_fk(sibling, key)
             })
-            .cloned()
+            .copied()
     } else {
         // `any_belongs_to?`.
         siblings
             .iter()
             .find(|sibling| {
-                send_arguments(sibling, b"belongs_to")
-                    .is_some_and(|(_, args)| args.first().and_then(symbol_value).as_deref() == Some(key))
+                send_arguments(sibling, b"belongs_to").is_some_and(|(_, args)| {
+                    args.first().and_then(symbol_value).as_deref() == Some(key)
+                })
             })
-            .cloned()
+            .copied()
     }
 }
 
@@ -310,8 +318,9 @@ fn belongs_to_without_fk(node: &Node<'_>, key: &[u8]) -> bool {
     match args.as_slice() {
         [_] => true,
         [_, second, ..] if hash_elements(second).is_none() => true,
-        [_, second] => hash_elements(second)
-            .is_some_and(|elements| !elements.iter().any(|e| pair_value(e, b"foreign_key").is_some())),
+        [_, second] => hash_elements(second).is_some_and(|elements| {
+            !elements.iter().any(|e| pair_value(e, b"foreign_key").is_some())
+        }),
         _ => false,
     }
 }

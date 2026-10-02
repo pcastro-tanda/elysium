@@ -65,7 +65,9 @@ impl Rule for ActionControllerTestCase {
             return;
         }
         let Some(parent) = path.parent() else { return };
-        if !is_bare_or_toplevel_const(&parent) || const_name(&parent).as_deref() != Some("ActionController") {
+        if !is_bare_or_toplevel_const(&parent)
+            || const_name(&parent).as_deref() != Some("ActionController")
+        {
             return;
         }
         let span = superclass.span();
