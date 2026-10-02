@@ -1,0 +1,1 @@
+Nested::MyJob = Class.new(ActiveJob::Base)

@@ -4,11 +4,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use linter::{Annotation, Severity};
 
 use crate::defaults::DEFAULT_CONFIG;
 use crate::file_matcher::FileMatcher;
+use crate::lockfile::GemVersions;
 use crate::obsoletion::RULES;
 use crate::yaml::{emit_mapping, Mapping, YamlValue};
 
@@ -180,6 +182,7 @@ pub struct LoadedConfig {
     /// already merged the latter in).
     resolved_extensions: BTreeSet<String>,
     warnings: Vec<String>,
+    gem_versions: Option<Arc<GemVersions>>,
 }
 
 impl LoadedConfig {
@@ -299,7 +302,23 @@ impl LoadedConfig {
             extensions,
             resolved_extensions: resolved_extensions.into_iter().collect(),
             warnings,
+            gem_versions: None,
         }
+    }
+
+    /// Sets the locked gem versions of the target (see [`Self::gem_versions`]).
+    #[must_use]
+    pub(crate) fn with_gem_versions(mut self, versions: Option<GemVersions>) -> Self {
+        self.gem_versions = versions.map(Arc::new);
+        self
+    }
+
+    /// RuboCop's `Config#gem_versions_in_target`: the gem versions locked by
+    /// the `Gemfile.lock` (or `gems.locked`) found at or above the directory
+    /// the configuration is relative to, transitive gems included; `None`
+    /// when the configuration was not read from a file or no lockfile exists.
+    pub fn gem_versions(&self) -> Option<&Arc<GemVersions>> {
+        self.gem_versions.as_ref()
     }
 
     /// The directory paths in the configuration are relative to: the directory
@@ -492,6 +511,10 @@ impl LoadedConfig {
         }
         for feature in &self.extensions {
             feed(feature.as_bytes(), &mut hash);
+        }
+        // Version-gated cops (`requires_gem`) read the locked gem versions.
+        for (gem, version) in self.gem_versions.iter().flat_map(|versions| versions.iter()) {
+            feed(format!("\ngem {gem} {version}").as_bytes(), &mut hash);
         }
         hash
     }
