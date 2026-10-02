@@ -17,5 +17,10 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::refute_methods::RefuteMethods,
+    rails::pluck_in_where::PluckInWhere,
+    rails::env_local::EnvLocal,
+    rails::content_tag::ContentTag,
+    rails::date::Date,
     rails::application_record::ApplicationRecord,
 }
