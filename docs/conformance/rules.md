@@ -5,6 +5,14 @@ repeatable and comma-separated; `--rules-file FILE` takes one cop per line).
 Offenses are keyed by (path, line, column); `message mismatch` counts matched
 offenses whose text differs (RuboCop versions word some messages differently).
 
+Extension cops (`Rails/`, `Performance/`, `Minitest/`, `Sorbet/`,
+`ThreadSafety/`) are judged against rubocop-rails 2.38.0, rubocop-performance
+1.27.0, rubocop-minitest 0.40.0, rubocop-sorbet 0.16.0 and
+rubocop-thread_safety 0.8.0: RuboCop runs with `--plugin <gem>` (own-config and
+`--defaults` passes alike) through `<app>.rubocop.Gemfile`, whose lockfile must
+pin those releases. For payaus, copy `ci/corpus/payaus.rubocop.Gemfile` to
+`/tmp/payaus-target.rubocop.Gemfile` first; truth caches land next to the app.
+
 | rule | app | rubocop | truth | ours | missing | extra | message mismatch | agreement | date |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
 | Gemspec/RubyVersionGlobalsUsage | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |

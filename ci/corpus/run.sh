@@ -76,6 +76,23 @@ read_summary_field() {
   python3 -c "import json,sys; print(json.load(open(sys.argv[1]))['summary'][sys.argv[2]])" "$1" "$2"
 }
 
+# plugins_for <rules-csv>: the extension gems (one per line) whose departments
+# appear in the rules, e.g. Rails/Pick -> rubocop-rails. Keep in sync with
+# EXTENSION_GEMS in enabled_cops.rb and crates/xtask/src/conformance_rule.rs.
+# The gem versions come from this app's Gemfile (rails 2.38.0, performance
+# 1.27.0, minitest 0.40.0, sorbet 0.16.0, thread_safety 0.8.0).
+plugins_for() {
+  tr ',' '\n' <<<"$1" | cut -d/ -f1 | sort -u | while read -r dept; do
+    case "$dept" in
+      Rails) echo rubocop-rails ;;
+      Performance) echo rubocop-performance ;;
+      Minitest) echo rubocop-minitest ;;
+      Sorbet) echo rubocop-sorbet ;;
+      ThreadSafety) echo rubocop-thread_safety ;;
+    esac
+  done
+}
+
 # run_pass <pass> <rules-csv> [--defaults]
 #
 # Runs RuboCop and elysium over $work with `--only <rules-csv>`, writes
@@ -84,10 +101,29 @@ read_summary_field() {
 # ignore the app's config (`--force-default-config` / `--no-config`).
 run_pass() {
   local pass="$1" rules="$2" defaults="${3:-}"
-  local rc_flags=() el_flags=()
+  local rc_flags=() el_flags=() plugins plugin
+  plugins="$(plugins_for "$rules")"
   if [[ "$defaults" == --defaults ]]; then
     rc_flags=(--force-default-config)
     el_flags=(--no-config)
+  fi
+  # `--plugin` loads the department's gem (and its default.yml) whether or not
+  # the app's config names it; with --force-default-config that is RuboCop's
+  # defaults plus the gem's. elysium has no `--plugin`: it layers gem defaults
+  # only for a config file's `plugins:`, so hand it a throwaway config that
+  # lists them (and, in the app pass, inherits the app's .rubocop.yml).
+  local el_config=""
+  if [[ -n "$plugins" ]]; then
+    for plugin in $plugins; do rc_flags+=(--plugin "$plugin"); done
+    el_config="$(mktemp "${TMPDIR:-/tmp}/elysium-plugins.XXXXXX")"
+    {
+      if [[ "$defaults" != --defaults && -f "$work/.rubocop.yml" ]]; then
+        echo "inherit_from: $work/.rubocop.yml"
+      fi
+      echo "plugins:"
+      for plugin in $plugins; do echo "  - $plugin"; done
+    } >"$el_config"
+    el_flags=(--config "$el_config")
   fi
   local rubocop_json="$work/rubocop.$pass.json" elysium_json="$work/elysium.$pass.json"
   local rc_exit el_exit rc_wall el_wall
@@ -121,6 +157,7 @@ run_pass() {
       "$elysium_bin" check ${el_flags[@]+"${el_flags[@]}"} --only "$rules" -f json . > "$elysium_json"
   ) && el_exit=0 || el_exit=$?
   el_wall=$SECONDS
+  [[ -z "$el_config" ]] || rm -f "$el_config"
   # Same convention as RuboCop: exit 1 = offenses found, not a failure.
   if [[ $el_exit -gt 1 ]]; then
     echo "error: elysium exited $el_exit" >&2
