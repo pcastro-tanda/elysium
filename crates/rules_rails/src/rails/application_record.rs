@@ -157,7 +157,7 @@ fn register_offense(ctx: &mut Context<'_>, span: Span) {
 }
 
 /// `Config#target_rails_version`: `AllCops/TargetRailsVersion` when set.
-fn target_rails_version(options: &RuleOptions) -> f64 {
+pub(crate) fn target_rails_version(options: &RuleOptions) -> f64 {
     match options.peer("AllCops", "TargetRailsVersion") {
         Some(OptionValue::Str(text)) => text.trim().parse().unwrap_or(DEFAULT_RAILS_VERSION),
         Some(value) => value.as_float().unwrap_or(DEFAULT_RAILS_VERSION),
