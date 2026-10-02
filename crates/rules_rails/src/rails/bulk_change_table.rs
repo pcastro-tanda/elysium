@@ -252,7 +252,7 @@ impl<'pr> AlterMethodsRecorder<'pr> {
                 if !self.nodes.iter().all(|(_, existing)| *existing == table) {
                     self.flush();
                 }
-                self.nodes.push((call.clone(), table));
+                self.nodes.push((*call, table));
             }
             None => self.flush(),
         }
@@ -260,7 +260,7 @@ impl<'pr> AlterMethodsRecorder<'pr> {
 
     fn flush(&mut self) {
         if self.nodes.len() > 1 {
-            self.offensive.push(self.nodes[0].0.clone());
+            self.offensive.push(self.nodes[0].0);
         }
         self.nodes.clear();
     }
@@ -285,7 +285,7 @@ fn call_children<'pr>(call: &CallNode<'pr>) -> Vec<Option<CallNode<'pr>>> {
     let literal_block = call.block().is_some_and(|block| block.as_block_node().is_some());
     if literal_block {
         // `(block (send ...) args body)`: the `send` is its first child.
-        return vec![Some(call.clone()), None, None];
+        return vec![Some(*call), None, None];
     }
     let mut out = Vec::new();
     if let Some(receiver) = call.receiver() {
@@ -399,7 +399,7 @@ fn literal_value(node: &Node<'_>, ctx: &Context<'_>) -> Option<String> {
         // `DstrNode#value`: children's values, or their source when they have
         // none (interpolations).
         let mut out = String::new();
-        for part in string.parts().iter() {
+        for part in &string.parts() {
             if let Some(text) = part.as_string_node() {
                 out.push_str(&String::from_utf8_lossy(text.unescaped()));
             } else if let Some(nested) = literal_value(&part, ctx) {

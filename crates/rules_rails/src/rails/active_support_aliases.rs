@@ -18,7 +18,7 @@ const ALIASES: [(&str, &str, bool); 4] = [
     ("prepend", "unshift", false),
 ];
 
-/// Checks that ActiveSupport aliases to core ruby methods are not used.
+/// Checks that `ActiveSupport` aliases to core ruby methods are not used.
 #[derive(Debug, Clone)]
 pub struct ActiveSupportAliases;
 
