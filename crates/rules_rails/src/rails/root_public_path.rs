@@ -44,7 +44,9 @@ impl Rule for RootPublicPath {
         let Some(root) = call.receiver().and_then(|receiver| receiver.as_call_node()) else {
             return;
         };
-        if root.name().as_slice() != b"root" || root.is_safe_navigation() || root.arguments().is_some()
+        if root.name().as_slice() != b"root"
+            || root.is_safe_navigation()
+            || root.arguments().is_some()
         {
             return;
         }
@@ -94,7 +96,10 @@ impl Rule for RootPublicPath {
             &Self::META,
             span,
             MSG,
-            Fix { applicability: Applicability::Safe, edits: vec![Edit::replace(span, replacement)] },
+            Fix {
+                applicability: Applicability::Safe,
+                edits: vec![Edit::replace(span, replacement)],
+            },
         );
     }
 }

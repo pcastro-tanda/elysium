@@ -54,10 +54,6 @@ const POSTGRESQL_COMBINABLE_TRANSFORMATIONS_SINCE_6_1: &[&[u8]] = &[b"change_nul
 const POSTGRESQL_COMBINABLE_ALTER_METHODS: &[&[u8]] = &[b"change_column_default"];
 const POSTGRESQL_COMBINABLE_ALTER_METHODS_SINCE_6_1: &[&[u8]] = &[b"change_column_null"];
 
-/// `TargetRailsVersion::DEFAULT_RAILS_VERSION`, used when the configuration
-/// states none.
-const DEFAULT_RAILS_VERSION: f64 = 5.0;
-
 /// `DatabaseTypeResolvable::MYSQL` / `POSTGRESQL`; any other `Database`
 /// string is unsupported and so is represented by `None`.
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -121,14 +117,12 @@ impl Rule for BulkChangeTable {
                 doc: "Databases that support bulk alter.",
             },
         ],
-        blind_spots: "Without `AllCops/TargetRailsVersion` the Rails version is taken to be \
-                      5.0; RuboCop reads `railties` from the project's `Gemfile.lock` first. \
-                      `config/database.yml` and `DATABASE_URL` are read relative to the \
+        blind_spots: "`config/database.yml` and `DATABASE_URL` are read relative to the \
                       working directory, as RuboCop does.",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
-        let version = target_rails_version(options);
+        let version = options.target_rails_version();
         Ok(Self {
             database: resolve_database(options),
             postgresql_bulk_alter: version >= 5.2,
@@ -164,7 +158,8 @@ impl BulkChangeTable {
                 Some(Database::Mysql) => in_list(MYSQL_COMBINABLE_ALTER_METHODS),
                 Some(Database::Postgresql) => {
                     in_list(POSTGRESQL_COMBINABLE_ALTER_METHODS)
-                        || (self.since_6_1 && in_list(POSTGRESQL_COMBINABLE_ALTER_METHODS_SINCE_6_1))
+                        || (self.since_6_1
+                            && in_list(POSTGRESQL_COMBINABLE_ALTER_METHODS_SINCE_6_1))
                 }
                 None => false,
             }
@@ -202,11 +197,12 @@ impl BulkChangeTable {
         }
         for call in recorder.finish() {
             // `return unless table_node.is_a? BasicLiteralNode`
-            let Some(table) = first_argument(&call).and_then(|arg| literal_value(&arg, ctx))
-            else {
+            let Some(table) = first_argument(&call).and_then(|arg| literal_value(&arg, ctx)) else {
                 continue;
             };
-            let message = format!("You can use `change_table :{table}, bulk: true` to combine alter queries.");
+            let message = format!(
+                "You can use `change_table :{table}, bulk: true` to combine alter queries."
+            );
             ctx.report(&Self::META, call_span_excluding_block(&call), message);
         }
     }
@@ -307,7 +303,9 @@ fn body_children<'pr>(body: &Node<'pr>) -> Vec<Option<CallNode<'pr>>> {
     if let Some(statements) = body.as_statements_node() {
         let list: Vec<Node<'pr>> = statements.body().iter().collect();
         return match list.as_slice() {
-            [single] => single.as_call_node().map_or_else(|| vec![None], |call| call_children(&call)),
+            [single] => {
+                single.as_call_node().map_or_else(|| vec![None], |call| call_children(&call))
+            }
             _ => list.iter().map(as_send).collect(),
         };
     }
@@ -437,15 +435,6 @@ fn table_text(node: &Node<'_>) -> Option<String> {
     None
 }
 
-/// `Config#target_rails_version`: `AllCops/TargetRailsVersion` when set.
-fn target_rails_version(options: &RuleOptions) -> f64 {
-    match options.peer("AllCops", "TargetRailsVersion") {
-        Some(OptionValue::Str(text)) => text.trim().parse().unwrap_or(DEFAULT_RAILS_VERSION),
-        Some(value) => value.as_float().unwrap_or(DEFAULT_RAILS_VERSION),
-        None => DEFAULT_RAILS_VERSION,
-    }
-}
-
 /// `DatabaseTypeResolvable#database`:
 /// `cop_config['Database'] || database_from_yaml || database_from_env`.
 fn resolve_database(options: &RuleOptions) -> Option<Database> {
@@ -487,8 +476,7 @@ fn database_adapter() -> Option<String> {
     let root = yaml.as_mapping()?;
     let development = root.get_mapping("development")?;
     let adapter = |mapping: &config::Mapping| mapping.get_str("adapter").map(str::to_owned);
-    adapter(development)
-        .or_else(|| root.get_mapping("shared").and_then(adapter))
-        .or_else(|| development.iter().next().and_then(|(_, value)| value.as_mapping()).and_then(adapter))
+    adapter(development).or_else(|| root.get_mapping("shared").and_then(adapter)).or_else(|| {
+        development.iter().next().and_then(|(_, value)| value.as_mapping()).and_then(adapter)
+    })
 }
-

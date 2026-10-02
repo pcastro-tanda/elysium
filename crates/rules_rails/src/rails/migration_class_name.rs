@@ -7,8 +7,8 @@ use linter::{
     RuleOptions, Severity, Stability,
 };
 use ruby_ast::ext::{const_name, is_bare_or_toplevel_const};
-use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_ast::node::ClassNode;
+use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 /// Makes sure that each migration file defines a migration class whose name
@@ -49,9 +49,8 @@ impl Rule for MigrationClassName {
             basename_without_timestamp_and_suffix(&ctx.source().path().to_string_lossy());
 
         let path = class.constant_path();
-        let identifier: Span = path
-            .as_constant_path_node()
-            .map_or_else(|| path.span(), |path| path.name_loc().span());
+        let identifier: Span =
+            path.as_constant_path_node().map_or_else(|| path.span(), |path| path.name_loc().span());
         let camelized = camelize(&basename);
         if ctx.text(identifier).eq_ignore_ascii_case(camelized.as_bytes()) {
             return;
