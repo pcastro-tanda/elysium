@@ -4,7 +4,7 @@
 use std::sync::LazyLock;
 
 use linter::{
-    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, OptionValue, Rule,
+    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule,
     RuleMeta, RuleOptions, Severity, Stability,
 };
 use regex::Regex;
@@ -15,8 +15,6 @@ use super::util;
 
 /// `minimum_target_rails_version 6.0`.
 const MINIMUM_TARGET_RAILS_VERSION: f64 = 6.0;
-/// `TargetRailsVersion::DEFAULT_RAILS_VERSION`.
-const DEFAULT_RAILS_VERSION: f64 = 5.0;
 
 fn regex(pattern: &str) -> Regex {
     Regex::new(pattern).expect("static pattern")
@@ -88,7 +86,7 @@ impl Rule for WhereRange {
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
         let ruby = options.target_ruby_version();
         Ok(Self {
-            supported: ruby >= 2.6 && target_rails_version(options) >= MINIMUM_TARGET_RAILS_VERSION,
+            supported: ruby >= 2.6 && options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION,
             beginless: ruby >= 2.7,
         })
     }
@@ -337,13 +335,4 @@ fn is_parenthesized_call(node: &Node<'_>) -> bool {
         return false;
     }
     util::parser_args(&call).is_empty() || call.opening_loc().is_some_and(|o| o.as_slice() == b"(")
-}
-
-/// `Config#target_rails_version`: `AllCops/TargetRailsVersion` when set.
-fn target_rails_version(options: &RuleOptions) -> f64 {
-    match options.peer("AllCops", "TargetRailsVersion") {
-        Some(OptionValue::Str(text)) => text.trim().parse().unwrap_or(DEFAULT_RAILS_VERSION),
-        Some(value) => value.as_float().unwrap_or(DEFAULT_RAILS_VERSION),
-        None => DEFAULT_RAILS_VERSION,
-    }
 }
