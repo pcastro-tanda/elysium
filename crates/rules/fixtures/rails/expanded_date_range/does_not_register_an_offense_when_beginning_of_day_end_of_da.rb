@@ -1,0 +1,1 @@
+beginning_of_day..end_of_day
