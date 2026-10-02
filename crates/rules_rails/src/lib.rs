@@ -8,6 +8,8 @@
 //! time the installed gem's copy is read instead, like any `plugins:`
 //! entry's.
 
+pub mod active_record_helper;
+pub mod inflector;
 pub mod rails;
 pub mod schema;
 
