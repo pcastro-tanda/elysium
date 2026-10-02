@@ -1,0 +1,4 @@
+Rails/FindEach:
+  AllowedMethods: []
+  AllowedPatterns: [order, lock]
+  IgnoredMethods: []

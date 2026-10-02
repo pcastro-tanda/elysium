@@ -1,0 +1,1 @@
+Model.destroy(params[:id])
