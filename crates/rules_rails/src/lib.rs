@@ -17,5 +17,10 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::root_join_chain::RootJoinChain,
+    rails::three_state_boolean_column::ThreeStateBooleanColumn,
+    rails::dot_separated_keys::DotSeparatedKeys,
+    rails::short_i18n::ShortI18n,
+    rails::lexically_scoped_action_filter::LexicallyScopedActionFilter,
     rails::application_record::ApplicationRecord,
 }
