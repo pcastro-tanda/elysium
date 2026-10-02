@@ -8,8 +8,6 @@ use linter::{
 use ruby_ast::{Node, NodeExt as _, NodeKind};
 use ruby_source::{Side, Span};
 
-use super::application_record::target_rails_version;
-
 const MSG: &str = "Remove explicit presence validation for ";
 /// `minimum_target_rails_version 5.0`.
 const MINIMUM_TARGET_RAILS_VERSION: f64 = 5.0;
@@ -54,7 +52,7 @@ impl Rule for RedundantPresenceValidationOnBelongsTo {
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
         Ok(Self {
-            supported: target_rails_version(options) >= MINIMUM_TARGET_RAILS_VERSION,
+            supported: options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION,
             kwbegin_body: None,
         })
     }

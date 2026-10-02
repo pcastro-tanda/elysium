@@ -7,8 +7,6 @@ use linter::{
 };
 use ruby_ast::{Node, NodeExt as _, NodeKind};
 
-use super::application_record::target_rails_version;
-
 const MSG: &str = "Avoid top-level `HashWithIndifferentAccess`.";
 const NAME: &[u8] = b"HashWithIndifferentAccess";
 /// `minimum_target_rails_version 5.1`.
@@ -40,7 +38,7 @@ impl Rule for TopLevelHashWithIndifferentAccess {
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
-        Ok(Self { supported: target_rails_version(options) >= MINIMUM_TARGET_RAILS_VERSION })
+        Ok(Self { supported: options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION })
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
