@@ -8,6 +8,7 @@ mod context;
 mod diagnostic;
 mod engine;
 mod fix;
+mod gem_version;
 mod options;
 mod rule;
 mod settings;
@@ -23,7 +24,11 @@ pub use engine::{
 pub use fix::{
     apply_fixes, fix_file, fix_file_with_injected, FixOutcome, FixReport, MAX_FIX_ITERATIONS,
 };
-pub use options::{OptionError, OptionValue, PeerOptions, RuleOptions, DEFAULT_RUBY_VERSION};
+pub use gem_version::{GemRequirement, GemVersion};
+pub use options::{
+    GemVersions, OptionError, OptionValue, PeerOptions, RuleOptions, DEFAULT_RAILS_VERSION,
+    DEFAULT_RUBY_VERSION,
+};
 pub use rule::{
     subscription_table, ConfigDefault, ConfigOption, Department, Dispatch, FixAvailability,
     NoRules, Rule, RuleMeta, Stability,
