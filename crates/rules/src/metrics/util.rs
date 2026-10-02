@@ -2197,7 +2197,7 @@ mod tests {
     fn foldable_from_config_drops_unknown_entries() {
         let values = ["array".to_string(), "nope".to_string(), "method_call".to_string()];
         assert_eq!(Foldable::from_config(&values), vec![Foldable::Array, Foldable::MethodCall]);
-        assert!(Foldable::from_config(&[]).is_empty());
+        assert_eq!(Foldable::from_config(&[]), Vec::<Foldable>::new());
     }
 
     // -- MethodComplexity ----------------------------------------------------

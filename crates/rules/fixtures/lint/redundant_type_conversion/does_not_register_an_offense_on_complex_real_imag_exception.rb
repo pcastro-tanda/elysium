@@ -1,0 +1,1 @@
+Complex(real, imag, exception: false).to_c

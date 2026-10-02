@@ -1,0 +1,1 @@
+BigDecimal(obj, n, exception: false).to_d

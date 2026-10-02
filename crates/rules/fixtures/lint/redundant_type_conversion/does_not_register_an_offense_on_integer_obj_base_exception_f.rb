@@ -1,0 +1,1 @@
+Integer(obj, base, exception: false).to_i

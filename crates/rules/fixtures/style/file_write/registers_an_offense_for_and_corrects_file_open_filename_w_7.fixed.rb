@@ -1,0 +1,1 @@
+::File.write(filename, content)

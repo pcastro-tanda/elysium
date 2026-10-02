@@ -1,0 +1,1 @@
+values.reduce(:+) { |result, value| }

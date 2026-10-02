@@ -1,0 +1,3 @@
+Layout/LineEndStringConcatenationIndentation:
+  EnforcedStyle: indented
+  IndentationWidth: 1

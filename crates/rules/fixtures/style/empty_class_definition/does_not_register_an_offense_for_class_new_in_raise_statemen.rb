@@ -1,0 +1,1 @@
+raise Class.new(StandardError)

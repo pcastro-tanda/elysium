@@ -1,0 +1,2 @@
+super \
+  "#{dynamic string}"

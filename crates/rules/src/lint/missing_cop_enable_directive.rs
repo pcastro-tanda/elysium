@@ -387,11 +387,13 @@ impl MissingCopEnableDirective {
             if !is_registered(&self.options, &key, kind) {
                 continue;
             }
-            let config_disabled = self
-                .options
-                .peer(&key, "Enabled")
-                .and_then(OptionValue::as_bool)
-                .is_some_and(|enabled| !enabled);
+            // `registry.enabled?`: a cop named in `--only` is enabled whatever its `Enabled`.
+            let config_disabled = !self.options.only_includes(&key)
+                && self
+                    .options
+                    .peer(&key, "Enabled")
+                    .and_then(OptionValue::as_bool)
+                    .is_some_and(|enabled| !enabled);
             for range in state.into_ranges() {
                 // `each_missing_enable`: a `disable-next` scope closes itself with its statement.
                 if matches!(range.opener, DirectiveKind::DisableNext | DirectiveKind::TodoNext) {

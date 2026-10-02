@@ -1,0 +1,4 @@
+<<~MYHEREDOC
+foo\
+bar
+MYHEREDOC

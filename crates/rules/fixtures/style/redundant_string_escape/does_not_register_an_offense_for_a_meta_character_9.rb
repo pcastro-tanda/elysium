@@ -1,0 +1,3 @@
+<<~MYHEREDOC
+\M-c
+MYHEREDOC

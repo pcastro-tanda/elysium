@@ -1,0 +1,1 @@
+1r.to_sym(arg)

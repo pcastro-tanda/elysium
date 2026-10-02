@@ -1,0 +1,7 @@
+<<~MYHEREDOC
+  #{
+    <<~'OTHERHEREDOC'
+      \#
+    OTHERHEREDOC
+  }
+MYHEREDOC

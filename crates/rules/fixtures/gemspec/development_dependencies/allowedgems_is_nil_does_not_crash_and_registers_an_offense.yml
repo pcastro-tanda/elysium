@@ -1,0 +1,4 @@
+# file: example.gemspec
+Gemspec/DevelopmentDependencies:
+  Enabled: true
+  AllowedGems: ~

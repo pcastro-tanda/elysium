@@ -1,0 +1,2 @@
+foo.==({})
+   ^ Redundant dot detected.

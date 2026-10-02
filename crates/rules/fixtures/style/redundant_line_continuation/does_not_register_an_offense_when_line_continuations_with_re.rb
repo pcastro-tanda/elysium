@@ -1,0 +1,2 @@
+bar \
+  rescue foo

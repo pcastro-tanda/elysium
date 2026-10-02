@@ -1,0 +1,1 @@
+array&.grep(Foo)

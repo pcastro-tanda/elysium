@@ -146,13 +146,14 @@ pub struct RuleOptions {
     meta: &'static RuleMeta,
     own: Vec<(String, OptionValue)>,
     peers: Arc<PeerOptions>,
-    only_run: bool,
+    /// The `--only` cop list, when the run was restricted with `--only`.
+    only: Option<Arc<[String]>>,
 }
 
 impl RuleOptions {
     /// Only the rule's `META.config` defaults.
     pub fn defaults(meta: &'static RuleMeta) -> Self {
-        Self { meta, own: Vec::new(), peers: Arc::new(PeerOptions::new()), only_run: false }
+        Self { meta, own: Vec::new(), peers: Arc::new(PeerOptions::new()), only: None }
     }
 
     /// Configured values for this rule plus every other cop's options.
@@ -161,13 +162,13 @@ impl RuleOptions {
         own: Vec<(String, OptionValue)>,
         peers: Arc<PeerOptions>,
     ) -> Self {
-        Self { meta, own, peers, only_run: false }
+        Self { meta, own, peers, only: None }
     }
 
-    /// Marks these options as belonging to a `--only` run.
+    /// Marks these options as belonging to a `--only` run over `only`.
     #[must_use]
-    pub fn with_only_run(mut self, only_run: bool) -> Self {
-        self.only_run = only_run;
+    pub fn with_only(mut self, only: Option<Arc<[String]>>) -> Self {
+        self.only = only;
         self
     }
 
@@ -175,7 +176,14 @@ impl RuleOptions {
     /// run's cop registry from exactly the listed cops, all enabled, so
     /// `registry.disabled_names(config)` is empty.
     pub fn only_run(&self) -> bool {
-        self.only_run
+        self.only.is_some()
+    }
+
+    /// Whether `cop` is named in this run's `--only` list: RuboCop's
+    /// `Registry#enabled_cop_name?` treats such a cop as enabled whatever
+    /// its configured `Enabled`.
+    pub fn only_includes(&self, cop: &str) -> bool {
+        self.only.as_deref().is_some_and(|names| names.iter().any(|name| name == cop))
     }
 
     /// The rule these options belong to.

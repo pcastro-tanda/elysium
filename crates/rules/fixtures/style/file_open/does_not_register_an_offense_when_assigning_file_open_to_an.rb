@@ -1,0 +1,1 @@
+@ivar = File.open('file')

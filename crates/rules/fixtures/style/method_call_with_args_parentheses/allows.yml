@@ -1,0 +1,4 @@
+Style/MethodCallWithArgsParentheses:
+  IgnoreMacros: 'true'
+  IncludedMacroPatterns: ["^assert"]
+  AllowedMethods: [assert_equal]

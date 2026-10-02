@@ -1,0 +1,1 @@
+@@cvar = File.open('file')

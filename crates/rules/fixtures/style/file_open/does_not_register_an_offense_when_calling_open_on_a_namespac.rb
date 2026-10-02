@@ -1,0 +1,1 @@
+Foo::File.open('file')

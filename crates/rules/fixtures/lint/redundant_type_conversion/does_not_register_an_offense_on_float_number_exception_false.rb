@@ -1,0 +1,1 @@
+Float("number", exception: false).to_f

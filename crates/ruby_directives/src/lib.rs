@@ -1108,7 +1108,7 @@ mod tests {
     fn typo_marker_is_not_recognized_as_a_directive() {
         // directive_comment_spec.rb "#match_captures when typo" -> nil
         let d = directives_for("# rudocop:todo Dig/ThisMine\nfoo\n");
-        assert!(d.directives().is_empty());
+        assert_eq!(d.directives(), []);
         assert!(!d.is_disabled("Dig/ThisMine", 1));
     }
 
@@ -1143,7 +1143,7 @@ mod tests {
         let d = directives_for(
             "string = <<~END\nThis is a string not a real comment # rubocop:disable Style/Loop\nEND\n",
         );
-        assert!(d.directives().is_empty());
+        assert_eq!(d.directives(), []);
         assert!(!d.is_disabled("Style/Loop", 2));
     }
 
@@ -1418,8 +1418,10 @@ mod tests {
         // "registers offense and corrects redundant enabling of cop of same
         // department": the department disable expands, so enabling one of its
         // cops is legitimate -- and enabling it twice is not.
-        assert!(extras("# rubocop:disable Layout\nfoo\n# rubocop:enable Layout/LineLength\n")
-            .is_empty());
+        assert_eq!(
+            extras("# rubocop:disable Layout\nfoo\n# rubocop:enable Layout/LineLength\n"),
+            [] as [std::vec::Vec<std::string::String>; 0]
+        );
         assert_eq!(
             extras("# rubocop:disable Layout\nfoo\n# rubocop:enable Layout, Layout/LineLength\n"),
             [["Layout/LineLength"]]
@@ -1431,8 +1433,9 @@ mod tests {
         // "all switch": bare `enable all` is redundant; `enable all` after any
         // disable is not.
         assert_eq!(extras("foo\n# rubocop:enable all\n"), [["all"]]);
-        assert!(
-            extras("# rubocop:disable Layout/LineLength\nfoo\n# rubocop:enable all\n").is_empty()
+        assert_eq!(
+            extras("# rubocop:disable Layout/LineLength\nfoo\n# rubocop:enable all\n"),
+            [] as [std::vec::Vec<std::string::String>; 0]
         );
     }
 
@@ -1455,7 +1458,10 @@ mod tests {
     fn inline_enable_is_ignored_and_span_covers_the_directive_text() {
         // Upstream's `comment_only_line?` guard: a trailing directive never
         // takes part. The reported span is the directive's own text.
-        assert!(extras("foo # rubocop:enable Layout/LineLength\n").is_empty());
+        assert_eq!(
+            extras("foo # rubocop:enable Layout/LineLength\n"),
+            [] as [std::vec::Vec<std::string::String>; 0]
+        );
         let d = directives_for("foo\n# rubocop:enable Metrics/AbcSize\n");
         let (span, names) = d
             .redundant_enables(UNIVERSE.into_iter(), std::iter::empty())
@@ -1469,8 +1475,9 @@ mod tests {
     fn unknown_cop_names_still_pair_up() {
         // A name the universe does not know stands for itself, so a
         // disable/enable pair of it is not redundant while a lone enable is.
-        assert!(
-            extras("# rubocop:disable Custom/Cop\nfoo\n# rubocop:enable Custom/Cop\n").is_empty()
+        assert_eq!(
+            extras("# rubocop:disable Custom/Cop\nfoo\n# rubocop:enable Custom/Cop\n"),
+            [] as [std::vec::Vec<std::string::String>; 0]
         );
         assert_eq!(extras("foo\n# rubocop:enable Custom/Cop\n"), [["Custom/Cop"]]);
     }
@@ -1560,7 +1567,7 @@ mod tests {
         // `DirectiveComment#initialize` drops a match whose `pre_match` is
         // nothing but a second comment marker.
         let d = directives_for("# # rubocop:disable Style/For\nfor x in y do x end\n");
-        assert!(d.directives().is_empty());
+        assert_eq!(d.directives(), []);
         assert!(!d.is_disabled("Style/For", 2));
     }
 
@@ -1568,6 +1575,9 @@ mod tests {
     fn push_and_pop_take_no_part_in_the_enable_pairing() {
         // `self_closing_directive?`: a `push -Cop` is not an extra enable,
         // and neither is the `pop` that closes it.
-        assert!(extras("# rubocop:push -Layout/LineLength\nfoo\n# rubocop:pop\n").is_empty());
+        assert_eq!(
+            extras("# rubocop:push -Layout/LineLength\nfoo\n# rubocop:pop\n"),
+            [] as [std::vec::Vec<std::string::String>; 0]
+        );
     }
 }

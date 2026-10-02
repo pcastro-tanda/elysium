@@ -1,0 +1,2 @@
+::Bar::Baz
+^^ Remove redundant `::`.

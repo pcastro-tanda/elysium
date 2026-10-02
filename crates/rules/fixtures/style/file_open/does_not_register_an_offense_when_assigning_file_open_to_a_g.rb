@@ -1,0 +1,1 @@
+$gvar = File.open('file')

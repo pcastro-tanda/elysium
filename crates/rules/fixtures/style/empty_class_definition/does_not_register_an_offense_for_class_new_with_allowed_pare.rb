@@ -1,0 +1,1 @@
+MyModel = Class.new(ApplicationRecord)

@@ -1,0 +1,1 @@
+Rational("number", exception: false).to_r

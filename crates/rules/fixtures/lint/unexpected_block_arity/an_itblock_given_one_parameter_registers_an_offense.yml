@@ -1,0 +1,4 @@
+AllCops:
+  TargetRubyVersion: 3.4
+Lint/UnexpectedBlockArity:
+  Methods: {reduce: 2, inject: 2}

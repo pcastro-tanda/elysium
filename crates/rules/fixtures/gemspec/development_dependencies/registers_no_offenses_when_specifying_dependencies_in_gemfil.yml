@@ -1,0 +1,4 @@
+# file: Gemfile
+Gemspec/DevelopmentDependencies:
+  Enabled: true
+  AllowedGems: [allowed]

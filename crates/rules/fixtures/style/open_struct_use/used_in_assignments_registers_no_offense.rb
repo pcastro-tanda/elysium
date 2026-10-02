@@ -1,0 +1,1 @@
+a = SomeNamespace::OpenStruct.new

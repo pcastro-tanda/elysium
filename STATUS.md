@@ -1,7 +1,7 @@
 # Status
 
-Last updated: 2026-09-25. Phase 4 landed: semantic layer plus the ten
-semantic cops (60 rules total).
+Last updated: 2026-10-02. Payaus step 2 landed: the 158 remaining core cops
+payaus enables (556 rules total; `docs/planning/payaus-readiness.md`).
 
 ## What works
 
@@ -11,7 +11,7 @@ semantic cops (60 rules total).
   with RuboCop-identical message text, line, and column (verified against
   `rubocop --format json` with `ParserEngine: parser_prism`, including
   multi-byte columns and same-range deduplication).
-- Rules: 60 Style/Layout/Lint cops (see `docs/rules/`), each registered
+- Rules: 556 core cops (see `docs/rules/`), each registered
   through `rule_set!` with a compile-time node-kind subscription table and
   configured from RuboCop option names (`RuleOptions`, incl. peer-cop and
   `AllCops` reads). `elysium fix [--unsafe] [--diff]` applies byte-range
@@ -147,6 +147,9 @@ semantic cops (60 rules total).
 - Syntax error message text matches RuboCop only under
   `ParserEngine: parser_prism`; the legacy `parser` engine wording
   (`unexpected token kEND`) is not reproduced. See ADR 0003.
+- `Lint/ArgumentMismatch`, `DeprecatedReference`, `NameTypo`, and
+  `SuperArgumentMismatch` are registered but never report: they resolve
+  methods/constants across files, which needs a project index.
 - Encoding: files are treated as bytes; `# encoding:` magic comments other
   than UTF-8 are not honoured for column computation.
 
@@ -154,14 +157,17 @@ semantic cops (60 rules total).
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 396 | 0 | 1 |
+| 550 | 0 | 6 |
 
 Promotion to `stable` requires >99% corpus conformance on `discourse` and
-`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 396 of 397 rules meet
+`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 550 of 556 rules meet
 it. At `nursery`:
 
 - `Lint/RedundantCopDisableDirective` — held back per policy regardless of
   measured agreement (see above).
+- `Lint/CopDirectiveSyntax` — added at `nursery` in payaus step 1 (payaus
+  disables it).
+- The four project-index no-ops listed above.
 Known sub-100% residue among `stable` rules (all above the 99% bar):
 `Layout/HeredocIndentation` misses 1 of 1,266 on discourse's own config.
 The corpus workflow (`ci/corpus/run.sh`) compares every stable cop in two

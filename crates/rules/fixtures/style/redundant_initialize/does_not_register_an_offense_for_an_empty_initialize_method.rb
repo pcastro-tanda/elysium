@@ -1,0 +1,2 @@
+def initialize(_)
+end

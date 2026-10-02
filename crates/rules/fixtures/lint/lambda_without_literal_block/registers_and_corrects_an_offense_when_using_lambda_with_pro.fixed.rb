@@ -1,0 +1,1 @@
+proc { do_something }

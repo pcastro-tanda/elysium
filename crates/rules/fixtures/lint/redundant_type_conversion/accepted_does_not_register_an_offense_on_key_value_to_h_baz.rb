@@ -1,0 +1,1 @@
+{ key: value }.to_h(&:baz)

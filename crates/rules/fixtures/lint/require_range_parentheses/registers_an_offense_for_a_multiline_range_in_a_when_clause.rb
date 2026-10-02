@@ -1,0 +1,5 @@
+case condition
+when 42..
+     ^^^^ Wrap the range literal `42..` in parentheses to avoid confusion with an endless range.
+  do_something
+end

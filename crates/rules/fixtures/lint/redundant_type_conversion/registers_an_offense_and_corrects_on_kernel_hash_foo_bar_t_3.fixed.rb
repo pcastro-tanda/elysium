@@ -1,0 +1,1 @@
+Kernel::Hash({ foo: bar })
