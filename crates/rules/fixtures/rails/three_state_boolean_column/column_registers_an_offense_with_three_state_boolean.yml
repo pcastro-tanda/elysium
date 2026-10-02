@@ -1,0 +1,3 @@
+# file: 20250101010101_add_active_to_users.rb
+Rails/ThreeStateBooleanColumn:
+  Include: ~
