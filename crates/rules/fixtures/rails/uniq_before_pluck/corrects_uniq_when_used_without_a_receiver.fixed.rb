@@ -1,0 +1,1 @@
+distinct.pluck(:name)

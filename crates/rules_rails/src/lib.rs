@@ -20,6 +20,11 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::after_commit_override::AfterCommitOverride,
+    rails::uniq_before_pluck::UniqBeforePluck,
+    rails::eager_evaluation_log_message::EagerEvaluationLogMessage,
+    rails::find_by_id::FindById,
+    rails::where_range::WhereRange,
     rails::redundant_foreign_key::RedundantForeignKey,
     rails::find_each::FindEach,
     rails::render_plain_text::RenderPlainText,
