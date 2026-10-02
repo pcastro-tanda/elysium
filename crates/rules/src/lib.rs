@@ -710,8 +710,9 @@ struct Builder<'a> {
     /// When set, exactly these cops run, regardless of `Enabled`, mirroring
     /// RuboCop's `--only`.
     only: Option<&'a [&'a str]>,
-    /// Whether `only` came from the CLI's `--only` (see [`RuleOptions::only_run`]).
-    only_run: bool,
+    /// The `--only` list handed to rules (see [`RuleOptions::only_run`]); `None`
+    /// when `only` did not come from the CLI's `--only`.
+    only_run: Option<Arc<[String]>>,
     peers: Arc<PeerOptions>,
 }
 
@@ -728,7 +729,7 @@ impl Builder<'_> {
         }
         let own = cop.map(cop_options).unwrap_or_default();
         let options =
-            RuleOptions::new(meta, own, Arc::clone(&self.peers)).with_only_run(self.only_run);
+            RuleOptions::new(meta, own, Arc::clone(&self.peers)).with_only(self.only_run.clone());
         R::configure(&options).map(Some)
     }
 }
@@ -899,7 +900,7 @@ impl RuleSet {
     /// rule's schema.
     pub fn rubocop_defaults() -> Self {
         let builder =
-            Builder { cfg: None, only: None, only_run: false, peers: Arc::new(PeerOptions::new()) };
+            Builder { cfg: None, only: None, only_run: None, peers: Arc::new(PeerOptions::new()) };
         Self::from_builder(&builder)
             .unwrap_or_else(|err| panic!("rule rejected its own defaults: {err}"))
     }
@@ -909,7 +910,7 @@ impl RuleSet {
         let builder = Builder {
             cfg: Some(cfg),
             only: None,
-            only_run: false,
+            only_run: None,
             peers: Arc::new(peer_options(cfg)),
         };
         Self::from_builder(&builder)
@@ -933,7 +934,7 @@ impl RuleSet {
         let builder = Builder {
             cfg: Some(cfg),
             only: Some(names),
-            only_run,
+            only_run: only_run.then(|| names.iter().map(|name| (*name).to_string()).collect()),
             peers: Arc::new(peer_options(cfg)),
         };
         Self::from_builder(&builder)

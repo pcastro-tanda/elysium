@@ -250,7 +250,7 @@ mod tests {
     fn clean_file_walks_every_node() {
         let source = SourceFile::new("a.rb", b"puts 1\n".to_vec());
         let result = lint_file(&source, &mut NoRules);
-        assert!(result.diagnostics.is_empty());
+        assert_eq!(result.diagnostics.len(), 0);
         assert!(!result.has_syntax_errors);
         // Program, Statements, Call, Arguments, Integer
         assert_eq!(result.node_count, 5);
@@ -264,7 +264,7 @@ mod tests {
         assert_eq!(result.node_count, 0);
         assert!(result.diagnostics.iter().all(|d| d.rule == SYNTAX_RULE));
         assert!(result.diagnostics.iter().all(|d| d.severity == Severity::Fatal));
-        assert!(!result.diagnostics.is_empty());
+        assert_ne!(result.diagnostics.len(), 0);
     }
 
     #[test]
@@ -496,7 +496,7 @@ mod tests {
         let source = SourceFile::new("a.rb", b"# rubocop:disable all\ndef foo(\n".to_vec());
         let result = lint_file(&source, &mut NoRules);
         assert!(result.has_syntax_errors);
-        assert!(!result.diagnostics.is_empty());
+        assert_ne!(result.diagnostics.len(), 0);
         assert!(result.diagnostics.iter().all(|d| d.rule == SYNTAX_RULE));
     }
 
@@ -508,7 +508,7 @@ mod tests {
         let parsed = Parsed::parse(&source);
         let result = lint_parsed_with(&parsed, &mut NoRules, &settings);
         assert!(result.has_syntax_errors);
-        assert!(!result.diagnostics.is_empty());
+        assert_ne!(result.diagnostics.len(), 0);
         assert!(result.diagnostics.iter().all(|d| d.rule == SYNTAX_RULE));
     }
 
