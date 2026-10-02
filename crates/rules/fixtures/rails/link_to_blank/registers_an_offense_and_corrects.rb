@@ -1,0 +1,2 @@
+link_to 'Click here', 'https://www.example.com', "target" => '_blank', rel: 'unrelated'
+                                                 ^^^^^^^^^^^^^^^^^^^^ Specify a `:rel` option containing noopener.

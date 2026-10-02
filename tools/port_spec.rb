@@ -13,7 +13,9 @@
 # <case>.offenses when the example built its cop with an explicit `offenses`
 # array (one `Cop/Name:line` pair per line) simulating diagnostics from other
 # cops that never actually ran -- see `RedundantCopDisableDirective`'s own
-# `let(:cop) { described_class.new(config, options, offenses) }`.
+# `let(:cop) { described_class.new(config, options, offenses) }`. An extension
+# spec's stubbed `gem_versions` (what `requires_gem` checks) is recorded in the
+# yml as a `# gem_versions: rack=3.1.0, other=1.2` comment line.
 #
 # It works by actually running the real RuboCop spec against the real cop,
 # with expect_offense/expect_correction/expect_no_offenses/expect_no_corrections
@@ -291,6 +293,7 @@ begin
       ALL_COPS_OVERRIDE_KEYS = %w[
         TargetRubyVersion TargetRailsVersion StringLiteralsFrozenByDefault
         ActiveSupportExtensionsEnabled DisabledByDefault EnabledByDefault NewCops
+        MigratedSchemaVersion
       ].freeze
 
       # A spec may set an option to nil that RuboCop defaults to a list or a
@@ -422,6 +425,16 @@ begin
         effective.merge(literal) { |_, a, b| a.is_a?(Hash) && b.is_a?(Hash) ? a.merge(b) : b }
       end
 
+      # The gem versions an extension spec stubs into `Config#gem_versions_in_target`
+      # (its `let(:gem_versions)`, e.g. `{ 'rack' => '3.1.0' }`), as strings. `railties` is
+      # left out: the Rails suite's support code derives it from `rails_version`, which the
+      # case's `AllCops: TargetRailsVersion` already carries. Core RuboCop cases never record it.
+      def port_gem_versions
+        return {} unless #{extension ? 'true' : 'false'} && respond_to?(:gem_versions, true)
+
+        gem_versions.to_h { |name, version| [name.to_s, version.to_s] }.reject { |name, _| name == 'railties' }
+      end
+
       # A spec may pass a `Tempfile` as `file` (`Lint/ScriptPermission`);
       # upstream then lints the source under that file's random temp path, so
       # record a stable stand-in rather than the object's `inspect`.
@@ -547,7 +560,8 @@ begin
             'source' => source,
             'cop_config' => raw,
             'other_cops' => port_other_cops,
-            'ruby_version' => ruby_version
+            'ruby_version' => ruby_version,
+            'schema' => port_schema
           }
           result = super
           entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
@@ -611,6 +625,12 @@ begin
           respond_to?(:other_cops) ? other_cops : {}
         end
 
+        # rubocop-rails' 'with SchemaLoader' shared context: the example's `let(:schema)`, the
+        # `db/schema.rb` text it stubs in, or nil when the example runs without one.
+        def port_schema
+          respond_to?(:schema_path) && respond_to?(:schema) ? schema : nil
+        end
+
         # The example's injected `offenses` array, when its example group defines one (only
         # `RedundantCopDisableDirective`'s spec does, via its own `let(:cop) { described_class.new(
         # config, options, offenses) }` overriding the shared :config context's normal two-arg
@@ -634,7 +654,9 @@ begin
             'file' => fixture_file(file),
             'cop_config' => raw,
             'other_cops' => port_other_cops,
-            'ruby_version' => ruby_version
+            'gem_versions' => port_gem_versions,
+            'ruby_version' => ruby_version,
+            'schema' => port_schema
           }
           result = super
           entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
@@ -697,7 +719,9 @@ begin
               'cop_config' => raw.merge(effective_cop_config_extra(raw)),
               'other_cops' => merge_peers(effective_peer_overrides, port_other_cops),
               'offenses' => injected_offenses,
+              'gem_versions' => port_gem_versions,
               'ruby_version' => ruby_version,
+              'schema' => port_schema,
               'annotated' => annotated
             }
             entry['display_cop_names'] = true if port_display_cop_names?
@@ -727,7 +751,9 @@ begin
             'source' => source,
             'cop_config' => raw,
             'other_cops' => port_other_cops,
-            'ruby_version' => ruby_version
+            'gem_versions' => port_gem_versions,
+            'ruby_version' => ruby_version,
+            'schema' => port_schema
           }
           result = super
           entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
@@ -876,6 +902,7 @@ begin
     if c['correction']
       File.write(File.join(out_dir, "#{name}.fixed.rb"), c['correction'])
     end
+    File.write(File.join(out_dir, "#{name}.schema.rb"), c['schema']) if c['schema']
     if c['singlepass']
       File.write(File.join(out_dir, "#{name}.singlepass"), '')
     end
@@ -896,10 +923,13 @@ begin
     all_cops['DisplayCopNames'] = true if c['display_cop_names']
     file_comment = c['file']
 
-    next if cop_config.empty? && other_cops.empty? && all_cops.empty? && !file_comment
+    gem_versions = c['gem_versions'] || {}
+
+    next if cop_config.empty? && other_cops.empty? && all_cops.empty? && !file_comment && gem_versions.empty?
 
     yml_lines = []
     yml_lines << "# file: #{file_comment}" if file_comment
+    yml_lines << "# gem_versions: #{gem_versions.map { |gem_name, version| "#{gem_name}=#{version}" }.join(', ')}" unless gem_versions.empty?
     yml_lines << "AllCops:\n#{all_cops.map { |k, v| "  #{k}: #{yaml_value(v)}" }.join("\n")}" unless all_cops.empty?
     yml_lines << "#{options[:cop]}:\n#{cop_config.map { |k, v| "  #{k}: #{yaml_value(v)}" }.join("\n")}" unless cop_config.empty?
     other_cops.each do |name_, settings|

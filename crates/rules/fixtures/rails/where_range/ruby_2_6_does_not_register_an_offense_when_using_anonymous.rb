@@ -1,0 +1,1 @@
+Model.where('column > ?', value)

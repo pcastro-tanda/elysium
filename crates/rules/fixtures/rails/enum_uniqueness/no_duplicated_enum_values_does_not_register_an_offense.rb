@@ -1,0 +1,1 @@
+enum status: { active: 0, pending: 1 }

@@ -1,0 +1,1 @@
+Class.new(ActiveJob::Base) {}
