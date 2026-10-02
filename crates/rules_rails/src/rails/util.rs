@@ -6,8 +6,10 @@ use ruby_ast::Node;
 /// A call's arguments the way `parser` sees them: the argument list followed
 /// by a `&block` argument, which is one more `send` child there.
 pub fn parser_args<'pr>(call: &CallNode<'pr>) -> Vec<Node<'pr>> {
-    let mut out: Vec<Node<'pr>> =
-        call.arguments().map(|arguments| arguments.arguments().iter().collect()).unwrap_or_default();
+    let mut out: Vec<Node<'pr>> = call
+        .arguments()
+        .map(|arguments| arguments.arguments().iter().collect())
+        .unwrap_or_default();
     if let Some(block) = call.block() {
         if block.as_block_argument_node().is_some() {
             out.push(block);

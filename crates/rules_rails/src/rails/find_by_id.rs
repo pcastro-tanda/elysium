@@ -80,10 +80,8 @@ impl Rule for FindById {
 
 fn register_offense(ctx: &mut Context<'_>, range: Span, id_value: Span) {
     let good_method = format!("find({})", String::from_utf8_lossy(ctx.text(id_value)));
-    let message = format!(
-        "Use `{good_method}` instead of `{}`.",
-        String::from_utf8_lossy(ctx.text(range))
-    );
+    let message =
+        format!("Use `{good_method}` instead of `{}`.", String::from_utf8_lossy(ctx.text(range)));
     ctx.report_with_fix(
         &FindById::META,
         range,

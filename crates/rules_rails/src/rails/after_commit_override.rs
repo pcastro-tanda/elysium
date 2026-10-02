@@ -56,7 +56,7 @@ impl Rule for AfterCommitOverride {
         // `send` children of its `begin`.
         let Some(statements) = body.as_statements_node() else { return };
         let mut seen: HashSet<Vec<u8>> = HashSet::new();
-        for statement in statements.body().iter() {
+        for statement in &statements.body() {
             let Some(call) = statement.as_call_node() else { continue };
             // A call with a literal block is a `block` node, not a `send`.
             if call.is_safe_navigation()
