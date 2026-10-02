@@ -2,8 +2,8 @@
 //! `lib/rubocop/cop/rails/redirect_back_or_to.rb`.
 
 use linter::{
-    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, OptionValue, Rule,
-    RuleMeta, RuleOptions, Severity, Stability,
+    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule, RuleMeta,
+    RuleOptions, Severity, Stability,
 };
 use ruby_ast::node::AssocNode;
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
@@ -13,10 +13,6 @@ const MSG: &str = "Use `redirect_back_or_to` instead of `redirect_back` with `:f
 
 /// `minimum_target_rails_version 7.0`.
 const MINIMUM_TARGET_RAILS_VERSION: f64 = 7.0;
-/// `TargetRailsVersion::DEFAULT_RAILS_VERSION`, used when the configuration
-/// states none.
-const DEFAULT_RAILS_VERSION: f64 = 5.0;
-
 /// Prefer `redirect_back_or_to` over `redirect_back` with a `:fallback_location` option.
 #[derive(Debug, Clone)]
 pub struct RedirectBackOrTo {
@@ -41,11 +37,11 @@ impl Rule for RedirectBackOrTo {
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "Without `AllCops/TargetRailsVersion` the Rails version is taken to be \
-                      5.0; RuboCop reads `railties` from the project's `Gemfile.lock` first.",
+                      5.0; the locked `railties` version from `Gemfile.lock` is used when no `TargetRailsVersion` is set.",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
-        Ok(Self { supported: target_rails_version(options) >= MINIMUM_TARGET_RAILS_VERSION })
+        Ok(Self { supported: options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION })
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
@@ -78,7 +74,7 @@ impl Rule for RedirectBackOrTo {
 
         let mut edits = vec![Edit::replace(selector, b"redirect_back_or_to".to_vec())];
         let value = ctx.text(fallback.value().span()).to_vec();
-        let pairs: Vec<AssocNode<'_>> = elements.iter().filter_map(|e| e.as_assoc_node()).collect();
+        let pairs: Vec<AssocNode<'_>> = elements.iter().filter_map(Node::as_assoc_node).collect();
         if pairs.len() == 1 {
             let mut replacement = value;
             for (index, element) in elements.iter().enumerate() {
@@ -132,13 +128,4 @@ fn is_fallback_pair(element: &Node<'_>) -> bool {
     element.as_assoc_node().is_some_and(|pair| {
         pair.key().as_symbol_node().is_some_and(|key| key.unescaped() == b"fallback_location")
     })
-}
-
-/// `Config#target_rails_version`: `AllCops/TargetRailsVersion` when set.
-fn target_rails_version(options: &RuleOptions) -> f64 {
-    match options.peer("AllCops", "TargetRailsVersion") {
-        Some(OptionValue::Str(text)) => text.trim().parse().unwrap_or(DEFAULT_RAILS_VERSION),
-        Some(value) => value.as_float().unwrap_or(DEFAULT_RAILS_VERSION),
-        None => DEFAULT_RAILS_VERSION,
-    }
 }

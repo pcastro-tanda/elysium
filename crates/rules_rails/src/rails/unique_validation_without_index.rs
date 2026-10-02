@@ -65,13 +65,12 @@ impl Rule for UniqueValidationWithoutIndex {
             return;
         }
         let Some(class_span) = enclosing_class(ctx).map(|info| info.span) else { return };
-        let index = match self.classes.iter().position(|c| c.span == class_span) {
-            Some(index) => index,
-            None => {
-                let Some(info) = class_info(ctx, class_span) else { return };
-                self.classes.push(info);
-                self.classes.len() - 1
-            }
+        let index = if let Some(index) = self.classes.iter().position(|c| c.span == class_span) {
+            index
+        } else {
+            let Some(info) = class_info(ctx, class_span) else { return };
+            self.classes.push(info);
+            self.classes.len() - 1
         };
         let class = &self.classes[index];
         let table = schema.table_by(&class.table_name);
@@ -203,7 +202,7 @@ fn column_names_from_scope(uniqueness: &Uniqueness<'_>) -> Option<Vec<String>> {
 /// `with_index?`.
 fn with_index(schema: &Schema, class: &ClassInfo, names: &BTreeSet<String>) -> bool {
     let table_indices =
-        schema.table_by(&class.table_name).map(|t| t.indices.as_slice()).unwrap_or(&[]);
+        schema.table_by(&class.table_name).map_or(&[][..], |t| t.indices.as_slice());
     let add_indices = schema.add_indices_by(&class.table_name).map(|add| &add.index);
     table_indices.iter().chain(add_indices).any(|index| {
         index.unique

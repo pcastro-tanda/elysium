@@ -65,11 +65,9 @@ pub fn class_info(ctx: &Context<'_>, class_span: Span) -> Option<ClassInfo> {
                 }
             }
             // `(send nil? :belongs_to {str sym} ...)`.
-            b"belongs_to" => {
-                if call.receiver().is_none() {
-                    if let Some(name) = args.first().and_then(text) {
-                        belongs_to.push(belongs_to_options(name, &args));
-                    }
+            b"belongs_to" if call.receiver().is_none() => {
+                if let Some(name) = args.first().and_then(text) {
+                    belongs_to.push(belongs_to_options(name, &args));
                 }
             }
             _ => {}
@@ -128,7 +126,9 @@ fn belongs_to_options(name: String, args: &[Node<'_>]) -> BelongsTo {
         } else {
             last.as_hash_node().map(|hash| hash.elements())
         };
-        for pair in elements.iter().flat_map(|e| e.iter()).filter_map(|e| e.as_assoc_node()) {
+        for pair in
+            elements.iter().flat_map(ruby_ast::NodeList::iter).filter_map(|e| e.as_assoc_node())
+        {
             let Some(key) = pair.key().as_symbol_node().map(|k| k.unescaped().to_vec()) else {
                 continue;
             };
@@ -171,19 +171,16 @@ fn defined_module_names(path: &Node<'_>) -> Vec<String> {
     }
     while let Some(path_node) = node {
         names.extend(path_node.name().map(|n| String::from_utf8_lossy(n.as_slice()).into_owned()));
-        match path_node.parent() {
-            Some(parent) => {
-                if let Some(next) = parent.as_constant_path_node() {
-                    node = Some(next);
-                } else {
-                    names.extend(last_name(&parent));
-                    node = None;
-                }
-            }
-            None => {
-                names.push(String::new());
+        if let Some(parent) = path_node.parent() {
+            if let Some(next) = parent.as_constant_path_node() {
+                node = Some(next);
+            } else {
+                names.extend(last_name(&parent));
                 node = None;
             }
+        } else {
+            names.push(String::new());
+            node = None;
         }
     }
     names

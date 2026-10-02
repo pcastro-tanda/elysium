@@ -30,7 +30,7 @@
 //! (what `requires_gem` checks); without it the case's lockfile is empty.
 //!
 //! A sibling `<case>.schema.rb` is the `db/schema.rb` the spec wrote through
-//! RuboCop's 'with SchemaLoader' context (its `let(:schema)`); it reaches the
+//! RuboCop's 'with `SchemaLoader`' context (its `let(:schema)`); it reaches the
 //! rules as `RuleOptions::db_schema`. Without one the case has no schema.
 
 use config::{ConfigLoader, GemVersions, LoadedConfig};
