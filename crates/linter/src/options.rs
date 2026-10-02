@@ -159,6 +159,8 @@ pub struct RuleOptions {
     only: Option<Arc<[String]>>,
     /// `Config#gem_versions_in_target`; `None` without a lockfile.
     gem_versions: Option<Arc<GemVersions>>,
+    /// The source of the project's `db/schema.rb`, when the run found one.
+    db_schema: Option<Arc<str>>,
 }
 
 impl RuleOptions {
@@ -170,6 +172,7 @@ impl RuleOptions {
             peers: Arc::new(PeerOptions::new()),
             only: None,
             gem_versions: None,
+            db_schema: None,
         }
     }
 
@@ -179,7 +182,7 @@ impl RuleOptions {
         own: Vec<(String, OptionValue)>,
         peers: Arc<PeerOptions>,
     ) -> Self {
-        Self { meta, own, peers, only: None, gem_versions: None }
+        Self { meta, own, peers, only: None, gem_versions: None, db_schema: None }
     }
 
     /// Marks these options as belonging to a `--only` run over `only`.
@@ -230,6 +233,20 @@ impl RuleOptions {
         let mut numbers = text.split('.').map(|part| part.parse::<u32>().ok());
         let (major, minor) = (numbers.next()??, numbers.next()??);
         format!("{major}.{minor}").parse().ok()
+    }
+
+    /// Hands the rules the source of the project's `db/schema.rb`.
+    #[must_use]
+    pub fn with_db_schema(mut self, db_schema: Option<Arc<str>>) -> Self {
+        self.db_schema = db_schema;
+        self
+    }
+
+    /// The source of the project's `db/schema.rb`, which rubocop-rails'
+    /// `SchemaLoader` finds by walking up from the working directory; `None`
+    /// when the run found no such file.
+    pub fn db_schema(&self) -> Option<&Arc<str>> {
+        self.db_schema.as_ref()
     }
 
     /// Whether the run was restricted with `--only`. RuboCop then builds the

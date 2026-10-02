@@ -1,0 +1,1 @@
+User.order(:name).each { |u| u.something }

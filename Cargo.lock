@@ -889,6 +889,7 @@ dependencies = [
  "ruby_directives",
  "ruby_semantic",
  "ruby_source",
+ "rules",
  "rules_support",
 ]
 

@@ -9,7 +9,7 @@ use ruby_ast::ext::{const_name, is_bare_or_toplevel_const};
 use ruby_ast::{each_descendant, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
-use super::util::{plain_block_span, send_arguments, send_span};
+use super::util::{parser_args, plain_block_span, send_span};
 
 const KEYWORD_ARGS: &[&[u8]] = &[
     b"method", b"params", b"session", b"body", b"flash", b"xhr", b"as", b"headers", b"env", b"to",
@@ -91,7 +91,7 @@ impl Rule for HttpPositionalArguments {
         {
             return;
         }
-        let arguments = send_arguments(&call);
+        let arguments = parser_args(&call);
         if arguments.len() < 2 {
             return;
         }

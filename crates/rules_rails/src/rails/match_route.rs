@@ -9,7 +9,7 @@ use ruby_ast::node::AssocNode;
 use ruby_ast::{Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
-use super::util::{plain_block_span, send_arguments, send_span};
+use super::util::{parser_args, plain_block_span, send_span};
 
 const HTTP_METHODS: &[&str] = &["get", "post", "put", "patch", "delete"];
 
@@ -65,7 +65,7 @@ impl Rule for MatchRoute {
             return;
         }
         // `(send nil? :match $_ $(hash ...) ?)`
-        let arguments = send_arguments(&call);
+        let arguments = parser_args(&call);
         let (path_node, options_node) = match arguments.as_slice() {
             [path] => (path, None),
             [path, options] if is_hash(options) => (path, Some(options)),

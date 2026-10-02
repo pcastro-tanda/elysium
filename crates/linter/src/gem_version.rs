@@ -1,4 +1,4 @@
-//! RubyGems' `Gem::Version` and `Gem::Requirement`, as far as
+//! `RubyGems`' `Gem::Version` and `Gem::Requirement`, as far as
 //! `requires_gem` needs them: parsing the versions a lockfile holds and
 //! requirement strings (`">= 3.1.0"`, `"~> 7.0"`), and comparing them.
 
@@ -19,7 +19,7 @@ pub struct GemVersion {
 }
 
 impl GemVersion {
-    /// `Gem::Version.new(text)`; `None` for text RubyGems rejects.
+    /// `Gem::Version.new(text)`; `None` for text `RubyGems` rejects.
     pub fn parse(text: &str) -> Option<Self> {
         let text = text.trim();
         let text = if text.is_empty() { "0" } else { text };

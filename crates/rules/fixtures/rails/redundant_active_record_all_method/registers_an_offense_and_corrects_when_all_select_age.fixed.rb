@@ -1,0 +1,1 @@
+User.select(:age)

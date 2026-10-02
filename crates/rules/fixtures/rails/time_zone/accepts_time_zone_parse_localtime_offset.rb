@@ -1,0 +1,1 @@
+Time.zone.parse('12:00').localtime('+03:00')

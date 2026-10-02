@@ -1,0 +1,1 @@
+User.left_outer_joins(:association_name).order(:name).each { |u| u.something }

@@ -1,0 +1,1 @@
+enum status: User.statuses.keys

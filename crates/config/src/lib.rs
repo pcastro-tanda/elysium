@@ -42,4 +42,4 @@ pub use file_matcher::{is_hidden_path, FileMatcher, DEFAULT_EXCLUDE, DEFAULT_INC
 pub use loader::{ConfigLoader, DEFAULT_RUBY_VERSION, DOTFILE, XDG_CONFIG};
 pub use lockfile::GemVersions;
 pub use resolved::{AllCops, CopConfig, LoadedConfig, NewCops};
-pub use yaml::{Mapping, YamlValue};
+pub use yaml::{parse_yaml, Mapping, YamlValue};

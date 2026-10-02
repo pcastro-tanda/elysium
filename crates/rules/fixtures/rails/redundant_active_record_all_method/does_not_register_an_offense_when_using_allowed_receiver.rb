@@ -1,0 +1,1 @@
+ActiveSupport::TimeZone.all.first

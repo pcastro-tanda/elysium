@@ -1,0 +1,1 @@
+User.preload(:association_name).order(:name).each { |u| u.something }

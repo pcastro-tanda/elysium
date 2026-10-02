@@ -1,0 +1,1 @@
+User.eager_load(:association_name).select(:name, :age).each { |u| u.something }
