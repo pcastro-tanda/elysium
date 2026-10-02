@@ -38,11 +38,11 @@ impl Rule for DurationArithmetic {
     const META: RuleMeta = RuleMeta {
         name: "Rails/DurationArithmetic",
         department: Department::Rails,
-        summary: "Do not add or subtract duration.",
+        summary: "Do not use duration as arithmetic operand with `Time.current`.",
         explanation: "Checks if a duration is added to or subtracted from `Time.current`.\n\n\
                       ```ruby\n# bad\nTime.current - 1.minute\nTime.zone.now + 2.days\n\n\
                       # good\n1.minute.ago\n2.days.from_now\n```",
-        enabled_by_default: true,
+        enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
         stability: Stability::Nursery,

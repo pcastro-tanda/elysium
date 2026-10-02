@@ -1,0 +1,1 @@
+redirect_back_or_to(root_path)
