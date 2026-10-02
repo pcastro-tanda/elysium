@@ -265,3 +265,10 @@ per line, which the check honours) and explained here:
   the expected message embeds the basename of a random `Tempfile` created
   during the one-time upstream RSpec run; no deterministic port can
   reproduce it. The remaining cases cover the same logic.
+- `rails/bulk_change_table`: 18 `registers_an_offense_when_including_combinable_*`
+  cases (alter methods `_5`..`_13` / `_10`..`_13`, transformations
+  `_5`..`_13`) from the spec's `database.yml` / `DATABASE_URL` contexts. The
+  spec stubs `File.exist?`, `YAML.load_file` and `ENV` to pick the adapter;
+  those stubs are Ruby process state the fixture harness cannot express (the
+  case ymls carry no `Database:`), so the cop sees no database and rightly
+  reports nothing. The resolution itself is exercised through the CLI.

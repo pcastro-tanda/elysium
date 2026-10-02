@@ -293,6 +293,7 @@ begin
       ALL_COPS_OVERRIDE_KEYS = %w[
         TargetRubyVersion TargetRailsVersion StringLiteralsFrozenByDefault
         ActiveSupportExtensionsEnabled DisabledByDefault EnabledByDefault NewCops
+        MigratedSchemaVersion
       ].freeze
 
       # A spec may set an option to nil that RuboCop defaults to a list or a
@@ -559,7 +560,8 @@ begin
             'source' => source,
             'cop_config' => raw,
             'other_cops' => port_other_cops,
-            'ruby_version' => ruby_version
+            'ruby_version' => ruby_version,
+            'schema' => port_schema
           }
           result = super
           entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
@@ -623,6 +625,12 @@ begin
           respond_to?(:other_cops) ? other_cops : {}
         end
 
+        # rubocop-rails' 'with SchemaLoader' shared context: the example's `let(:schema)`, the
+        # `db/schema.rb` text it stubs in, or nil when the example runs without one.
+        def port_schema
+          respond_to?(:schema_path) && respond_to?(:schema) ? schema : nil
+        end
+
         # The example's injected `offenses` array, when its example group defines one (only
         # `RedundantCopDisableDirective`'s spec does, via its own `let(:cop) { described_class.new(
         # config, options, offenses) }` overriding the shared :config context's normal two-arg
@@ -647,7 +655,8 @@ begin
             'cop_config' => raw,
             'other_cops' => port_other_cops,
             'gem_versions' => port_gem_versions,
-            'ruby_version' => ruby_version
+            'ruby_version' => ruby_version,
+            'schema' => port_schema
           }
           result = super
           entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
@@ -712,6 +721,7 @@ begin
               'offenses' => injected_offenses,
               'gem_versions' => port_gem_versions,
               'ruby_version' => ruby_version,
+              'schema' => port_schema,
               'annotated' => annotated
             }
             entry['display_cop_names'] = true if port_display_cop_names?
@@ -742,7 +752,8 @@ begin
             'cop_config' => raw,
             'other_cops' => port_other_cops,
             'gem_versions' => port_gem_versions,
-            'ruby_version' => ruby_version
+            'ruby_version' => ruby_version,
+            'schema' => port_schema
           }
           result = super
           entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
@@ -891,6 +902,7 @@ begin
     if c['correction']
       File.write(File.join(out_dir, "#{name}.fixed.rb"), c['correction'])
     end
+    File.write(File.join(out_dir, "#{name}.schema.rb"), c['schema']) if c['schema']
     if c['singlepass']
       File.write(File.join(out_dir, "#{name}.singlepass"), '')
     end

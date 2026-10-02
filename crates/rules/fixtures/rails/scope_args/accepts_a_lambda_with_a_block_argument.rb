@@ -1,0 +1,1 @@
+scope :active, lambda { |active| where(active: active) }

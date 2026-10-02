@@ -1,0 +1,1 @@
+Rails.public_path.expand_path

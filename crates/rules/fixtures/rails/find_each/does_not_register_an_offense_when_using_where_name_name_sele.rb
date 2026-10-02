@@ -1,0 +1,1 @@
+User.where(name: name).select(:name, :age).each { |u| u.something }

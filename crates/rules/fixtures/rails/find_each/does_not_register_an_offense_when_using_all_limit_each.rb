@@ -1,0 +1,1 @@
+User.all.limit(10).each { |u| u.something }

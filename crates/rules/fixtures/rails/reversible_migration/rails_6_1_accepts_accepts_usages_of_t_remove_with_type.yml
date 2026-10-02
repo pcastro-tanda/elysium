@@ -1,0 +1,5 @@
+AllCops:
+  TargetRailsVersion: 6.1
+  MigratedSchemaVersion: '20240101010101'
+Rails/ReversibleMigration:
+  Include: ~

@@ -1,0 +1,3 @@
+# file: db/migrate/20250101010101_create_users.rb
+Rails/MigrationClassName:
+  Include: ~

@@ -1,0 +1,1 @@
+User.where(name: name).or(User.where(age: age)).order(:name).each { |u| u.something }

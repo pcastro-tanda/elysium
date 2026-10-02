@@ -1,0 +1,1 @@
+User.left_outer_joins(:association_name).select(:name, :age).each { |u| u.something }
