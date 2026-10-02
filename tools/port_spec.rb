@@ -291,6 +291,7 @@ begin
       ALL_COPS_OVERRIDE_KEYS = %w[
         TargetRubyVersion TargetRailsVersion StringLiteralsFrozenByDefault
         ActiveSupportExtensionsEnabled DisabledByDefault EnabledByDefault NewCops
+        MigratedSchemaVersion
       ].freeze
 
       # A spec may set an option to nil that RuboCop defaults to a list or a
