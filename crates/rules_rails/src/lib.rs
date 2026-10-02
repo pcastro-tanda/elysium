@@ -17,5 +17,10 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::squished_sql_heredocs::SquishedSQLHeredocs,
+    rails::reflection_class_name::ReflectionClassName,
+    rails::enum_uniqueness::EnumUniqueness,
+    rails::order_arguments::OrderArguments,
+    rails::redundant_active_record_all_method::RedundantActiveRecordAllMethod,
     rails::application_record::ApplicationRecord,
 }

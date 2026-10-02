@@ -1,0 +1,1 @@
+User.includes(:articles)

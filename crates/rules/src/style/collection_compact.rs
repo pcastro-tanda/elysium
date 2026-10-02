@@ -334,7 +334,7 @@ fn is_to_enum_method(call: &CallNode<'_>) -> bool {
 /// `AllowedReceivers#receiver_name`. Only a `CallNode` ever has a receiver
 /// at all; every other node kind falls straight to the `else` branch
 /// (`receiver.source`).
-fn receiver_name(node: &Node<'_>, ctx: &Context<'_>) -> String {
+pub fn receiver_name(node: &Node<'_>, ctx: &Context<'_>) -> String {
     let Some(call) = node.as_call_node() else {
         return String::from_utf8_lossy(ctx.text(node.span())).into_owned();
     };
