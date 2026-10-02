@@ -1,3 +1,5 @@
 Layout/EndAlignment:
   EnforcedStyleAlignWith: variable
   AutoCorrect: true
+Layout/IndentationStyle:
+  EnforcedStyle: ~

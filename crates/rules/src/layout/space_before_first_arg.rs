@@ -204,8 +204,10 @@ fn aligned_with_something(ctx: &Context<'_>, span: Span) -> bool {
 
 /// RuboCop's `aligned_with_line?`: scans `line_nos` (already ordered nearest candidate first) for
 /// the first line that is neither blank nor a standalone comment -- and, once a required `indent`
-/// is given, also skips lines whose own indentation column doesn't match it -- then returns
-/// [`check_line_alignment`]'s verdict on just that single line.
+/// is given, also skips lines indented more deeply (nested content of the current group) while
+/// stopping the search outright at the first less-indented line (an enclosing scope's dedent, past
+/// which an alignment anchor would be coincidental) -- then returns [`check_line_alignment`]'s
+/// verdict on just that single line.
 fn aligned_with_line(
     ctx: &Context<'_>,
     line_nos: impl Iterator<Item = u32>,
@@ -223,7 +225,11 @@ fn aligned_with_line(
             continue;
         }
         if let Some(want) = indent {
-            if line_indentation(ctx, candidate) != want {
+            let candidate_indent = line_indentation(ctx, candidate);
+            if candidate_indent < want {
+                break;
+            }
+            if candidate_indent > want {
                 continue;
             }
         }

@@ -1,2 +1,3 @@
 Layout/SpaceAroundOperators:
+  AllowForAlignment: false
   Enabled: true

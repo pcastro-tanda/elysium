@@ -23,6 +23,12 @@ default for real projects stays RuboCop's 2.7.
 UTF-8: the two `with binary encoded source` cases each of
 `lint/percent_string_array` and `lint/percent_symbol_array`.
 
+Peer cops the rule under test reads (`config.for_cop('Layout/LineLength')['Max']`
+and the like) are recorded per key while the spec runs. A key the spec's
+bespoke `RuboCop::Config` leaves unset is nil there, while the harness merges
+`default.yml`, so the `.yml` states such keys as `~` (a peer the spec never
+mentions included).
+
 ## Deliberately removed cases
 
 Cases that depend on Ruby process state elysium does not model are deleted
@@ -204,8 +210,3 @@ per line, which the check honours) and explained here:
   the expected message embeds the basename of a random `Tempfile` created
   during the one-time upstream RSpec run; no deterministic port can
   reproduce it. The remaining cases cover the same logic.
-- `layout/rescue_ensure_alignment/accepts_correctly_aligned_rescue_in_assigned_begin_end_block`:
-  upstream's spec config has no `Layout/BeginEndAlignment` peer, while the
-  fixture harness (like real RuboCop) merges `default.yml`, where
-  `EnforcedStyleAlignWith: start_of_line` makes the case an offense; real
-  RuboCop with its default configuration flags it too.

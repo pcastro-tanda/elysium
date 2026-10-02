@@ -2,3 +2,7 @@ Layout/FirstArgumentIndentation:
   EnforcedStyle: consistent_relative_to_receiver
 Layout/IndentationWidth:
   Width: 4
+Layout/ArgumentAlignment:
+  EnforcedStyle: ~
+Layout/IndentationStyle:
+  EnforcedStyle: ~

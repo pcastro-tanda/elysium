@@ -1,3 +1,4 @@
 Style/ParenthesesAroundCondition:
   Enabled: false
   AllowInMultilineConditions: true
+  AllowSafeAssignment: false

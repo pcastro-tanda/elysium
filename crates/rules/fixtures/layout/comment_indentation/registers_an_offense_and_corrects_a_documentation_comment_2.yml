@@ -1,2 +1,6 @@
 Layout/CommentIndentation:
   AllowForAlignment: true
+Layout/AccessModifierIndentation:
+  EnforcedStyle: ~
+Layout/IndentationStyle:
+  EnforcedStyle: ~

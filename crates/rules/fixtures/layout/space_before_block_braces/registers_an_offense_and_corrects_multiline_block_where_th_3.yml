@@ -1,2 +1,4 @@
 AllCops:
   TargetRubyVersion: 3.4
+Style/BlockDelimiters:
+  EnforcedStyle: ~

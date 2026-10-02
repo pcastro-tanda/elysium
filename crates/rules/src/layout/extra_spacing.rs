@@ -84,6 +84,39 @@ fn u32_of(x: usize) -> u32 {
     u32::try_from(x).unwrap_or(u32::MAX)
 }
 
+/// Converts a byte offset within a physical line to Ruby's own
+/// character-based column (RuboCop's `pos.column` counts UTF-8 scalars,
+/// not bytes -- see `ProcessedSource::LineIndex#line_col`): the count of
+/// non-continuation (`0b10xxxxxx`) bytes strictly before `byte_idx`.
+fn char_col_of(line_bytes: &[u8], byte_idx: usize) -> u32 {
+    u32_of(
+        line_bytes[..byte_idx.min(line_bytes.len())]
+            .iter()
+            .filter(|&&b| (b & 0xC0) != 0x80)
+            .count(),
+    )
+}
+
+/// The inverse of [`char_col_of`]: the byte offset within `line_bytes`
+/// where character column `char_col` begins, needed whenever a
+/// character-based column (RuboCop's own, or another line's) must index
+/// back into this line's raw bytes. Every line here that matters for
+/// alignment is pure ASCII in the overwhelming case, making this the
+/// identity function; it only diverges when multi-byte UTF-8 precedes the
+/// target column on this particular line.
+fn byte_offset_of_char_col(line_bytes: &[u8], char_col: usize) -> usize {
+    let mut col = 0usize;
+    for (idx, &b) in line_bytes.iter().enumerate() {
+        if (b & 0xC0) != 0x80 {
+            if col == char_col {
+                return idx;
+            }
+            col += 1;
+        }
+    }
+    line_bytes.len()
+}
+
 /// A coarse lexical classification for [`LineTok`], used only to group
 /// tokens by "does this look like the same kind of thing" the way RuboCop's
 /// real token `type` does for `spacing_varies?`'s `typed[[column, type]]`
@@ -103,6 +136,15 @@ enum TokKind {
     /// Anything else: a single operator/punctuation byte, or (for `.`/`..`/
     /// `...`/`::`/a greedy run of [`OP_CHARS`]) that run's first byte.
     Op(u8),
+    /// The end-of-line marker RuboCop's real token stream always carries
+    /// (Ripper's `tNL`): a zero-width token positioned at the physical
+    /// line's full character length (trailing spaces included, matching
+    /// `\n`'s own column), needed so `record_line_spacings`'s
+    /// `each_cons(2)` sees the same last-real-token/end-of-line gap
+    /// RuboCop's own token stream does -- e.g. a trailing `true`/`{`
+    /// immediately before a short vs. long remainder of the line is
+    /// itself alignment evidence `aligned_on_other_column?` keys off of.
+    Nl,
 }
 
 /// One lexical token on a single physical line, as approximated for
@@ -250,10 +292,13 @@ approximation this file builds instead), which has these consequences:
   requiring an expression-like byte immediately before it; a heredoc
   opener directly preceded by such a byte (unusual, but not impossible)
   would be misdetected as an interrupting append operator.
-- Column/token comparisons index by byte offset within a line, i.e. assume
-  one byte per character; a line with multi-byte UTF-8 content before the
-  compared column can misalign the comparison (offense spans themselves
-  remain exact byte spans, unaffected).
+- Column/token comparisons use Ruby's own character-based columns
+  (converted from byte offsets per line), matching `pos.column` even when
+  multi-byte UTF-8 precedes the compared position; `token_extent`'s own
+  lexical scan (next bullet) still advances byte-by-byte, so a token
+  straddling multi-byte content on its *own* line is unaffected in
+  practice (its recognized character classes are all single-byte ASCII)
+  but is not itself Unicode-identifier-aware.
 - `token_extent`'s lexical tokenizer (identifiers, `.`/`..`/`...`, `::`,
   and a greedy run of RuboCop's operator-alphabet characters) is not a
   full Ruby lexer; an unusual unspaced operator sequence could glom more
@@ -672,20 +717,26 @@ fn aligned_with_something(
     let col = (pos - line_span.start) as usize;
     let end = token_extent(line_bytes, col, local_starts);
     let token_text = &line_bytes[col..end];
+    // RuboCop's `range.column` is a *character* column; `col` above is a
+    // byte offset into this line's raw bytes (correct for slicing
+    // `token_text` out of them), but every cross-line comparison below
+    // must use the character-equivalent column instead, or a multi-byte
+    // UTF-8 line would misalign against pure-ASCII neighbours.
+    let char_col = ctx.line_col(pos).column as usize;
 
-    if aligned_with_line(ctx, (1..line).rev(), None, col, token_text, a)
-        || aligned_with_line(ctx, (line + 1)..=ctx.line_count(), None, col, token_text, a)
+    if aligned_with_line(ctx, (1..line).rev(), None, char_col, token_text, a)
+        || aligned_with_line(ctx, (line + 1)..=ctx.line_count(), None, char_col, token_text, a)
     {
         return true;
     }
 
     let base_indentation = line_indentation(ctx, line);
-    aligned_with_line(ctx, (1..line).rev(), Some(base_indentation), col, token_text, a)
+    aligned_with_line(ctx, (1..line).rev(), Some(base_indentation), char_col, token_text, a)
         || aligned_with_line(
             ctx,
             (line + 1)..=ctx.line_count(),
             Some(base_indentation),
-            col,
+            char_col,
             token_text,
             a,
         )
@@ -743,20 +794,27 @@ fn check_line_alignment(
     a: &Analysis<'_>,
 ) -> bool {
     let line_bytes = ctx.line_text(candidate);
+    // `col` is a *character* column; convert it to this candidate line's
+    // own byte offset before indexing its raw bytes (identity for the
+    // overwhelmingly common pure-ASCII case).
+    let byte_col = byte_offset_of_char_col(line_bytes, col);
     if col >= 1 {
-        if let (Some(&before), Some(&at)) = (line_bytes.get(col - 1), line_bytes.get(col)) {
+        if let (Some(&before), Some(&at)) = (line_bytes.get(byte_col - 1), line_bytes.get(byte_col))
+        {
             if before == b' ' && at != b' ' {
                 return true;
             }
         }
     }
-    if !token_text.is_empty() && line_bytes.get(col..col + token_text.len()) == Some(token_text) {
+    if !token_text.is_empty()
+        && line_bytes.get(byte_col..byte_col + token_text.len()) == Some(token_text)
+    {
         return true;
     }
     if token_text.last() == Some(&b'=') {
         if let Some(&op) = a.assignment_map.get(&candidate) {
             let this_end_col = col + token_text.len();
-            let op_end_col = (op.end - ctx.line_span(candidate).start) as usize;
+            let op_end_col = ctx.line_col(op.end).column as usize;
             if this_end_col == op_end_col {
                 return true;
             }
@@ -1049,8 +1107,7 @@ fn spacing_varies(
     run_end: u32,
     line: u32,
 ) -> bool {
-    let line_span = ctx.line_span(line);
-    let col = u32_of((run_end - line_span.start) as usize);
+    let col = ctx.line_col(run_end).column;
     let Some(toks) = a.tokens_by_line.get(&line) else { return false };
     let Some(tok) = toks.iter().find(|t| t.start == col) else { return false };
 
@@ -1187,10 +1244,19 @@ fn build_tokens_by_line(
                 continue;
             }
             let (end, kind) = classify_line_token(line_bytes, i, &spans_local);
-            toks.push(LineTok { start: u32_of(i), end: u32_of(end), kind });
+            toks.push(LineTok {
+                start: char_col_of(line_bytes, i),
+                end: char_col_of(line_bytes, end),
+                kind,
+            });
             i = end;
         }
         if !toks.is_empty() {
+            // RuboCop's real token stream ends every physical line with a
+            // `tNL` at the line's full character length (see the module
+            // doc comment and `TokKind::Nl`).
+            let nl_col = char_col_of(line_bytes, len);
+            toks.push(LineTok { start: nl_col, end: nl_col, kind: TokKind::Nl });
             map.insert(line, toks);
         }
     }

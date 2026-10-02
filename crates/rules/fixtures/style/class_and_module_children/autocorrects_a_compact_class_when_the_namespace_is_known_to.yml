@@ -1,3 +1,5 @@
 Style/ClassAndModuleChildren:
   EnforcedStyle: compact
   EnforcedStyleForClasses: nested
+Layout/IndentationWidth:
+  Width: ~

@@ -3,3 +3,7 @@ Layout/FirstHashElementIndentation:
 Layout/HashAlignment:
   EnforcedColonStyle: separator
   AllowMultipleStyles: false
+Layout/ArgumentAlignment:
+  EnforcedStyle: ~
+Layout/IndentationStyle:
+  EnforcedStyle: ~

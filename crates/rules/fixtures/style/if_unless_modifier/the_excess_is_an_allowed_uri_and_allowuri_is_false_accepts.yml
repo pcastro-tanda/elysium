@@ -1,6 +1,10 @@
 Layout/LineLength:
-  Enabled: true
   Max: 80
   AllowURI: false
+  AllowHeredoc: false
+  AllowQualifiedName: false
+  Enabled: true
   AllowCopDirectives: true
   URISchemes: [http, https]
+Layout/IndentationWidth:
+  Width: ~

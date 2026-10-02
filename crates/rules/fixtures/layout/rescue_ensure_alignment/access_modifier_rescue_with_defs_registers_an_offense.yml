@@ -1,2 +1,4 @@
 Layout/RescueEnsureAlignment:
   Style/AccessModifierDeclarations: {EnforcedStyle: inline}
+Layout/BeginEndAlignment:
+  EnforcedStyleAlignWith: ~

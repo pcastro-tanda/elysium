@@ -52,6 +52,11 @@ and writes into `<out>/<dept>/<snake>/`.
     instead of going through the shared `:config` context's `other_cops`
     merge — any bare, non-`AllCops` top-level key is a department name, since
     RuboCop's real default config never has one;
+  - each peer-cop key the cop under test read through `Config#for_cop` during
+    the example, with the spec's own value: nil (`~`) when the spec's config
+    never set it, even for a peer it never mentions. The harness merges
+    `default.yml`, so without this a nil the cop saw upstream would read as
+    the default (e.g. `Layout/BeginEndAlignment`'s `EnforcedStyleAlignWith`);
   - `AllCops: {TargetRubyVersion: X}` when the example's `ruby_version` is
     explicitly set below the Prism-mode default (see below);
   - a `# file: <path>` leading comment when the example passed a file name to

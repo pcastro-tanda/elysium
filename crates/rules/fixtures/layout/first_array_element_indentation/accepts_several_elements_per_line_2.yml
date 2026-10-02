@@ -1,3 +1,5 @@
 Layout/FirstArrayElementIndentation:
   EnforcedStyle: align_brackets
   Preview: ~
+Layout/ArrayAlignment:
+  EnforcedStyle: ~

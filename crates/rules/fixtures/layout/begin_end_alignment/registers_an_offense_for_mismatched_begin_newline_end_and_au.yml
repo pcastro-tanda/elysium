@@ -1,2 +1,4 @@
 Layout/BeginEndAlignment:
   EnforcedStyleAlignWith: begin
+Layout/IndentationStyle:
+  EnforcedStyle: ~

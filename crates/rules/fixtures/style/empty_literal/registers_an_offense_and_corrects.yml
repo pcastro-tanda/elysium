@@ -1,2 +1,4 @@
+Style/StringLiterals:
+  EnforcedStyle: ~
 Style/FrozenStringLiteralComment:
   Enabled: true

@@ -1,3 +1,5 @@
 Layout/ArrayAlignment:
   EnforcedStyle: with_fixed_indentation
   SupportedStyles: ~
+Layout/IndentationStyle:
+  EnforcedStyle: ~

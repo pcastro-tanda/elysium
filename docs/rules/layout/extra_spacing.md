@@ -60,10 +60,13 @@ approximation this file builds instead), which has these consequences:
   requiring an expression-like byte immediately before it; a heredoc
   opener directly preceded by such a byte (unusual, but not impossible)
   would be misdetected as an interrupting append operator.
-- Column/token comparisons index by byte offset within a line, i.e. assume
-  one byte per character; a line with multi-byte UTF-8 content before the
-  compared column can misalign the comparison (offense spans themselves
-  remain exact byte spans, unaffected).
+- Column/token comparisons use Ruby's own character-based columns
+  (converted from byte offsets per line), matching `pos.column` even when
+  multi-byte UTF-8 precedes the compared position; `token_extent`'s own
+  lexical scan (next bullet) still advances byte-by-byte, so a token
+  straddling multi-byte content on its *own* line is unaffected in
+  practice (its recognized character classes are all single-byte ASCII)
+  but is not itself Unicode-identifier-aware.
 - `token_extent`'s lexical tokenizer (identifiers, `.`/`..`/`...`, `::`,
   and a greedy run of RuboCop's operator-alphabet characters) is not a
   full Ruby lexer; an unusual unspaced operator sequence could glom more

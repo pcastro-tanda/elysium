@@ -1,3 +1,7 @@
 Layout/FirstArrayElementIndentation:
   IndentationWidth: 4
   Preview: ~
+Layout/ArrayAlignment:
+  EnforcedStyle: ~
+Layout/IndentationStyle:
+  EnforcedStyle: ~

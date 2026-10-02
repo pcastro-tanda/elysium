@@ -1,3 +1,6 @@
 Layout/ArgumentAlignment:
   Preview: ~
   SupportedStyles: ~
+Layout/HashAlignment:
+  EnforcedColonStyle: ~
+  EnforcedHashRocketStyle: ~

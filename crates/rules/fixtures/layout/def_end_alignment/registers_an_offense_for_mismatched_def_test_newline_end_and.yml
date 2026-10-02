@@ -1,2 +1,4 @@
 Layout/DefEndAlignment:
   AutoCorrect: true
+Layout/IndentationStyle:
+  EnforcedStyle: ~

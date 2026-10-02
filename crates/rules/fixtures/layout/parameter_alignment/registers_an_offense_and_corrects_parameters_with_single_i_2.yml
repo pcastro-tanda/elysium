@@ -1,3 +1,5 @@
 Layout/ParameterAlignment:
   Preview: ~
   SupportedStyles: ~
+Layout/IndentationStyle:
+  EnforcedStyle: ~
