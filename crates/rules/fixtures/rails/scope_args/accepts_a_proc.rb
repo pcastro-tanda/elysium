@@ -1,0 +1,1 @@
+scope :active, proc { where(active: true) }

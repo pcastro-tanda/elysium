@@ -30,5 +30,10 @@ rules_support::rule_set! {
     rails::to_s_with_argument::ToSWithArgument,
     rails::presence::Presence,
     rails::http_status_name_consistency::HttpStatusNameConsistency,
+    rails::delegate_allow_blank::DelegateAllowBlank,
+    rails::application_controller::ApplicationController,
+    rails::scope_args::ScopeArgs,
+    rails::has_and_belongs_to_many::HasAndBelongsToMany,
+    rails::dangerous_column_names::DangerousColumnNames,
     rails::application_record::ApplicationRecord,
 }
