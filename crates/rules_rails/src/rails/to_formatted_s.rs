@@ -3,15 +3,12 @@
 
 use linter::{
     Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
-    OptionError, OptionValue, Rule, RuleMeta, RuleOptions, Severity, Stability,
+    OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::{LocationExt as _, Node, NodeKind};
 
 /// `minimum_target_rails_version 7.0`.
 const MINIMUM_TARGET_RAILS_VERSION: f64 = 7.0;
-/// `TargetRailsVersion::DEFAULT_RAILS_VERSION`, used when the configuration
-/// states none.
-const DEFAULT_RAILS_VERSION: f64 = 5.0;
 
 /// Checks for consistent uses of `to_fs` or `to_formatted_s`.
 #[derive(Debug, Clone)]
@@ -51,7 +48,7 @@ impl Rule for ToFormattedS {
             "to_formatted_s" => "to_formatted_s",
             _ => "to_fs",
         };
-        Ok(Self { supported: target_rails_version(options) >= MINIMUM_TARGET_RAILS_VERSION, style })
+        Ok(Self { supported: options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION, style })
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
@@ -75,14 +72,5 @@ impl Rule for ToFormattedS {
                 edits: vec![Edit::replace(span, self.style.as_bytes().to_vec())],
             },
         );
-    }
-}
-
-/// `Config#target_rails_version`: `AllCops/TargetRailsVersion` when set.
-fn target_rails_version(options: &RuleOptions) -> f64 {
-    match options.peer("AllCops", "TargetRailsVersion") {
-        Some(OptionValue::Str(text)) => text.trim().parse().unwrap_or(DEFAULT_RAILS_VERSION),
-        Some(value) => value.as_float().unwrap_or(DEFAULT_RAILS_VERSION),
-        None => DEFAULT_RAILS_VERSION,
     }
 }
