@@ -101,8 +101,9 @@ fn replacement(order_expressions: &[String]) -> Option<String> {
             // `extract_column_and_direction`: (downcased column, is asc).
             let captures = order_expression().captures(strip(argument))?;
             let column = captures[1].to_ascii_lowercase();
-            let ascending =
-                captures.get(2).is_none_or(|direction| direction.as_str().eq_ignore_ascii_case("asc"));
+            let ascending = captures
+                .get(2)
+                .is_none_or(|direction| direction.as_str().eq_ignore_ascii_case("asc"));
             order_arguments.push((column, ascending));
         }
     }

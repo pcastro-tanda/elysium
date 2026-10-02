@@ -247,10 +247,7 @@ impl RedundantActiveRecordAllMethod {
             MSG,
             Fix {
                 applicability: Applicability::Unsafe,
-                edits: vec![
-                    Edit::delete(range),
-                    Edit::delete(dot.span()),
-                ],
+                edits: vec![Edit::delete(range), Edit::delete(dot.span())],
             },
         );
     }
@@ -274,8 +271,7 @@ fn possible_enumerable_block_method(parent: &ruby_ast::node::CallNode<'_>) -> bo
 ///   (const (const {nil? cbase} :ActiveRecord) :Base)}`.
 fn is_active_record(node: &Node<'_>) -> bool {
     use ruby_ast::ext::{const_name, is_bare_or_toplevel_const};
-    if is_bare_or_toplevel_const(node) && const_name(node).as_deref() == Some("ApplicationRecord")
-    {
+    if is_bare_or_toplevel_const(node) && const_name(node).as_deref() == Some("ApplicationRecord") {
         return true;
     }
     let Some(path) = node.as_constant_path_node() else { return false };

@@ -20,7 +20,7 @@ pub struct SquishedSQLHeredocs {
     squished: Vec<Span>,
 }
 
-/// `OPENING_DELIMITER`: `/(<<[~-]?)['"`]?([^'"`]+)['"`]?/`.
+/// `OPENING_DELIMITER` is the regexp `(<<[~-]?)[quote]?([^quote]+)[quote]?` (quote = single, double or backtick).
 fn opening_delimiter() -> &'static Regex {
     static RE: OnceLock<Regex> = OnceLock::new();
     RE.get_or_init(|| {

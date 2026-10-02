@@ -92,10 +92,8 @@ impl Rule for ReflectionClassName {
             }
         }
 
-        let fix = autocorrect(&value, ctx).map(|edit| Fix {
-            applicability: Applicability::Unsafe,
-            edits: vec![edit],
-        });
+        let fix = autocorrect(&value, ctx)
+            .map(|edit| Fix { applicability: Applicability::Unsafe, edits: vec![edit] });
         match fix {
             Some(fix) => ctx.report_with_fix(&Self::META, pair, MSG, fix),
             None => ctx.report(&Self::META, pair, MSG),
@@ -169,7 +167,7 @@ fn effective_children<'pr>(node: &Node<'pr>) -> Vec<Node<'pr>> {
     }
     for_each_child(node, |child| match child.as_statements_node() {
         Some(statements) if statements.body().len() == 1 => out.extend(statements.body().iter()),
-        _ => out.push(child.clone()),
+        _ => out.push(*child),
     });
     out
 }
@@ -193,7 +191,7 @@ fn str_assigned(ancestor: &Node<'_>, target: Span, lvar: &[u8]) -> bool {
         let span = child.span();
         let is_target = span == target && child.kind() == NodeKind::AssocNode;
         if next.is_none() && !is_target && span.start <= target.start && target.end <= span.end {
-            next = Some(child.clone());
+            next = Some(*child);
         }
     });
     next.is_some_and(|child| str_assigned(&child, target, lvar))
