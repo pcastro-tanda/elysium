@@ -1,0 +1,1 @@
+Time.find_zone!('EST').local(2012, 6, 10, 12, 00)

@@ -1,0 +1,1 @@
+a.present? ? a : nil

@@ -300,8 +300,26 @@ impl FileMatcher {
     }
 }
 
+/// `**` is only special as a whole path component (`**/`); `File.fnmatch?`
+/// treats it anywhere else (`danger/**/**.rb`) as a plain `*`, which globset
+/// would reject.
 fn compile(pattern: &str) -> Result<Glob, globset::Error> {
-    GlobBuilder::new(pattern).literal_separator(true).build()
+    let normalized = pattern
+        .split('/')
+        .map(|segment| {
+            if segment != "**" && segment.contains("**") {
+                let mut collapsed = segment.to_string();
+                while collapsed.contains("**") {
+                    collapsed = collapsed.replace("**", "*");
+                }
+                std::borrow::Cow::Owned(collapsed)
+            } else {
+                std::borrow::Cow::Borrowed(segment)
+            }
+        })
+        .collect::<Vec<_>>()
+        .join("/");
+    GlobBuilder::new(&normalized).literal_separator(true).build()
 }
 
 #[cfg(test)]

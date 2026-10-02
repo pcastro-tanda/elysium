@@ -1,0 +1,6 @@
+# file: 20190101010101_add_save_to_users.rb
+AllCops:
+  MigratedSchemaVersion: '20240101010101'
+Rails/DangerousColumnNames:
+  Severity: ~
+  Include: ~

@@ -4,6 +4,8 @@
 //! this crate chains their slot lists into [`Slots`] and their metadata
 //! into [`ALL_RULES`]. Adding a rule crate is one entry in each.
 
+use std::sync::Arc;
+
 use config::LoadedConfig;
 use linter::{Context, Diagnostic, Dispatch, OptionError, RuleMeta};
 use ruby_ast::{Node, NodeKind};
@@ -96,17 +98,26 @@ impl RuleSet {
     }
 
     /// Only `names`, configured from `cfg`, enabled regardless of what
-    /// `cfg` says about them (RuboCop's `--only`).
-    pub fn only(names: &[&str], cfg: &LoadedConfig) -> Result<Self, OptionError> {
-        Self::from_builder(&Builder::restricted(names, cfg, true))
+    /// `cfg` says about them (RuboCop's `--only`). `db_schema` is the source
+    /// of the project's `db/schema.rb`, if the run found one.
+    pub fn only(
+        names: &[&str],
+        cfg: &LoadedConfig,
+        db_schema: Option<Arc<str>>,
+    ) -> Result<Self, OptionError> {
+        Self::from_builder(&Builder::restricted(names, cfg, true, db_schema))
     }
 
     /// Only `names`, configured from `cfg` and enabled regardless of it, the
     /// way RuboCop's `CopHelper` runs a cop in its specs: unlike
     /// [`RuleSet::only`], the run is not an `--only` run, so rules that read
     /// the registry see every configured cop.
-    pub fn isolated(names: &[&str], cfg: &LoadedConfig) -> Result<Self, OptionError> {
-        Self::from_builder(&Builder::restricted(names, cfg, false))
+    pub fn isolated(
+        names: &[&str],
+        cfg: &LoadedConfig,
+        db_schema: Option<Arc<str>>,
+    ) -> Result<Self, OptionError> {
+        Self::from_builder(&Builder::restricted(names, cfg, false, db_schema))
     }
 }
 

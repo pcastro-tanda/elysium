@@ -1,0 +1,1 @@
+MyController = Class.new(ApplicationController)
