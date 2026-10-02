@@ -2,8 +2,8 @@
 //! `lib/rubocop/cop/rails/redundant_travel_back.rb`.
 
 use linter::{
-    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, OptionValue, Rule,
-    RuleMeta, RuleOptions, Severity, Stability,
+    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule, RuleMeta,
+    RuleOptions, Severity, Stability,
 };
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
@@ -12,9 +12,6 @@ const MSG: &str = "Redundant `travel_back` detected.";
 
 /// `minimum_target_rails_version 5.2`.
 const MINIMUM_TARGET_RAILS_VERSION: f64 = 5.2;
-/// `TargetRailsVersion::DEFAULT_RAILS_VERSION`, used when the configuration
-/// states none.
-const DEFAULT_RAILS_VERSION: f64 = 5.0;
 
 /// Checks for redundant `travel_back` calls. Since Rails 5.2, `travel_back`
 /// is automatically called at the end of the test.
@@ -43,13 +40,12 @@ impl Rule for RedundantTravelBack {
         stability: Stability::Nursery,
         kinds: &[NodeKind::DefNode, NodeKind::CallNode],
         config: &[],
-        blind_spots: "Without `AllCops/TargetRailsVersion` the Rails version is taken to be \
-                      5.0; RuboCop reads `railties` from the project's `Gemfile.lock` first.",
+        blind_spots: "",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
         Ok(Self {
-            supported: target_rails_version(options) >= MINIMUM_TARGET_RAILS_VERSION,
+            supported: options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION,
             scopes: Vec::new(),
         })
     }
@@ -98,14 +94,5 @@ impl Rule for RedundantTravelBack {
                 edits: vec![Edit::delete(ctx.whole_lines(call_span))],
             },
         );
-    }
-}
-
-/// `Config#target_rails_version`: `AllCops/TargetRailsVersion` when set.
-fn target_rails_version(options: &RuleOptions) -> f64 {
-    match options.peer("AllCops", "TargetRailsVersion") {
-        Some(OptionValue::Str(text)) => text.trim().parse().unwrap_or(DEFAULT_RAILS_VERSION),
-        Some(value) => value.as_float().unwrap_or(DEFAULT_RAILS_VERSION),
-        None => DEFAULT_RAILS_VERSION,
     }
 }
