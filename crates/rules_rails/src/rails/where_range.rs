@@ -4,8 +4,8 @@
 use std::sync::LazyLock;
 
 use linter::{
-    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule,
-    RuleMeta, RuleOptions, Severity, Stability,
+    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule, RuleMeta,
+    RuleOptions, Severity, Stability,
 };
 use regex::Regex;
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
@@ -86,7 +86,8 @@ impl Rule for WhereRange {
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
         let ruby = options.target_ruby_version();
         Ok(Self {
-            supported: ruby >= 2.6 && options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION,
+            supported: ruby >= 2.6
+                && options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION,
             beginless: ruby >= 2.7,
         })
     }
@@ -226,7 +227,15 @@ impl WhereRange {
         }
         let source = |node: Option<&Node<'_>>| {
             node.map(|node| {
-                let text = String::from_utf8_lossy(ctx.text(node.span())).into_owned();
+                let mut text = String::from_utf8_lossy(ctx.text(node.span())).into_owned();
+                // Prism's value of an omitted-value pair (`key:`) spans the
+                // trailing colon; parser's send/lvar node does not.
+                let omitted_value = node.as_call_node().is_some()
+                    || node.as_local_variable_read_node().is_some()
+                    || node.as_constant_read_node().is_some();
+                if omitted_value && text.ends_with(':') {
+                    text.pop();
+                }
                 if parentheses_needed(node) {
                     format!("({text})")
                 } else {
@@ -261,7 +270,10 @@ fn find_pair<'pr>(pairs: &[ruby_ast::node::AssocNode<'pr>], name: &str) -> Optio
             };
             value == name.as_bytes()
         })
-        .map(ruby_ast::node::AssocNode::value)
+        .map(|pair| {
+            let value = pair.value();
+            value.as_implicit_node().map_or(value, |implicit| implicit.value())
+        })
 }
 
 fn range_operator(comparison: &str) -> &'static str {
