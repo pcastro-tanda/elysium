@@ -45,5 +45,10 @@ rules_support::rule_set! {
     rails::action_controller_test_case::ActionControllerTestCase,
     rails::active_record_aliases::ActiveRecordAliases,
     rails::redundant_presence_validation_on_belongs_to::RedundantPresenceValidationOnBelongsTo,
+    rails::arel_star::ArelStar,
+    rails::to_formatted_s::ToFormattedS,
+    rails::duplicate_scope::DuplicateScope,
+    rails::application_job::ApplicationJob,
+    rails::root_pathname_methods::RootPathnameMethods,
     rails::application_record::ApplicationRecord,
 }
