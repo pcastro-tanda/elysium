@@ -1,0 +1,1 @@
+User.all.select(:name, :age).each { |u| u.something }

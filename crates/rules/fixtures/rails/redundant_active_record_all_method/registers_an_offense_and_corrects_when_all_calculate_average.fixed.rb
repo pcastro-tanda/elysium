@@ -1,0 +1,1 @@
+User.calculate(:average, :age)

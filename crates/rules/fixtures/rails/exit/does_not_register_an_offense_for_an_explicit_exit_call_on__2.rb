@@ -1,0 +1,1 @@
+Object.new.exit!(0)

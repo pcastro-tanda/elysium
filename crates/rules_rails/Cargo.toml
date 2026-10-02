@@ -14,6 +14,7 @@ ruby_source.workspace = true
 ruby_semantic.workspace = true
 ruby_directives.workspace = true
 regex.workspace = true
+rules.workspace = true
 rules_support.workspace = true
 
 [lints]

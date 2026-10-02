@@ -1,0 +1,1 @@
+all.delete_all

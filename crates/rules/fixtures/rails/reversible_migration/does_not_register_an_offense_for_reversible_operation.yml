@@ -1,0 +1,5 @@
+# file: db/animals_migrate/20250101010101_create_animals.rb
+AllCops:
+  MigratedSchemaVersion: '20240101010101'
+Rails/ReversibleMigration:
+  Include: ~

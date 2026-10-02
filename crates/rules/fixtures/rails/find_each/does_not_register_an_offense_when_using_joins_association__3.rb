@@ -1,0 +1,1 @@
+User.joins(:association_name).select(:name, :age).each { |u| u.something }

@@ -1,0 +1,1 @@
+x = a.presence&.foo

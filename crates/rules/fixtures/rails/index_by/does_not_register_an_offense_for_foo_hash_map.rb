@@ -1,0 +1,1 @@
+Foo::Hash[x.map { |el| [el.to_sym, el] }]

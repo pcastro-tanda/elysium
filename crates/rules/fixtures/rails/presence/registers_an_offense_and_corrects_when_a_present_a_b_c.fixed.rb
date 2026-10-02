@@ -1,0 +1,1 @@
+a.presence || b[:c]

@@ -1,0 +1,1 @@
+has_one :foo, foreign_key: 'foo_id', inverse_of: :bar

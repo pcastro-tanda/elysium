@@ -1,0 +1,1 @@
+belongs_to :foo, polymorphic: true
