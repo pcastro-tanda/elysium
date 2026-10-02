@@ -1,0 +1,5 @@
+# file: 20250101010101_create_users.rb
+Rails/NotNullColumn:
+  Database: sqlite3
+  Include: ~
+  SupportedDatabases: ~

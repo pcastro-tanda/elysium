@@ -40,4 +40,4 @@ pub use error::ConfigError;
 pub use file_matcher::{is_hidden_path, FileMatcher, DEFAULT_EXCLUDE, DEFAULT_INCLUDE};
 pub use loader::{ConfigLoader, DEFAULT_RUBY_VERSION, DOTFILE, XDG_CONFIG};
 pub use resolved::{AllCops, CopConfig, LoadedConfig, NewCops};
-pub use yaml::{Mapping, YamlValue};
+pub use yaml::{parse_document, Mapping, YamlValue};

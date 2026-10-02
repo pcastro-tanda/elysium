@@ -1,0 +1,4 @@
+Rails/NotNullColumn:
+  Database: mysql
+  Include: ~
+  SupportedDatabases: ~

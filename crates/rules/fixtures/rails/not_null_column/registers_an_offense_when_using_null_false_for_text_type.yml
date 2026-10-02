@@ -1,0 +1,5 @@
+# file: 20250101010101_add_content_to_articles.rb
+Rails/NotNullColumn:
+  Database: postgresql
+  Include: ~
+  SupportedDatabases: ~
