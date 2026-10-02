@@ -1,0 +1,1 @@
+params.require(:target).permit

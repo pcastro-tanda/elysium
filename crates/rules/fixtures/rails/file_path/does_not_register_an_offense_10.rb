@@ -1,0 +1,1 @@
+join(Rails.root, path)

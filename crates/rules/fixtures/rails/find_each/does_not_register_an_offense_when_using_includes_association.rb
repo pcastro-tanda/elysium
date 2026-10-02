@@ -1,0 +1,1 @@
+User.includes(:association_name).order(:name).each { |u| u.something }

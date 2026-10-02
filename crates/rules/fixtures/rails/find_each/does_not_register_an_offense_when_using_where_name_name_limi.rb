@@ -1,0 +1,1 @@
+User.where(name: name).limit(10).each { |u| u.something }

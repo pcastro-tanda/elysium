@@ -1,0 +1,1 @@
+User.without(user)

@@ -1,0 +1,1 @@
+User.unscoped.limit(10).each { |u| u.something }

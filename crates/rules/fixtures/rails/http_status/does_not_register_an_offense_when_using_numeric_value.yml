@@ -1,0 +1,2 @@
+Rails/HttpStatus:
+  EnforcedStyle: numeric
