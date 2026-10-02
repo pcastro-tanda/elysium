@@ -1,0 +1,1 @@
+User.eager_load(:association_name).limit(10).each { |u| u.something }

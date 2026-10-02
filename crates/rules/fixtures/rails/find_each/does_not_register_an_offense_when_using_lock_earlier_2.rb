@@ -1,0 +1,1 @@
+User.lock.each { |u| u.something }
