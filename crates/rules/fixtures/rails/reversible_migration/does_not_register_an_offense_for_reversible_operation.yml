@@ -1,0 +1,3 @@
+# file: db/animals_migrate/20250101010101_create_animals.rb
+Rails/ReversibleMigration:
+  Include: ~

@@ -1,0 +1,4 @@
+AllCops:
+  TargetRailsVersion: 6.1
+Rails/ReversibleMigration:
+  Include: ~
