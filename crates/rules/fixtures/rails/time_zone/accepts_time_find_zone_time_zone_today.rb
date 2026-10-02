@@ -1,0 +1,1 @@
+Time.find_zone('EST').today

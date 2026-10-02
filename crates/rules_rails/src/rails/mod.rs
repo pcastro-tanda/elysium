@@ -35,3 +35,8 @@ pub mod to_formatted_s;
 pub mod to_s_with_argument;
 pub mod top_level_hash_with_indifferent_access;
 pub mod unique_validation_without_index;
+pub mod multiple_route_paths;
+pub mod redundant_travel_back;
+pub mod request_referer;
+pub mod strip_heredoc;
+pub mod time_zone;

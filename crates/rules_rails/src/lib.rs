@@ -54,5 +54,10 @@ rules_support::rule_set! {
     rails::duplicate_scope::DuplicateScope,
     rails::application_job::ApplicationJob,
     rails::root_pathname_methods::RootPathnameMethods,
+    rails::redundant_travel_back::RedundantTravelBack,
+    rails::strip_heredoc::StripHeredoc,
+    rails::request_referer::RequestReferer,
+    rails::multiple_route_paths::MultipleRoutePaths,
+    rails::time_zone::TimeZone,
     rails::application_record::ApplicationRecord,
 }
