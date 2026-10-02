@@ -17,5 +17,10 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::where_not::WhereNot,
+    rails::ignored_skip_action_filter_option::IgnoredSkipActionFilterOption,
+    rails::output_safety::OutputSafety,
+    rails::expanded_date_range::ExpandedDateRange,
+    rails::not_null_column::NotNullColumn,
     rails::application_record::ApplicationRecord,
 }
