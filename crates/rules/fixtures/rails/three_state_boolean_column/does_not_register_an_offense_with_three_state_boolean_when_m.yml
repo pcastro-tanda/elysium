@@ -1,3 +1,5 @@
 # file: 20190101010101_add_active_to_users.rb
+AllCops:
+  MigratedSchemaVersion: '20240101010101'
 Rails/ThreeStateBooleanColumn:
   Include: ~
