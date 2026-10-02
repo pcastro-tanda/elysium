@@ -17,5 +17,10 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::migration_class_name::MigrationClassName,
+    rails::add_column_index::AddColumnIndex,
+    rails::active_support_aliases::ActiveSupportAliases,
+    rails::root_public_path::RootPublicPath,
+    rails::bulk_change_table::BulkChangeTable,
     rails::application_record::ApplicationRecord,
 }
