@@ -1,4 +1,4 @@
-//! RubyGems' `Gem::Version` and `Gem::Requirement`, as far as
+//! `RubyGems`' `Gem::Version` and `Gem::Requirement`, as far as
 //! `requires_gem` needs them: parsing the versions a lockfile holds and
 //! requirement strings (`">= 3.1.0"`, `"~> 7.0"`), and comparing them.
 
