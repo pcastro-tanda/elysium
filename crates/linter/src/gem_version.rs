@@ -19,7 +19,7 @@ pub struct GemVersion {
 }
 
 impl GemVersion {
-    /// `Gem::Version.new(text)`; `None` for text RubyGems rejects.
+    /// `Gem::Version.new(text)`; `None` for text `RubyGems` rejects.
     pub fn parse(text: &str) -> Option<Self> {
         let text = text.trim();
         let text = if text.is_empty() { "0" } else { text };

@@ -131,7 +131,7 @@ enum Branch<'pr> {
     Many,
 }
 
-fn branch_of<'pr>(statements: Option<ruby_ast::node::StatementsNode<'pr>>) -> Branch<'pr> {
+fn branch_of(statements: Option<ruby_ast::node::StatementsNode<'_>>) -> Branch<'_> {
     let Some(statements) = statements else { return Branch::Missing };
     let body = statements.body();
     let mut nodes = body.iter();
@@ -209,9 +209,11 @@ impl Presence {
             String::from_utf8_lossy(call.name().as_slice())
         );
         if has_arguments(&call) {
-            replacement.push_str(&format!("({})", argument_sources(ctx, &call).join(", ")));
+            replacement.push('(');
+            replacement.push_str(&argument_sources(ctx, &call).join(", "));
+            replacement.push(')');
         }
-        self.report(parts, ctx, &replacement);
+        Self::report(parts, ctx, &replacement);
     }
 
     fn register_offense(
@@ -233,7 +235,7 @@ impl Presence {
         if self.require_parentheses(ctx, &or_source) {
             replacement = format!("({replacement})");
         }
-        self.report(parts, ctx, &replacement);
+        Self::report(parts, ctx, &replacement);
     }
 
     /// `require_parentheses?`: the `if` is an operand of an unparenthesized
@@ -257,7 +259,7 @@ impl Presence {
         call_parent && self.calls.last().copied().unwrap_or(false)
     }
 
-    fn report(&self, parts: &Parts<'_>, ctx: &mut Context<'_>, replacement: &str) {
+    fn report(parts: &Parts<'_>, ctx: &mut Context<'_>, replacement: &str) {
         let message = message(&squash(replacement), &squash(&current(ctx, parts)));
         ctx.report_with_fix(
             &Self::META,
@@ -312,6 +314,10 @@ fn squash(text: &str) -> String {
     out
 }
 
+/// The receiver of a plain call; a distinct type so a missing receiver is not
+/// confused with a non-matching call.
+struct Receiver<'pr>(Option<Node<'pr>>);
+
 /// `(send ...)`: a call that is neither `&.` nor given a literal block.
 fn as_send<'pr>(node: &Node<'pr>) -> Option<CallNode<'pr>> {
     let call = node.as_call_node()?;
@@ -320,9 +326,9 @@ fn as_send<'pr>(node: &Node<'pr>) -> Option<CallNode<'pr>> {
 }
 
 /// `(send $_recv :name)` without arguments: the receiver.
-fn plain_call<'pr>(node: &Node<'pr>, name: &[u8]) -> Option<Option<Node<'pr>>> {
+fn plain_call<'pr>(node: &Node<'pr>, name: &[u8]) -> Option<Receiver<'pr>> {
     let call = as_send(node)?;
-    (call.name().as_slice() == name && !has_arguments(&call)).then(|| call.receiver())
+    (call.name().as_slice() == name && !has_arguments(&call)).then(|| Receiver(call.receiver()))
 }
 
 /// `{(send $_recv :blank?) (send (send $_recv :present?) :!)}` (`true`) or
@@ -336,9 +342,9 @@ fn condition_of<'pr>(condition: &Node<'pr>) -> Option<(bool, Option<Node<'pr>>)>
         plain_call(&outer.receiver()?, inner)
     };
     if let Some(receiver) = plain_call(condition, b"blank?").or_else(|| negated(b"present?")) {
-        return Some((true, receiver));
+        return Some((true, receiver.0));
     }
-    plain_call(condition, b"present?").or_else(|| negated(b"blank?")).map(|r| (false, r))
+    plain_call(condition, b"present?").or_else(|| negated(b"blank?")).map(|r| (false, r.0))
 }
 
 /// `ignore_other_node?`: `if`, `rescue` and `while` nodes.
@@ -413,7 +419,7 @@ fn same_node(ctx: &Context<'_>, a: &Node<'_>, b: &Node<'_>) -> bool {
 }
 
 fn collect_children<'pr>(node: &Node<'pr>, out: &mut Vec<Node<'pr>>) {
-    for_each_child(node, |child| out.push(child.clone()));
+    for_each_child(node, |child| out.push(*child));
 }
 
 /// The node's text with its children's text cut out and whitespace removed.

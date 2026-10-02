@@ -75,14 +75,12 @@ impl Rule for HttpStatusNameConsistency {
 
         let status_node = match name {
             b"render" | b"redirect_to" => match args.as_slice() {
-                [_, hash] if is_hash(hash) => Some(hash),
-                [hash] if is_hash(hash) => Some(hash),
+                [_, hash] | [hash] if is_hash(hash) => Some(hash),
                 _ => None,
             },
             b"head" | b"assert_response" => args.first(),
             _ => match args.as_slice() {
-                [_, hash, ..] if is_hash(hash) => Some(hash),
-                [hash, ..] if is_hash(hash) => Some(hash),
+                [_, hash, ..] | [hash, ..] if is_hash(hash) => Some(hash),
                 _ => None,
             },
         };
