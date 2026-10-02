@@ -5,17 +5,13 @@
 use std::collections::HashSet;
 
 use linter::{
-    Context, Department, FixAvailability, OptionError, OptionValue, Rule, RuleMeta, RuleOptions,
+    Context, Department, FixAvailability, OptionError, Rule, RuleMeta, RuleOptions,
     Severity, Stability,
 };
 use ruby_ast::ext::{call_span_excluding_block, const_name, is_bare_or_toplevel_const};
 use ruby_ast::node::{CallNode, ClassNode};
 use ruby_ast::{Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
-
-/// `TargetRailsVersion::DEFAULT_RAILS_VERSION`, used when the configuration
-/// states none.
-const DEFAULT_RAILS_VERSION: f64 = 5.0;
 
 /// Checks whether the change method of the migration file is reversible.
 #[derive(Debug, Clone)]
@@ -52,15 +48,13 @@ impl Rule for ReversibleMigration {
         stability: Stability::Nursery,
         kinds: &[NodeKind::ClassNode, NodeKind::DefNode, NodeKind::CallNode],
         config: &[],
-        blind_spots: "Without `AllCops/TargetRailsVersion` the Rails version is taken to be 5.0; \
-                      RuboCop reads `railties` from the project's `Gemfile.lock` first. Inside \
-                      `change_table`, only sends that are statements of the block (or the sole \
+        blind_spots: "Inside `change_table`, only sends that are statements of the block (or the sole \
                       statement's call) are inspected, not those nested in other constructs.",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
         Ok(Self {
-            target_rails_version: target_rails_version(options),
+            target_rails_version: options.target_rails_version(),
             migration_depth: 0,
             change_depth: 0,
             reversible_depth: 0,
@@ -376,13 +370,4 @@ fn is_migration_class(class: &ClassNode<'_>) -> bool {
     let Some(arguments) = call.arguments() else { return false };
     let mut arguments = arguments.arguments().iter();
     matches!((arguments.next(), arguments.next()), (Some(arg), None) if arg.as_float_node().is_some())
-}
-
-/// `Config#target_rails_version`: `AllCops/TargetRailsVersion` when set.
-fn target_rails_version(options: &RuleOptions) -> f64 {
-    match options.peer("AllCops", "TargetRailsVersion") {
-        Some(OptionValue::Str(text)) => text.trim().parse().unwrap_or(DEFAULT_RAILS_VERSION),
-        Some(value) => value.as_float().unwrap_or(DEFAULT_RAILS_VERSION),
-        None => DEFAULT_RAILS_VERSION,
-    }
 }
