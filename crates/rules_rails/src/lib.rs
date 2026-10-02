@@ -17,5 +17,10 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::create_table_with_timestamps::CreateTableWithTimestamps,
+    rails::duration_arithmetic::DurationArithmetic,
+    rails::redirect_back_or_to::RedirectBackOrTo,
+    rails::link_to_blank::LinkToBlank,
+    rails::unique_validation_without_index::UniqueValidationWithoutIndex,
     rails::application_record::ApplicationRecord,
 }
