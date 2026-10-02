@@ -24,8 +24,12 @@
 //! [`Diagnostic`] spanning that line, fed to `Rule::file_finish` through
 //! `linter::lint_parsed_with_injected` without appearing in the case's own
 //! expected output.
+//!
+//! A `# gem_versions: rack=3.1.0` comment line in a case's `.yml` gives the
+//! locked gem versions the spec stubbed into `Config#gem_versions_in_target`
+//! (what `requires_gem` checks); without it the case's lockfile is empty.
 
-use config::{ConfigLoader, LoadedConfig};
+use config::{ConfigLoader, GemVersions, LoadedConfig};
 use linter::{Diagnostic, FileSettings, RuleMeta};
 use registry::{RuleSet, ALL_RULES};
 use ruby_ast::{ParseOptions, Parsed, RubyVersion};
@@ -372,6 +376,7 @@ fn load_config(case: &Path, suite: &Suite) -> LoadedConfig {
         loader = loader.with_extension_defaults(gem, default_yml);
     }
     let stated = std::fs::read_to_string(&yml).unwrap_or_default();
+    loader = loader.with_gem_versions(stated_gem_versions(&stated));
     let settings = unstated_all_cops(&stated, suite);
     if settings.is_empty() {
         return loader.load(Some(&yml)).expect("load fixture config");
@@ -389,6 +394,20 @@ fn load_config(case: &Path, suite: &Suite) -> LoadedConfig {
     let config = loader.load(Some(&scratch)).expect("load fixture config");
     std::fs::remove_file(&scratch).expect("remove scratch fixture config");
     config
+}
+
+/// The gems a spec stubbed into `Config#gem_versions_in_target`: the case
+/// yml's `# gem_versions: rack=3.1.0, other=1.2` comment. A case that states
+/// none has an empty lockfile, never whatever `Gemfile.lock` happens to sit
+/// above the fixtures.
+fn stated_gem_versions(yml: &str) -> GemVersions {
+    yml.lines()
+        .find_map(|line| line.strip_prefix("# gem_versions: "))
+        .into_iter()
+        .flat_map(|list| list.split(", "))
+        .filter_map(|pair| pair.split_once('='))
+        .map(|(gem, version)| (gem.to_string(), version.to_string()))
+        .collect()
 }
 
 /// Adds `settings` under `AllCops` to a case's YAML text, either into its

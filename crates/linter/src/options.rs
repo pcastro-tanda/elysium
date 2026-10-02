@@ -9,6 +9,7 @@ use std::collections::BTreeMap;
 use std::fmt;
 use std::sync::Arc;
 
+use crate::gem_version::{GemRequirement, GemVersion};
 use crate::rule::{ConfigDefault, RuleMeta};
 
 /// RuboCop's `TargetRuby::DEFAULT_VERSION`: the target Ruby version cops see
@@ -140,6 +141,14 @@ impl std::error::Error for OptionError {}
 /// settings (`Layout/IndentationWidth: Width`).
 pub type PeerOptions = BTreeMap<String, Vec<(String, OptionValue)>>;
 
+/// The target's locked gem versions (`Config#gem_versions_in_target`), keyed
+/// by gem name, as the lockfile spells them.
+pub type GemVersions = BTreeMap<String, String>;
+
+/// `TargetRailsVersion::DEFAULT_RAILS_VERSION` (rubocop-rails): the Rails
+/// version cops see when neither the configuration nor the lockfile says.
+pub const DEFAULT_RAILS_VERSION: f64 = 5.0;
+
 /// The options one rule was configured with.
 #[derive(Debug, Clone)]
 pub struct RuleOptions {
@@ -148,12 +157,20 @@ pub struct RuleOptions {
     peers: Arc<PeerOptions>,
     /// The `--only` cop list, when the run was restricted with `--only`.
     only: Option<Arc<[String]>>,
+    /// `Config#gem_versions_in_target`; `None` without a lockfile.
+    gem_versions: Option<Arc<GemVersions>>,
 }
 
 impl RuleOptions {
     /// Only the rule's `META.config` defaults.
     pub fn defaults(meta: &'static RuleMeta) -> Self {
-        Self { meta, own: Vec::new(), peers: Arc::new(PeerOptions::new()), only: None }
+        Self {
+            meta,
+            own: Vec::new(),
+            peers: Arc::new(PeerOptions::new()),
+            only: None,
+            gem_versions: None,
+        }
     }
 
     /// Configured values for this rule plus every other cop's options.
@@ -162,7 +179,7 @@ impl RuleOptions {
         own: Vec<(String, OptionValue)>,
         peers: Arc<PeerOptions>,
     ) -> Self {
-        Self { meta, own, peers, only: None }
+        Self { meta, own, peers, only: None, gem_versions: None }
     }
 
     /// Marks these options as belonging to a `--only` run over `only`.
@@ -170,6 +187,49 @@ impl RuleOptions {
     pub fn with_only(mut self, only: Option<Arc<[String]>>) -> Self {
         self.only = only;
         self
+    }
+
+    /// Sets the target's locked gem versions (`None`: no lockfile).
+    #[must_use]
+    pub fn with_gem_versions(mut self, versions: Option<Arc<GemVersions>>) -> Self {
+        self.gem_versions = versions;
+        self
+    }
+
+    /// RuboCop's `Base#target_gem_version`: the locked version of `gem`, or
+    /// `None` when the target has no lockfile or the gem is not in it.
+    pub fn gem_version(&self, gem: &str) -> Option<GemVersion> {
+        GemVersion::parse(self.gem_versions.as_deref()?.get(gem)?)
+    }
+
+    /// RuboCop's `requires_gem gem, *requirements` gate
+    /// (`Base#target_satisfies_all_gem_version_requirements?`): whether the
+    /// locked `gem` satisfies every requirement (`Gemfile` syntax, e.g.
+    /// `">= 3.1.0"`; none accepts any version). A cop that declares this does
+    /// not run at all unless it holds, so without a lockfile, or when the gem
+    /// is not locked, it is `false`.
+    pub fn requires_gem(&self, gem: &str, requirements: &[&str]) -> bool {
+        let Some(requirement) = GemRequirement::parse(requirements) else { return false };
+        self.gem_version(gem).is_some_and(|version| requirement.satisfied_by(&version))
+    }
+
+    /// rubocop-rails' `TargetRailsVersion.resolve`: `AllCops/TargetRailsVersion`
+    /// when set, else the `major.minor` of the locked `railties`, else
+    /// [`DEFAULT_RAILS_VERSION`]. What `minimum_target_rails_version N`
+    /// compares against (`>= N`).
+    pub fn target_rails_version(&self) -> f64 {
+        match self.peer("AllCops", "TargetRailsVersion") {
+            Some(OptionValue::Str(text)) => leading_float(text).map_or(0.0, f64::from).max(0.0),
+            Some(value) if *value != OptionValue::Null => value.as_float().unwrap_or(0.0),
+            _ => self.railties_major_minor().unwrap_or(DEFAULT_RAILS_VERSION),
+        }
+    }
+
+    fn railties_major_minor(&self) -> Option<f64> {
+        let text = self.gem_versions.as_deref()?.get("railties")?;
+        let mut numbers = text.split('.').map(|part| part.parse::<u32>().ok());
+        let (major, minor) = (numbers.next()??, numbers.next()??);
+        format!("{major}.{minor}").parse().ok()
     }
 
     /// Whether the run was restricted with `--only`. RuboCop then builds the
