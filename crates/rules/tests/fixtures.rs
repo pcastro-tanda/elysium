@@ -23,9 +23,9 @@
 
 use config::{ConfigLoader, LoadedConfig};
 use linter::{Diagnostic, FileSettings, RuleMeta};
+use registry::{RuleSet, ALL_RULES};
 use ruby_ast::{ParseOptions, Parsed, RubyVersion};
 use ruby_source::SourceFile;
-use rules::{RuleSet, ALL_RULES};
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
 

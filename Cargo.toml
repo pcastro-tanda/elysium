@@ -16,6 +16,8 @@ ruby_directives = { path = "crates/ruby_directives" }
 ruby_semantic = { path = "crates/ruby_semantic" }
 linter = { path = "crates/linter" }
 rules = { path = "crates/rules" }
+rules_support = { path = "crates/rules_support" }
+registry = { path = "crates/registry" }
 config = { path = "crates/config" }
 cache = { path = "crates/cache" }
 
