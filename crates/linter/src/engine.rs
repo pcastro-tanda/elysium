@@ -200,9 +200,13 @@ fn finish(
     directives: &Directives,
     settings: &FileSettings,
 ) -> Vec<Diagnostic> {
+    let already_migrated = settings.is_already_migrated_file(source.path());
     diagnostics.retain(|d| {
         if d.rule == SYNTAX_RULE {
             return true;
+        }
+        if already_migrated {
+            return false;
         }
         // `Cop::Base#enabled_lines?`: a directive on any line of the offense's
         // range suppresses it, not only one on its first line.
