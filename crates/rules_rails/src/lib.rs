@@ -20,6 +20,11 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::output::Output,
+    rails::pick::Pick,
+    rails::unused_render_content::UnusedRenderContent,
+    rails::exit::Exit,
+    rails::inverse_of::InverseOf,
     rails::negate_include::NegateInclude,
     rails::render_inline::RenderInline,
     rails::assert_not::AssertNot,

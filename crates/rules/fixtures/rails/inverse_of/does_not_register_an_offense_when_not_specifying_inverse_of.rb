@@ -1,0 +1,1 @@
+has_many :foo, -> () { where(bar: true) }
