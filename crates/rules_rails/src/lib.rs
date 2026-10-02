@@ -17,5 +17,10 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::where_missing::WhereMissing,
+    rails::where_equals::WhereEquals,
+    rails::duplicate_association::DuplicateAssociation,
+    rails::pluralization_grammar::PluralizationGrammar,
+    rails::present::Present,
     rails::application_record::ApplicationRecord,
 }
