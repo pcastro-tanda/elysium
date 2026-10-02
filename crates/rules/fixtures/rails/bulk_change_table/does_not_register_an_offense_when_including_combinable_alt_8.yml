@@ -1,0 +1,5 @@
+AllCops:
+  TargetRailsVersion: 5.1
+Rails/BulkChangeTable:
+  Database: postgresql
+  Include: ["*"]

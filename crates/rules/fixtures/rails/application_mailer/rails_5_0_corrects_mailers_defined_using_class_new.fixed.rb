@@ -1,0 +1,1 @@
+MyMailer = Class.new(ApplicationMailer)

@@ -79,6 +79,24 @@ What differs from core cops:
   `options.peer("AllCops", "TargetRailsVersion")`, which is `null` unless
   set; unset means 5.0 in the fixtures (the specs stub `railties` at 5.0).
   `TargetRailsVersion: 4.2` in a case's `.yml` comes from `:rails42`.
+- `requires_gem 'rack', '>= 3.1.0'` (Rails and friends): RuboCop skips the
+  cop unless the target's lockfile satisfies it. `Config#gem_versions_in_target`
+  is `LoadedConfig::gem_versions()`: the `Gemfile.lock` (else `gems.locked`)
+  found upward from the config's base directory, every locked gem included;
+  `None` without a config file or lockfile. Rules reach it through
+  `RuleOptions`: `options.requires_gem("rack", &[">= 3.1.0"])` is the gate
+  (false when there is no lockfile or the gem is absent, so keep the cop
+  inert then), `options.gem_version("rack")` is `target_gem_version`
+  (`Option<GemVersion>`, comparable, from `linter::GemVersion`; requirements
+  are `linter::GemRequirement`, Gemfile syntax incl. `~>`), and
+  `options.target_rails_version()` is rubocop-rails'
+  `TargetRailsVersion.resolve`: `AllCops/TargetRailsVersion`, else the
+  lockfile's `railties` major.minor, else 5.0. Fixtures: a spec's stubbed
+  `let(:gem_versions) { { 'rack' => '3.1.0' } }` becomes a
+  `# gem_versions: rack=3.1.0` comment line in the case `.yml` (written by
+  `port_spec.rb`, read by the harness, which gives every case an empty
+  lockfile otherwise). `railties` is not recorded: `:rails42` and friends
+  already set `AllCops: TargetRailsVersion`.
 - Minitest suites parse at Ruby 3.4, so `target_ruby_version()` is 3.4 in
   minitest/sorbet fixtures unless the `.yml` says otherwise.
 - A sorbet case whose `.yml` has `AllCops: DisplayCopNames: true` expects

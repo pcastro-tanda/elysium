@@ -242,7 +242,7 @@ impl YamlValue {
         }
     }
 
-    fn scalar_text(&self) -> Option<String> {
+    pub(crate) fn scalar_text(&self) -> Option<String> {
         match self {
             YamlValue::String(s) | YamlValue::Regexp(s) => Some(s.clone()),
             YamlValue::Int(i) => Some(i.to_string()),
@@ -272,6 +272,16 @@ pub(crate) fn parse_document(source: &str) -> Result<Option<YamlValue>, String> 
         None | Some(Yaml::BadValue) => Ok(None),
         Some(doc) => convert(&doc).map(Some),
     }
+}
+
+/// [`parse_document`] for rules that read other YAML files (such as
+/// `config/database.yml`) with the same value model.
+///
+/// # Errors
+///
+/// Returns the scanner's message for malformed YAML or a disallowed tag.
+pub fn parse_yaml(source: &str) -> Result<Option<YamlValue>, String> {
+    parse_document(source)
 }
 
 fn convert(node: &Yaml<'_>) -> Result<YamlValue, String> {
