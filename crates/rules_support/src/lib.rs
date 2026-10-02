@@ -232,6 +232,7 @@ impl<'a> Builder<'a> {
             .with_only(self.only_run.clone())
             .with_gem_versions(self.gem_versions.clone())
             .with_db_schema(self.db_schema.clone());
+            .with_gem_versions(self.gem_versions.clone());
         R::configure(&options).map(Some)
     }
 }

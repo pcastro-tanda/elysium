@@ -370,6 +370,7 @@ pub fn file_settings(
 ) -> linter::FileSettings {
     let mut settings = linter::FileSettings::all_enabled();
     settings.set_annotations(Arc::clone(annotations));
+    settings.set_migrated_schema_version(cfg.all_cops().migrated_schema_version.clone());
     for over in overrides {
         let enabled = if over.forced {
             cfg.is_cop_targeting(over.name, relative)

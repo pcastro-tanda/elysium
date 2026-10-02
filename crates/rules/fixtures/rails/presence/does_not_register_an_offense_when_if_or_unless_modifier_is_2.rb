@@ -1,0 +1,1 @@
+a unless a.present?

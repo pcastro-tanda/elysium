@@ -25,5 +25,10 @@ rules_support::rule_set! {
     rails::redirect_back_or_to::RedirectBackOrTo,
     rails::link_to_blank::LinkToBlank,
     rails::unique_validation_without_index::UniqueValidationWithoutIndex,
+    rails::active_record_override::ActiveRecordOverride,
+    rails::freeze_time::FreezeTime,
+    rails::to_s_with_argument::ToSWithArgument,
+    rails::presence::Presence,
+    rails::http_status_name_consistency::HttpStatusNameConsistency,
     rails::application_record::ApplicationRecord,
 }
