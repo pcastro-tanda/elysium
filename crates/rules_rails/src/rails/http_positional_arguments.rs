@@ -9,7 +9,7 @@ use ruby_ast::ext::{const_name, is_bare_or_toplevel_const};
 use ruby_ast::{each_descendant, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
-use super::util::{plain_block_span, send_arguments, send_span, target_rails_version};
+use super::util::{plain_block_span, send_arguments, send_span};
 
 const KEYWORD_ARGS: &[&[u8]] = &[
     b"method", b"params", b"session", b"body", b"flash", b"xhr", b"as", b"headers", b"env", b"to",
@@ -47,7 +47,7 @@ impl Rule for HttpPositionalArguments {
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
         Ok(Self {
-            supported: target_rails_version(options) >= MINIMUM_TARGET_RAILS_VERSION,
+            supported: options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION,
             use_rack_test_methods: false,
             routing_blocks: Vec::new(),
         })

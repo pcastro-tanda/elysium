@@ -8,8 +8,6 @@ use linter::{
 use ruby_ast::ext::{const_name, is_bare_or_toplevel_const};
 use ruby_ast::{Node, NodeExt as _, NodeKind};
 
-use super::util::target_rails_version;
-
 const MSG: &str = "Prefer `response.parsed_body`.";
 const MINIMUM_TARGET_RAILS_VERSION: f64 = 5.0;
 
@@ -40,7 +38,7 @@ impl Rule for ResponseParsedBody {
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
-        let version = target_rails_version(options);
+        let version = options.target_rails_version();
         Ok(Self { supported: version >= MINIMUM_TARGET_RAILS_VERSION, html: version >= 7.1 })
     }
 

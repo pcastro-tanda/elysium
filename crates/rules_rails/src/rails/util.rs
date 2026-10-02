@@ -1,24 +1,9 @@
 //! Helpers shared by this crate's cops.
 
-use linter::{OptionValue, RuleOptions};
 use ruby_ast::ext::call_span_excluding_block;
 use ruby_ast::node::CallNode;
 use ruby_ast::{Node, NodeExt as _};
 use ruby_source::Span;
-
-/// `TargetRailsVersion::DEFAULT_RAILS_VERSION`, used when the configuration
-/// states none.
-pub const DEFAULT_RAILS_VERSION: f64 = 5.0;
-
-/// `Config#target_rails_version`: `AllCops/TargetRailsVersion` when set.
-#[must_use]
-pub fn target_rails_version(options: &RuleOptions) -> f64 {
-    match options.peer("AllCops", "TargetRailsVersion") {
-        Some(OptionValue::Str(text)) => text.trim().parse().unwrap_or(DEFAULT_RAILS_VERSION),
-        Some(value) => value.as_float().unwrap_or(DEFAULT_RAILS_VERSION),
-        None => DEFAULT_RAILS_VERSION,
-    }
-}
 
 /// A call's arguments as rubocop-ast's `send` node lists them: the
 /// positional arguments followed by a `&block` argument, which whitequark
