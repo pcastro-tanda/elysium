@@ -1,0 +1,1 @@
+get :new, user_id: @user.id

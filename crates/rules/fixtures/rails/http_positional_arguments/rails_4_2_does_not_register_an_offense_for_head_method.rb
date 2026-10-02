@@ -1,0 +1,1 @@
+head :destroy, id: @user.id
