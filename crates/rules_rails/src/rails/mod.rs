@@ -86,3 +86,8 @@ pub mod unique_validation_without_index;
 pub mod unused_render_content;
 pub mod util;
 pub mod where_range;
+pub mod i18n_lazy_lookup;
+pub mod find_by_or_assignment_memoization;
+pub mod environment_comparison;
+pub mod pluck;
+pub mod safe_navigation;
