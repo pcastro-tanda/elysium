@@ -1,5 +1,6 @@
 Style/Documentation:
   AllowedConstants: [ClassMethods]
+  Preview: ~
   Exclude: ~
 Style/CommentAnnotation:
   Keywords: [TODO, FIXME, OPTIMIZE, HACK, REVIEW]

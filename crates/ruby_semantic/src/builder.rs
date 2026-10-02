@@ -275,9 +275,11 @@ impl<'pr> Builder<'pr> {
                 assignment.references.push(node);
             }
             // Assignments made in a modifier condition do not put the
-            // variable in scope to the left of the keyword, so a preceding
-            // assignment still has to be reached.
-            if self.in_modifier_conditional(aid) {
+            // variable in scope to the left of the keyword, so a reference
+            // in the modifier's body still has to reach a still-earlier
+            // assignment; a reference after the modifier, or inside the
+            // condition itself, is already in scope for this one.
+            if self.in_modifier_conditional(aid, &node) {
                 continue;
             }
             let Some(branch) = branch else { break };
@@ -291,29 +293,15 @@ impl<'pr> Builder<'pr> {
         self.sem.variables[vid.index()].assignments = assignments;
     }
 
-    /// RuboCop's `Variable#in_modifier_conditional?`. Prism spells parser's
-    /// single `begin` wrapper as a `StatementsNode` optionally inside a
-    /// `ParenthesesNode`, so up to two levels are skipped.
-    fn in_modifier_conditional(&self, aid: AssignmentId) -> bool {
-        let ancestors = self.sem.slice(self.sem.assignments[aid.index()].ancestors);
-        let mut index = ancestors.len();
-        if index == 0 {
+    /// RuboCop's `Variable#in_modifier_conditional?`.
+    fn in_modifier_conditional(&self, aid: AssignmentId, reference: &Node<'pr>) -> bool {
+        let assignment = &self.sem.assignments[aid.index()];
+        let ancestors = self.sem.slice(assignment.ancestors);
+        let Some(conditional) = modifier_conditional_of(ancestors, &assignment.node) else {
             return false;
-        }
-        index -= 1;
-        if ancestors[index].kind() == NodeKind::StatementsNode {
-            if index == 0 {
-                return false;
-            }
-            index -= 1;
-        }
-        if ancestors[index].kind() == NodeKind::ParenthesesNode {
-            if index == 0 {
-                return false;
-            }
-            index -= 1;
-        }
-        is_modifier_conditional(&ancestors[index])
+        };
+        let predicate = predicate_of(&conditional).expect("modifier_conditional_of matched");
+        covers(&conditional, reference) && !covers(&predicate, reference)
     }
 
     // -------------------------------------------------------------- branches
@@ -1204,4 +1192,30 @@ fn is_modifier_conditional(node: &Node<'_>) -> bool {
         }
         _ => false,
     }
+}
+
+/// RuboCop's `Variable#modifier_conditional_of`: the nearest ancestor
+/// modifier `if`/`unless`/`while`/`until` whose own condition contains
+/// `target`, searching outward from the immediate parent.
+fn modifier_conditional_of<'pr>(ancestors: &[Node<'pr>], target: &Node<'pr>) -> Option<Node<'pr>> {
+    ancestors.iter().rev().copied().find(|conditional| {
+        is_modifier_conditional(conditional)
+            && predicate_of(conditional).is_some_and(|predicate| covers(&predicate, target))
+    })
+}
+
+/// The condition expression of an `if`/`unless`/`while`/`until` node.
+fn predicate_of<'pr>(node: &Node<'pr>) -> Option<Node<'pr>> {
+    match node.kind() {
+        NodeKind::IfNode => Some(node.as_if_node()?.predicate()),
+        NodeKind::UnlessNode => Some(node.as_unless_node()?.predicate()),
+        NodeKind::WhileNode => Some(node.as_while_node()?.predicate()),
+        NodeKind::UntilNode => Some(node.as_until_node()?.predicate()),
+        _ => None,
+    }
+}
+
+/// RuboCop's `Variable#covers?`.
+fn covers(container: &Node<'_>, node: &Node<'_>) -> bool {
+    same(container, node) || container.span().contains(node.span())
 }

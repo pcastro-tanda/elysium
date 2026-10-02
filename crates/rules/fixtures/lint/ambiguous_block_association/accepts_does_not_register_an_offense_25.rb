@@ -1,0 +1,1 @@
+allow(cop).to(receive(:on_int) { raise RuntimeError })

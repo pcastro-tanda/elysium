@@ -479,6 +479,24 @@ fn leading_comments(ctx: &Context<'_>, span: Span) -> Vec<Span> {
     out
 }
 
+/// RuboCop's `first_comment_or_node_start`: the start of `def_span`'s
+/// nearest contiguous run of leading comment lines, stopping before it
+/// would cross onto `modifier_span`'s own line (a trailing comment on the
+/// modifier's own line is associated with the modifier, not the `def`), or
+/// `def_span`'s own start if there is no such run.
+fn first_comment_or_node_start(ctx: &Context<'_>, modifier_span: Span, def_span: Span) -> u32 {
+    let modifier_line = ctx.line_col(modifier_span.start).line;
+    let mut line = ctx.line_col(def_span.start).line;
+    let mut start = def_span.start;
+    while line > modifier_line + 1 {
+        let prev = line - 1;
+        let Some(comment) = ctx.comments().iter().find(|c| c.line == prev) else { break };
+        start = comment.span.start;
+        line = prev;
+    }
+    start
+}
+
 /// RuboCop's `range_with_comments_and_lines`.
 fn removal_span(ctx: &Context<'_>, span: Span) -> Span {
     let leading = leading_comments(ctx, span);
@@ -508,14 +526,19 @@ fn def_source(ctx: &Context<'_>, call: &CallNode<'_>, def_nodes: &[Node<'_>]) ->
     parts.join(&b"\n"[..])
 }
 
-/// RuboCop's `node.each_ancestor(:class, :module).first.loc.end`, as a byte
-/// offset: a `class`/`module` node's span always ends immediately after its
-/// closing `end` keyword.
+/// RuboCop's `node.each_ancestor(:class, :module, :sclass).first.loc.end`,
+/// as a byte offset: a `class`/`module`/`class << self` node's span always
+/// ends immediately after its closing `end` keyword.
 fn nearest_class_or_module_end(ctx: &Context<'_>) -> Option<u32> {
     ctx.ancestors()
         .iter()
         .rev()
-        .find(|a| matches!(a.kind, NodeKind::ClassNode | NodeKind::ModuleNode))
+        .find(|a| {
+            matches!(
+                a.kind,
+                NodeKind::ClassNode | NodeKind::ModuleNode | NodeKind::SingletonClassNode
+            )
+        })
         .map(|a| a.span.end - 3)
 }
 
@@ -559,8 +582,8 @@ fn autocorrect_group(ctx: &Context<'_>, stmts: &[Node<'_>], call: &CallNode<'_>)
 fn autocorrect_inline(ctx: &Context<'_>, stmts: &[Node<'_>], i: usize, call: &CallNode<'_>) -> Fix {
     let mut edits = Vec::new();
     if stmts.len() > 1 {
-        let next_start = stmts[i + 1].span().start;
-        edits.push(Edit::delete(Span::new(call_span(call).start, next_start)));
+        let end_pos = first_comment_or_node_start(ctx, call_span(call), stmts[i + 1].span());
+        edits.push(Edit::delete(Span::new(call_span(call).start, end_pos)));
     } else {
         edits.push(Edit::delete(removal_span(ctx, call_span(call))));
     }

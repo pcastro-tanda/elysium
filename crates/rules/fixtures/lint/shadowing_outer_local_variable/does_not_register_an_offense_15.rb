@@ -1,6 +1,6 @@
-def x(array)
-  array.each {
-    bar = _1
-  }.each { |bar|
-  }
+class SomeClass
+  foo = 1
+  puts foo
+  def some_method(foo)
+  end
 end

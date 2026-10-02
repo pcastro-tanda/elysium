@@ -4,6 +4,7 @@
 //! `lib/rubocop/config_loader_resolver.rb`, `lib/rubocop/config_finder.rb` and
 //! `lib/rubocop/config.rb`.
 
+use std::borrow::Cow;
 use std::collections::HashSet;
 use std::path::{Path, PathBuf};
 
@@ -12,7 +13,8 @@ use crate::error::ConfigError;
 use crate::gems::{self, GemSearch};
 use crate::merge::{
     inherit_mode_for, merge, override_department_setting_for_cops,
-    override_enabled_for_disabled_departments, MergeOpts,
+    override_enabled_for_disabled_departments, preview_enabled, with_preview_exclude_merge,
+    MergeOpts,
 };
 use crate::obsoletion::RULES;
 use crate::paths;
@@ -307,20 +309,31 @@ impl ConfigLoader {
             override_department_setting_for_cops(&base.hash, hash);
             override_enabled_for_disabled_departments(&base.hash, hash);
 
+            let preview = preview_enabled(hash);
             for (key, value) in base.hash.iter() {
                 let YamlValue::Mapping(base_cop) = value else { continue };
+                // RuboCop 1.91.0 decides this before merging: only an
+                // `Include` the deriving file does not restate is rewritten
+                // relative to the base file's directory.
+                let only_base_has_include = base_cop.contains_key("Include")
+                    && !hash
+                        .get_mapping(key)
+                        .and_then(|d| d.get("Include"))
+                        .is_some_and(YamlValue::is_truthy);
                 let merged = match hash.get(key) {
-                    Some(YamlValue::Mapping(derived_cop)) => merge(
-                        base_cop,
-                        derived_cop,
-                        MergeOpts { inherit_mode: inherit_mode_for(hash, key), unset_nil: false },
-                    ),
+                    Some(YamlValue::Mapping(derived_cop)) => {
+                        let mode = inherit_mode_for(hash, key, preview);
+                        merge(
+                            base_cop,
+                            derived_cop,
+                            MergeOpts { inherit_mode: mode.as_deref(), unset_nil: false },
+                        )
+                    }
                     Some(_) => continue,
                     None => base_cop.clone(),
                 };
-                let has_include = merged.contains_key("Include");
                 hash.insert(key, YamlValue::Mapping(merged));
-                if has_include {
+                if only_base_has_include {
                     fix_include_paths(&base.path, hash, path, key);
                 }
             }
@@ -435,11 +448,19 @@ impl ConfigLoader {
             }
         }
 
+        let preview = preview_enabled(&user);
+        apply_preview_defaults(&mut default, preview);
+
         let all_cops = user.get_mapping("AllCops");
         let disabled_by_default =
             all_cops.and_then(|a| a.get("DisabledByDefault")).is_some_and(YamlValue::is_truthy);
         let enabled_by_default =
             all_cops.and_then(|a| a.get("EnabledByDefault")).is_some_and(YamlValue::is_truthy);
+
+        // `handle_disabled_by_default` restores each cop's own default
+        // `Enabled`, which RuboCop 1.91.0 reads from the preview-resolved,
+        // plugin-augmented defaults rather than from `config/default.yml`.
+        let base_defaults = disabled_by_default.then(|| default.clone());
 
         if disabled_by_default || enabled_by_default {
             let keys: Vec<String> = default.keys().map(str::to_string).collect();
@@ -451,12 +472,13 @@ impl ConfigLoader {
         }
 
         let mut user = user;
-        if disabled_by_default {
-            handle_disabled_by_default(&mut user, &mut default);
+        if let Some(base_defaults) = &base_defaults {
+            handle_disabled_by_default(&mut user, &mut default, base_defaults);
         }
         override_enabled_for_disabled_departments(&default, &mut user);
 
-        let inherit_mode = user.get_mapping("inherit_mode").cloned();
+        let inherit_mode = with_preview_exclude_merge(user.get_mapping("inherit_mode"), preview)
+            .map(Cow::into_owned);
         let merged = merge(
             &default,
             &user,
@@ -492,8 +514,26 @@ fn merge_extension_defaults(base: &Mapping, extension: &Mapping) -> Mapping {
     merged
 }
 
+/// `ConfigLoaderResolver#apply_preview_defaults` (RuboCop 1.91.0): a cop's
+/// `Preview` section holds the defaults it is expected to adopt in the next
+/// major release. Under preview they replace the current ones; either way the
+/// section itself is dropped, so a resolved configuration only ever shows what
+/// is in effect.
+fn apply_preview_defaults(default: &mut Mapping, preview: bool) {
+    let keys: Vec<String> = default.keys().map(str::to_string).collect();
+    for key in keys {
+        let Some(params) = default.get_mapping_mut(&key) else { continue };
+        let Some(YamlValue::Mapping(preview_params)) = params.remove("Preview") else { continue };
+        if preview {
+            for (name, value) in preview_params.iter() {
+                params.insert(name, value.clone());
+            }
+        }
+    }
+}
+
 /// `ConfigLoaderResolver#handle_disabled_by_default`.
-fn handle_disabled_by_default(user: &mut Mapping, default: &mut Mapping) {
+fn handle_disabled_by_default(user: &mut Mapping, default: &mut Mapping, base: &Mapping) {
     let enabled_departments: Vec<String> = user
         .iter()
         .filter(|(key, _)| !key.contains('/'))
@@ -507,7 +547,7 @@ fn handle_disabled_by_default(user: &mut Mapping, default: &mut Mapping) {
         let cops: Vec<String> =
             default.keys().filter(|k| k.starts_with(&prefix)).map(str::to_string).collect();
         for cop in cops {
-            let original = DEFAULT_CONFIG
+            let original = base
                 .get_mapping(&cop)
                 .and_then(|c| c.get("Enabled"))
                 .cloned()
@@ -671,9 +711,10 @@ fn target_ruby_version(hash: &Mapping, path: &Path, cwd: &Path, home: Option<&Pa
     inferred_target_ruby_version(&base_dir_for_path_parameters(path, cwd, home))
 }
 
-/// `TargetRuby`'s file-based sources (`.ruby-version`, `.tool-versions`,
-/// `Gemfile.lock`), searched from `base_dir`; the default when none states
-/// a version. The gemspec source is not implemented.
+/// `TargetRuby`'s file-based sources (`.ruby-version`, `mise.toml`,
+/// `.tool-versions`, `Gemfile.lock`), in RuboCop 1.91.0's `RUBY_VERSION_SOURCES`
+/// order, searched from `base_dir`; the default when none states a version.
+/// The gemspec source is not implemented.
 fn inferred_target_ruby_version(base_dir: &Path) -> f32 {
     let base_dir = base_dir.to_path_buf();
     if let Some(file) = find_file_upwards(".ruby-version", &base_dir, None) {
@@ -681,6 +722,19 @@ fn inferred_target_ruby_version(base_dir: &Path) -> f32 {
             .ok()
             .and_then(|text| major_minor(text.trim().trim_start_matches("ruby-")))
         {
+            return version;
+        }
+    }
+    // `TargetRuby::MiseTomlFile`, added in RuboCop 1.91.0, is consulted
+    // before `.tool-versions`.
+    if let Some(file) = find_file_upwards("mise.toml", &base_dir, None) {
+        if let Some(version) = std::fs::read_to_string(file).ok().and_then(|text| {
+            text.lines().find_map(|line| {
+                let rest = line.strip_prefix("ruby = ")?;
+                let rest = rest.strip_prefix('"').or_else(|| rest.strip_prefix('\''))?;
+                major_minor(rest)
+            })
+        }) {
             return version;
         }
     }

@@ -1,4 +1,2 @@
-def some_method
-  /(?<foo>\w+)/ =~ 'FOO'
-  ^^^^^^^^^^^^^ Useless assignment to variable - `foo`.
-end
+/(?<foo>w+)/ =~ 'FOO'
+^^^^^^^^^^^^ Useless assignment to variable - `foo`.

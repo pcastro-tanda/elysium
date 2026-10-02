@@ -130,8 +130,8 @@ semantic cops (60 rules total).
   this cop outright); its numbers so far come from a one-off manual
   full-lint comparison and are dominated by cops elysium hasn't implemented
   yet, so it stays at `nursery` until conformance is meaningful.
-- No per-project RuboCop version model: rules follow 1.82.1 (and 1.91 where
-  upstream reverted a default), so apps pinned to older RuboCop see skew
+- No per-project RuboCop version model: rules follow 1.91.0, so apps pinned
+  to older RuboCop see skew
   (documented per-cop in `docs/conformance/rules.md`, e.g.
   `Layout/LineLength`'s `AllowQualifiedName` not existing in RuboCop 1.63).
 - ERB embedded in `.rubocop.yml` is rejected with a clear error instead of
@@ -250,12 +250,9 @@ CI needs its own recorded baseline before `--check` is a hard gate
 
 ## Next milestones
 
-**Headline gap: 100 of RuboCop 1.82.1's 394 default-enabled core cops are
-implemented (294 missing).** Phases 3 and 4 selected cops by relevance and
-by infrastructure need; no phase ever targeted the full default set, so the
-earlier roadmap jumped to extension-gem cops with 85% of core defaults
-unported. Inventory, bucketed by department and by the infrastructure each
-cop needs: `docs/planning/default-parity.md`.
+**Default-cop parity: 392 of RuboCop 1.91.0's 393 default-enabled core cops
+are implemented;** only `Lint/Syntax` is not a rule, since the engine reports
+syntax errors itself. Inventory: `docs/planning/default-parity.md`.
 
 1. ~~Phase 4 conformance~~ — done; all ten cops `stable`. Remaining
    caveat: mastodon is RuboCop-clean, so for `Lint/SelfAssignment` and
@@ -306,6 +303,11 @@ cop needs: `docs/planning/default-parity.md`.
    `docs/planning/waves/wave9.txt`) likewise. Wave 10 (the 8 Metrics cops
    and `Style/ConditionalAssignment`, `docs/planning/waves/wave10.txt`)
    likewise. Only `Lint/Syntax` remains, which the engine provides built in.
+   Wave 11 re-baselined the fixtures of the 54 cops still generated from
+   RuboCop 1.82.1 specs (ported before the switch to 1.91.0) and ported the
+   upstream 1.82.1 → 1.91.0 changes to the 30 of them that then failed; CI
+   now fails if any fixture differs from the pinned RuboCop's specs
+   (`tools/check_fixtures.rb`, `crates/rules/fixtures/REMOVED.txt`).
 3. Phase 6 `[INFERENCE — no dedicated planning doc yet, extrapolated from
    the "What does not work yet" list above]`: config/CLI hardening — a
    `ConfigValidator` (type/unknown-cop errors), a minimal ERB subset

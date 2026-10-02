@@ -46,9 +46,10 @@ end
 | Name | Default | Allowed values | Description |
 | --- | --- | --- | --- |
 | AllowForAlignment | false |  | Allow comments to have extra indentation if that aligns them with a trailing comment on the nearest preceding non-own-line comment. |
+| IndentationWidth | `nil` |  | Overrides `Layout/IndentationWidth`'s configured width for this cop alone. |
 
 ## Blind spots
 
-`Layout/IndentationWidth`'s `Width` and `Layout/AccessModifierIndentation`'s
-`EnforcedStyle` are read as peer options, matching upstream's own
-cross-cop reads.
+`Layout/IndentationWidth`'s `Width` (unless this cop's own `IndentationWidth`
+overrides it) and `Layout/AccessModifierIndentation`'s `EnforcedStyle` are
+read as peer options, matching upstream's own cross-cop reads.

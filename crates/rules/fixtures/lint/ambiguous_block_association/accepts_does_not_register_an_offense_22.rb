@@ -1,1 +1,1 @@
-allow(cop).to receive(:on_int) { raise RuntimeError }
+obj.attr = bar { |x| x }

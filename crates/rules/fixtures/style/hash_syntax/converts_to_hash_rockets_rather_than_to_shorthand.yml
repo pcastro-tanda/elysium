@@ -1,0 +1,3 @@
+Style/HashSyntax:
+  EnforcedShorthandSyntax: always
+  UseHashRocketsWithSymbolValues: true

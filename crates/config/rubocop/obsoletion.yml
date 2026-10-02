@@ -80,6 +80,11 @@ removed:
       `Lint/BinaryOperatorWithIdenticalOperands`. Please use
       `Lint/BinaryOperatorWithIdenticalOperands` instead
   Style/BracesAroundHashParameters: true
+  Style/DoubleCopDisableDirective:
+    severity: warning
+    reason: >
+      it has been superseded by `Lint/CopDirectiveSyntax`. Please use
+      `Lint/CopDirectiveSyntax` instead
   Style/MethodMissingSuper:
     reason: >
       it has been superseded by `Lint/MissingSuper`. Please use
@@ -149,6 +154,10 @@ changed_parameters:
     parameters: IgnoreCopDirectives
     alternative: AllowCopDirectives
     severity: warning
+  - cops: Style/DisableCopsWithinSourceCodeDirective
+    parameters: AllowTrailingComment
+    alternative: AllowWithReason
+    severity: warning
   - cops:
       - Lint/BlockAlignment
       - Layout/BlockAlignment
@@ -171,7 +180,7 @@ changed_parameters:
     reason: "`SafeMode` has been removed. Use `SafeAutoCorrect` instead."
   - cops: Bundler/GemComment
     parameters: Whitelist
-    alternative: IgnoredGems
+    alternative: AllowedGems
   - cops:
       - Lint/SafeNavigationChain
       - Lint/SafeNavigationConsistency
@@ -238,6 +247,26 @@ changed_parameters:
     reason: "`AllowOnlyRestArgument` has no effect with TargetRubyVersion >= 3.2."
     severity: warning
     minimum_ruby_version: 3.2
+  - cops: Bundler/GemComment
+    parameters: IgnoredGems
+    alternative: AllowedGems
+    severity: warning
+  - cops: Lint/NumberConversion
+    parameters: IgnoredClasses
+    alternative: AllowedClasses
+    severity: warning
+  - cops: Lint/MissingCopEnableDirective
+    parameters: MaximumRangeSize
+    alternative: MaxRangeSize
+    severity: warning
+  - cops: Metrics/CollectionLiteralLength
+    parameters: LengthThreshold
+    alternative: Max
+    severity: warning
+  - cops: Style/FetchEnvVar
+    parameters: AllowedVars
+    alternative: AllowedVariables
+    severity: warning
 
 # Enforced styles that have been removed or replaced
 changed_enforced_styles:
@@ -245,3 +274,8 @@ changed_enforced_styles:
     parameters: EnforcedStyle
     value: rails
     alternative: indented_internal_methods
+  - cops: Style/EmptyClassDefinition
+    parameters: EnforcedStyle
+    value: class_definition
+    alternative: class_keyword
+    severity: warning

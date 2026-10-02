@@ -1,12 +1,5 @@
-begin
-  do_something
-  foo = :in_begin
-rescue FirstError
-  foo = :in_first_rescue
-rescue SecondError
-  foo = :in_second_rescue
-else
-  foo = :in_else
+def some_method
+  foo = 1
+  foo, bar = do_something(foo)
+  puts foo, bar
 end
-
-puts foo

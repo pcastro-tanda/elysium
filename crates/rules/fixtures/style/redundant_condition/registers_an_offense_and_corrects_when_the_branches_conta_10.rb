@@ -1,6 +1,6 @@
 if foo
 ^^^^^^ Use double pipes `||` instead.
-  bar(foo)
+  bar foo
 else
-  bar(1..2)
+  bar baz => quux
 end

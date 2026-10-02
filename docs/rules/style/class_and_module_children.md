@@ -48,11 +48,11 @@ end
   (`block_comment_within?`) are not ported: an unindent shift touching a
   heredoc body or straddling a block comment could mis-edit it. No fixture
   exercises this.
-- `Layout/IndentationStyle`'s own `IndentationWidth` (tab-to-column weight)
-  is not read as a separate peer; tabs are weighted using this cop's own
-  `configured_indentation_width`, which matches upstream's fallback chain
-  whenever `Layout/IndentationStyle: IndentationWidth` is unset (the common
-  case).
+- `AllCops/UseProjectIndex`/the `rubydex` gem's project-wide index (upstream's
+  `ProjectIndexHelp`) is not ported: `namespace_keyword` always falls back to
+  the heuristic left-sibling `class`/`module` search, and a compacting fix is
+  always offered without verifying the namespace is defined elsewhere,
+  matching upstream's own behavior when the index is unavailable.
 - Compacting (or splitting) a name with two or more `::` levels only
   resolves one level per lint pass, matching upstream's own single-node
   `add_offense` (only the outermost namespace is flagged per pass); the

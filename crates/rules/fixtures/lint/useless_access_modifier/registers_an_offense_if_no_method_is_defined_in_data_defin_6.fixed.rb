@@ -1,0 +1,2 @@
+::Data.define do
+end

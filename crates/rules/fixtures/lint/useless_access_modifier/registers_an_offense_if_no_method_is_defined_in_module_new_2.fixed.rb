@@ -1,0 +1,2 @@
+Module.new do
+end

@@ -54,10 +54,13 @@ end
 a.nil? || a
 ```
 
-With `AllowedMethods: ['nonzero?']` (the default), a predicate call in that
-list is exempt from the "true branch is a bare `true`" check:
+With `AllowedMethods: ['infinite?', 'nonzero?']` (the default), a predicate
+call in that list is exempt from the "true branch is a bare `true`" check:
 
 ```ruby
+# good
+num.infinite? ? true : false
+
 # good
 num.nonzero? ? true : false
 ```
@@ -66,7 +69,7 @@ num.nonzero? ? true : false
 
 | Name | Default | Allowed values | Description |
 | --- | --- | --- | --- |
-| AllowedMethods | `nonzero?` |  | Predicate methods allowed as the condition when the true branch is a bare `true` literal. |
+| AllowedMethods | `infinite?`, `nonzero?` |  | Predicate methods allowed as the condition when the true branch is a bare `true` literal. |
 
 ## Blind spots
 

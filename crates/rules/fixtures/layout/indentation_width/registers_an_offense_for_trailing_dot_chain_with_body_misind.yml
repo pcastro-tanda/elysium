@@ -1,0 +1,4 @@
+Layout/IndentationWidth:
+  EnforcedStyleAlignWith: relative_to_receiver
+Layout/EndAlignment:
+  EnforcedStyleAlignWith: variable

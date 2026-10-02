@@ -28,8 +28,19 @@
 //! Ruby's own grammar (not this port) already resolves `do...end` vs `{}`
 //! block-attachment precedence during parsing: `some_method a do |e| ... end`
 //! attaches the block to `some_method` itself (not to `a`), so `a` never
-//! looks like a block-taking last argument in the first place and no
-//! special-casing of the block's own keyword is needed here.
+//! looks like a block-taking last argument to [`last_argument_call`] in the
+//! first place -- that shape is instead RuboCop 1.91's separate `on_block`
+//! check (here, [`AmbiguousBlockAssociation::check_do_end_block`]), added
+//! because that silent rebinding is its own footgun: `a` (typically an
+//! enumerable call like `data.map`) parses without ever getting a block,
+//! while the `do...end` attaches unnoticed to the outer call instead.
+//! [`find_ambiguous_block_method`] locates the call this happened to --
+//! `send_node`'s last argument, or a `call`-kind descendant of it, ending
+//! exactly where `send_node`'s own (block-excluding) span ends, named in
+//! [`BLOCK_METHODS`], and with neither `arguments()` nor `block()` of its
+//! own set. The latter half doubles as whitequark's single `arguments?`
+//! check, which -- unlike Prism -- has `&block`/`{}`/`do...end` in the same
+//! list as ordinary positional/keyword arguments.
 //!
 //! An arrow lambda (`->(x) { }`) is its own `LambdaNode`, never a
 //! `CallNode`, so it can never satisfy [`last_argument_call`] to begin
@@ -57,7 +68,7 @@ use linter::{
 };
 use regex::Regex;
 use ruby_ast::node::CallNode;
-use ruby_ast::{ext, LocationExt as _, Node, NodeExt as _, NodeKind};
+use ruby_ast::{each_descendant, ext, LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 /// RuboCop-AST's `OPERATOR_METHODS` (private in `MethodIdentifierPredicates`),
@@ -67,6 +78,33 @@ const OPERATOR_METHODS: &[&[u8]] = &[
     b"|", b"^", b"&", b"<=>", b"==", b"===", b"=~", b">", b">=", b"<", b"<=", b"<<", b">>", b"+",
     b"-", b"*", b"/", b"%", b"**", b"~", b"+@", b"-@", b"!@", b"~@", b"[]", b"[]=", b"!", b"!=",
     b"!~", b"`",
+];
+
+/// RuboCop 1.91's `BLOCK_METHODS`: the enumerable method names whose
+/// `do...end` block silently binds to an *outer* method call instead of to
+/// them, when that outer call's own arguments are unparenthesized (see
+/// [`find_ambiguous_block_method`]).
+const BLOCK_METHODS: &[&[u8]] = &[
+    b"map",
+    b"collect",
+    b"flat_map",
+    b"collect_concat",
+    b"select",
+    b"filter",
+    b"find_all",
+    b"reject",
+    b"find",
+    b"detect",
+    b"each",
+    b"each_with_object",
+    b"each_with_index",
+    b"reduce",
+    b"inject",
+    b"sort_by",
+    b"min_by",
+    b"max_by",
+    b"group_by",
+    b"filter_map",
 ];
 
 /// RuboCop's `ambiguous_block_association?`: `node`'s last argument is
@@ -119,6 +157,68 @@ fn build_fix(node: &CallNode<'_>, insert_close_at: u32) -> Option<Fix> {
     })
 }
 
+/// RuboCop's `find_block_method_arg`: only the call within `send_node`'s
+/// last argument whose own span ends exactly where `send_node`'s (block-
+/// excluding) span ends is a candidate. This skips a call chained into
+/// another (`foo bar.map.to_a`) and one buried inside a parenthesized
+/// subcall (`foo bar(baz.map)`), neither of which the `do...end` could have
+/// bound to. `!node.arguments?` upstream (true for a bare call with no
+/// positional/keyword args *and* no whitequark `block_pass`) is
+/// `arguments().is_none() && block().is_none()` here: Prism keeps an
+/// explicit `&block` pass and a real `{}`/`do...end` block both out of
+/// `arguments()` and in the `block` field alike, either of which upstream's
+/// single `arguments` list would already count as "has arguments".
+fn find_block_method_arg<'pr>(send_node: &CallNode<'pr>) -> Option<CallNode<'pr>> {
+    let args = send_node.arguments()?;
+    let last_argument = args.arguments().last()?;
+    let end_pos = ext::call_span_excluding_block(send_node).end;
+
+    let mut found = None;
+    let mut check = |node: &Node<'pr>| {
+        if found.is_some() {
+            return;
+        }
+        let Some(call) = node.as_call_node() else { return };
+        if call.as_node().span().end == end_pos
+            && BLOCK_METHODS.contains(&call.name().as_slice())
+            && call.arguments().is_none()
+            && call.block().is_none()
+        {
+            found = Some(call);
+        }
+    };
+    check(&last_argument);
+    each_descendant(&last_argument, &mut check);
+    found
+}
+
+/// RuboCop's `find_ambiguous_block_method`: `send_node` (the call the
+/// `do...end` actually binds to) must itself carry unparenthesized
+/// arguments hiding the real block-taking call, and that inner call must
+/// not be one of `AllowedMethods`/`AllowedPatterns`.
+fn find_ambiguous_block_method<'pr>(
+    send_node: &CallNode<'pr>,
+    ctx: &Context<'_>,
+    allowed_methods: &[String],
+    allowed_patterns: &[Regex],
+) -> Option<CallNode<'pr>> {
+    if send_node.arguments().is_none() || send_node.opening_loc().is_some() {
+        return None;
+    }
+    let block_method_arg = find_block_method_arg(send_node)?;
+
+    let inner_name = block_method_arg.name();
+    let inner_name = String::from_utf8_lossy(inner_name.as_slice());
+    if allowed_methods.iter().any(|m| m == inner_name.as_ref()) {
+        return None;
+    }
+    let text = String::from_utf8_lossy(ctx.text(block_method_arg.as_node().span()));
+    if allowed_patterns.iter().any(|pattern| pattern.is_match(&text)) {
+        return None;
+    }
+    Some(block_method_arg)
+}
+
 /// Checks for ambiguous block association with method when param passed
 /// without parentheses.
 #[derive(Debug, Clone)]
@@ -153,6 +253,31 @@ impl AmbiguousBlockAssociation {
             None => ctx.report(&Self::META, span, message),
         }
     }
+
+    /// RuboCop's `on_block`/`on_numblock`/`on_itblock` (identical bodies
+    /// upstream; Prism has only one `BlockNode` shape for all three, see the
+    /// module doc). `node` here is the outer call the `do...end` actually
+    /// attaches to (Ruby's grammar, not this cop, decided that already --
+    /// see the module doc), reached because [`Node::block`] carries it.
+    fn check_do_end_block(&self, node: &CallNode<'_>, ctx: &mut Context<'_>) {
+        let Some(block) = node.block().and_then(|b| b.as_block_node()) else { return };
+        if ctx.text(block.opening_loc().span()) == b"{" {
+            return;
+        }
+        let Some(block_method_arg) =
+            find_ambiguous_block_method(node, ctx, &self.allowed_methods, &self.allowed_patterns)
+        else {
+            return;
+        };
+
+        let inner_method = String::from_utf8_lossy(block_method_arg.name().as_slice()).into_owned();
+        let outer_method = String::from_utf8_lossy(node.name().as_slice()).into_owned();
+        let message = format!(
+            "`{inner_method}` is called without a block because the `do` block binds to \
+             `{outer_method}`. Use braces or extract to a variable."
+        );
+        ctx.report(&Self::META, block_method_arg.as_node().span(), message);
+    }
 }
 
 impl Rule for AmbiguousBlockAssociation {
@@ -162,18 +287,36 @@ impl Rule for AmbiguousBlockAssociation {
         summary: "Checks for ambiguous block association with method when param passed without \
                    parentheses.",
         explanation: "\
+This cop also detects `do...end` blocks that are likely intended for an
+enumerable method in the arguments but actually bind to the outer method
+call. For example, in `render json: data.map do |x| x end`, Ruby parses the
+`do...end` block as belonging to `render`, not `map`.
+
 This cop can customize allowed methods with `AllowedMethods`. By default,
-there are no methods allowed.
+there are no allowed methods.
 
 ```ruby
 # bad
 some_method a { |val| puts val }
 
+# or (different meaning)
+some_method(a) { |val| puts val }
+
+# bad
+render json: data.map do |item|
+  item.to_h
+end
+
+# good
+render json: data.map { |item| item.to_h }
+
+# good
+mapped = data.map { |item| item.to_h }
+render json: mapped
+
 # good
 # With parentheses, there's no ambiguity.
 some_method(a { |val| puts val })
-# or (different meaning)
-some_method(a) { |val| puts val }
 
 # good
 # Operator methods require no disambiguation
@@ -236,6 +379,7 @@ rather than raising a configuration error.",
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
         if let Some(call) = node.as_call_node() {
             self.check(&call, ctx);
+            self.check_do_end_block(&call, ctx);
         }
     }
 }

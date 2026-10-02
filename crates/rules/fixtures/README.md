@@ -1,134 +1,16 @@
 # Rule fixtures
 
-Generated from RuboCop's own specs by `tools/port_spec.rb`; see the tool's
-README for the format. Regenerate a directory with:
+Generated from RuboCop 1.91.0's own specs (the version the corpus job pins in
+`ci/corpus/*/Gemfile`) by `tools/port_spec.rb`; see the tool's README for the
+format. Regenerate a directory with:
 
     ruby tools/port_spec.rb --cop Style/WordArray \
-        --rubocop-src /path/to/rubocop-1.82.1 --out crates/rules/fixtures
+        --rubocop-src /path/to/rubocop-1.91.0 --out crates/rules/fixtures
 
-Fixtures follow RuboCop 1.82.1 except where a later upstream bug fix was
-adopted for corpus conformance; those directories are regenerated from that
-later tag's checkout instead:
-
-- `lint/number_conversion`: RuboCop 1.91.0 (1.88's #15252 safe-navigation
-  message/no-autocorrect and #15194 `IgnoredClasses` -> `AllowedClasses`).
-- `style/hash_transform_keys`, `style/hash_transform_values`: RuboCop 1.91.0
-  (`HashTransformMethod` switched from the `array_receiver?` blacklist to
-  the `hash_receiver?` whitelist).
-- `lint/interpolation_check`: RuboCop 1.91.0 (`valid_syntax?` requotes as
-  `%{...}` when the source contains `"` and requires a `dstr` result).
-- `lint/safe_navigation_with_empty`: RuboCop 1.91.0 (receiver pattern
-  `(send ...)` became `!csend`).
-- `lint/useless_method_definition`: RuboCop 1.91.0 (`**kwrest` joined the
-  rest/optional exemption).
-- `style/if_unless_modifier`: RuboCop 1.91.0 (skips nodes inside string
-  interpolation, `MSG_USE_MODIFIER_PARENS` when the modifier form would need
-  parens, and the `multiline_inside_collection?`/
-  `another_modifier_if_on_same_line?` array/call/hash-literal guards).
-- Phase 5 wave 5 (all ported from 1.91.0 source directly):
-  `lint/assignment_in_condition`, `lint/deprecated_open_ssl_constant`,
-  `lint/implicit_string_concatenation`, `lint/ineffective_access_modifier`,
-  `lint/literal_as_condition`, `lint/literal_in_interpolation`,
-  `lint/redundant_safe_navigation`, `lint/redundant_splat_expansion`,
-  `lint/safe_navigation_consistency`, `lint/shadowed_argument`,
-  `lint/underscore_prefixed_variable_name`, `lint/unused_block_argument`,
-  `lint/unused_method_argument`, `lint/useless_setter_call`, `lint/void`,
-  `naming/memoized_instance_variable_name`, `naming/predicate_prefix`,
-  `naming/rescued_exceptions_variable_name`, `naming/variable_number`.
-- Phase 5 wave 6 (all ported from 1.91.0 source directly):
-  `style/percent_q_literals`, `style/end_block`, `style/symbol_literal`,
-  `style/colon_method_definition`, `style/proc`, `style/when_then`,
-  `style/array_join`, `style/negated_while`,
-  `style/trailing_body_on_module`, `style/trailing_body_on_class`,
-  `style/empty_lambda_parameter`, `style/multiline_if_then`,
-  `style/variable_interpolation`, `style/strip`, `style/colon_method_call`,
-  `style/def_with_parentheses`, `style/redundant_capital_w`,
-  `style/empty_block_parameter`, `style/while_until_do`,
-  `style/while_until_modifier`, `style/class_methods`, `style/class_check`,
-  `style/trailing_body_on_method_definition`, `style/even_odd`,
-  `style/unless_else`, `style/character_literal`, `style/stderr_puts`,
-  `style/multiline_if_modifier`, `style/multiline_when_then`,
-  `style/redundant_file_extension_in_require`,
-  `style/trailing_method_end_statement`, `style/nested_ternary_operator`.
-- Phase 5 wave 7 (all ported from 1.91.0 source directly):
-  `style/min_max`, `style/single_argument_dig`,
-  `style/preferred_hash_methods`, `style/bare_percent_literals`,
-  `style/not`, `style/string_literals_in_interpolation`,
-  `style/global_vars`, `style/global_std_stream`, `style/lambda_call`,
-  `style/nested_parenthesized_calls`, `style/redundant_sort_by`,
-  `style/stabby_lambda_parentheses`, `style/struct_inheritance`,
-  `style/attr`, `style/keyword_parameters_order`,
-  `style/redundant_conditional`, `style/redundant_exception`,
-  `style/each_for_simple_loop`, `style/nil_comparison`,
-  `style/negated_unless`, `style/for`, `style/or_assignment`,
-  `style/self_assignment`, `style/multiline_memoization`,
-  `style/negated_if`, `style/hash_as_last_array_item`,
-  `style/nested_modifier`, `style/case_equality`,
-  `style/redundant_self_assignment`, `style/redundant_percent_q`,
-  `style/rescue_modifier`, `style/empty_method`.
-- Phase 5 wave 8 (all ported from 1.91.0 source directly):
-  `style/alias`, `style/and_or`, `style/block_delimiters`,
-  `style/case_like_if`, `style/class_equality_comparison`,
-  `style/combinable_loops`, `style/command_literal`, `style/double_negation`,
-  `style/each_with_object`, `style/empty_case_condition`,
-  `style/empty_literal`, `style/eval_with_location`,
-  `style/expand_path_arguments`, `style/explicit_block_argument`,
-  `style/float_division`, `style/format_string`, `style/format_string_token`,
-  `style/hash_each_methods`, `style/identical_conditional_branches`,
-  `style/if_inside_else`, `style/if_with_semicolon`, `style/infinite_loop`,
-  `style/inverse_methods`, `style/lambda`,
-  `style/method_call_without_args_parentheses`,
-  `style/method_def_parentheses`, `style/mixin_grouping`,
-  `style/module_function`, `style/multiple_comparison`, `style/next`,
-  `style/non_nil_check`, `style/one_line_conditional`,
-  `style/parallel_assignment`, `style/parentheses_around_condition`,
-  `style/percent_literal_delimiters`, `style/perl_backrefs`,
-  `style/raise_args`, `style/random_with_offset`,
-  `style/redundant_assignment`, `style/redundant_fetch_block`,
-  `style/redundant_sort`, `style/regexp_literal`,
-  `style/rescue_standard_error`, `style/safe_navigation`, `style/sample`,
-  `style/semicolon`, `style/signal_exception`,
-  `style/trailing_underscore_variable`, `style/trivial_accessors`,
-  `style/yoda_condition`, `style/zero_length_predicate`.
-- Phase 5 wave 9 (all ported from 1.91.0 source directly):
-  `layout/access_modifier_indentation`, `layout/array_alignment`,
-  `layout/assignment_indentation`, `layout/begin_end_alignment`,
-  `layout/block_alignment`, `layout/block_end_newline`,
-  `layout/case_indentation`, `layout/closing_heredoc_indentation`,
-  `layout/closing_parenthesis_indentation`, `layout/condition_position`,
-  `layout/def_end_alignment`, `layout/dot_position`, `layout/else_alignment`,
-  `layout/empty_line_after_guard_clause`,
-  `layout/empty_lines_around_access_modifier`,
-  `layout/empty_lines_around_arguments`,
-  `layout/empty_lines_around_attribute_accessor`,
-  `layout/empty_lines_around_begin_body`,
-  `layout/empty_lines_around_block_body`,
-  `layout/empty_lines_around_exception_handling_keywords`,
-  `layout/empty_lines_around_method_body`,
-  `layout/empty_lines_around_module_body`, `layout/end_alignment`,
-  `layout/first_array_element_indentation`,
-  `layout/first_parameter_indentation`, `layout/leading_comment_space`,
-  `layout/multiline_array_brace_layout`, `layout/multiline_block_layout`,
-  `layout/multiline_hash_brace_layout`,
-  `layout/multiline_method_call_brace_layout`,
-  `layout/multiline_method_call_indentation`,
-  `layout/multiline_method_definition_brace_layout`,
-  `layout/multiline_operation_indentation`, `layout/parameter_alignment`,
-  `layout/space_after_colon`, `layout/space_after_comma`,
-  `layout/space_after_method_name`, `layout/space_after_not`,
-  `layout/space_after_semicolon`, `layout/space_around_block_parameters`,
-  `layout/space_around_method_call_operator`,
-  `layout/space_before_block_braces`, `layout/space_before_comma`,
-  `layout/space_before_first_arg`, `layout/space_before_semicolon`,
-  `layout/space_in_lambda_literal`,
-  `layout/space_inside_array_percent_literal`,
-  `layout/space_inside_percent_literal_delimiters`,
-  `layout/space_inside_range_literal`.
-- Phase 5 wave 10 (all ported from 1.91.0 source directly):
-  `metrics/abc_size`, `metrics/block_length`, `metrics/class_length`,
-  `metrics/cyclomatic_complexity`, `metrics/method_length`,
-  `metrics/module_length`, `metrics/parameter_lists`,
-  `metrics/perceived_complexity`, `style/conditional_assignment`.
+`tools/check_fixtures.rb` (CI job "matches pinned RuboCop") regenerates
+every directory from the pinned version and fails on any difference other
+than the cases listed in `REMOVED.txt`, so fixtures can't lag the RuboCop
+version the corpus is checked against. `--write` re-baselines them all.
 
 A case that does not state `AllCops/TargetRubyVersion` in its `.yml` runs at
 3.3: the specs were ported with `PARSER_ENGINE=parser_prism`, where RuboCop's
@@ -144,7 +26,8 @@ UTF-8: the two `with binary encoded source` cases each of
 ## Deliberately removed cases
 
 Cases that depend on Ruby process state elysium does not model are deleted
-after regeneration:
+after regeneration. Each is listed in `REMOVED.txt` (one `dept/cop/case`
+per line, which the check honours) and explained here:
 
 - `style/unless_else/registers_offenses_for_both_but_corrects_only_the_outer_unle`:
   upstream keeps one cop instance across the correction loop, so
@@ -219,6 +102,37 @@ after regeneration:
   `AllowedMethods`' `Regexp` branch. A YAML config can only carry its
   `inspect` string, which real `rubocop` 1.91.0 treats as a plain method
   name, so the case can't be expressed as a config file.
+- `lint/useless_assignment/registers_an_offense_21` through `_23`: chained
+  assignments (`foo = bar = x`) whose expected one-round correction only
+  arises because upstream reuses one cop instance across the spec's
+  correction loop, so `ignore_node` ranges from round 1 still suppress round 2.
+- `layout/indentation_width/registers_an_offense_for_bad_indentation_of_bodies`
+  and `..._of_do_ensure_end_bl`: the expected correction relies on
+  `@offense_ranges` from one correction round suppressing the next, because
+  upstream reuses one cop instance across rounds. A fresh instance per round
+  converges differently in the real `rubocop` 1.91.0 gem too.
+- `lint/duplicate_methods`: `only_registers_an_offense_for_the_second_instance_of_a_du_12`
+  and `_14`, `registers_an_offense_despite_silence_redefinition_of_metho_2`,
+  `registers_an_offense_when_the_marker_names_a_different_met_2`,
+  `registers_an_offense_when_the_other_definition_site_does_n_2`,
+  `registers_an_offense_when_the_self_alias_trick_from_a_prev_2`: second
+  files of 1.91.0's cross-file examples (project index,
+  `AllowedCrossFilePaths`). Each offense depends on definitions recorded
+  while linting another file in the same run; elysium lints files
+  independently.
+- `layout/extra_spacing/registers_offense_s_5` and `_10`: the expected
+  correction only converges because upstream memoizes `@ignored_ranges` per
+  cop instance and never resets it between correction rounds. The real
+  `rubocop` 1.91.0 `-A` loop on the same source stops after one correction.
+- `lint/redundant_cop_disable_directive/returns_no_offense_for_a_directive_on_a_later_line_of_the_of`:
+  the spec injects a fake multi-line offense (`last_line: 2`), but
+  `<case>.offenses` records only `Cop/Name:line`.
+- `style/empty_else`, the 8 `AllowComments: true` cases (`registers_an_offense`,
+  `_2`, `no_comment_and_empty_else_clause_registers_an_offense` and `_2`,
+  `no_comment_and_nil_else_clause_registers_an_offense` and `_2`/`_3`,
+  `not_comment_and_empty_else_clause_registers_an_offense`): same bare
+  `RuboCop::Config` cause as the `autocorrect_missingelse_is_disabled` cases
+  above. Real `rubocop` 1.91.0 reports these offenses but doesn't correct them.
 - `style/word_array/registers_an_offense_for_arrays_of_unicode_word_characters_2`:
   the spec sets `Encoding.default_external` to US-ASCII; elysium assumes UTF-8.
 - `lint/debugger/does_not_register_an_offense_for_a_pry_debugger_call` and

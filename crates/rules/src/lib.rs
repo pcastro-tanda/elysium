@@ -484,10 +484,22 @@ pub fn option_value(value: &YamlValue) -> OptionValue {
 
 /// A cop's configured options, in the rule-facing representation, plus its
 /// resolved `Enabled` flag so a rule can mirror RuboCop's `for_enabled_cop`
-/// (a disabled peer's options do not apply).
+/// (a disabled peer's options do not apply). The raw `Enabled` value is
+/// dropped from the parameter chain -- it would otherwise appear a second
+/// time under the same key, shadowed by the resolved flag -- and its one
+/// piece of information the flag cannot carry, `Enabled: pending`, is
+/// surfaced as `EnabledPending` instead (RuboCop's `Config#for_cop`
+/// reporting `'pending'`, which `Lint/RedundantCopDisableDirective`'s
+/// `pending_cop_not_run?` needs).
 fn cop_options(cop: &CopConfig) -> Vec<(String, OptionValue)> {
     std::iter::once(("Enabled".to_string(), OptionValue::Bool(cop.enabled)))
-        .chain(cop.options.iter().map(|(key, value)| (key.clone(), option_value(value))))
+        .chain(cop.is_pending().then(|| ("EnabledPending".to_string(), OptionValue::Bool(true))))
+        .chain(
+            cop.options
+                .iter()
+                .filter(|(key, _)| key.as_str() != "Enabled")
+                .map(|(key, value)| (key.clone(), option_value(value))),
+        )
         .collect()
 }
 

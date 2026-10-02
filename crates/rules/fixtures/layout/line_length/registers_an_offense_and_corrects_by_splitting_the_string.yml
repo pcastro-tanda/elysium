@@ -1,0 +1,11 @@
+Layout/LineLength:
+  Max: 30
+  AllowedPatterns: ~
+  AutoCorrect: true
+  SplitStrings: true
+  AllowHeredoc: false
+  AllowURI: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false
+Layout/IndentationStyle:
+  IndentationWidth: 2

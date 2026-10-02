@@ -518,7 +518,7 @@ mod tests {
 
     #[test]
     fn resolves_anchors_and_merge_keys() {
-        // spec/rubocop/config_loader_spec.rb:1911 "allows yaml anchors"
+        // spec/rubocop/config_loader_spec.rb:2024 "allows yaml anchors"
         let m = map("Style/Alias: &anchor\n  Enabled: false\nStyle/Encoding:\n  <<: *anchor\n");
         assert_eq!(m.get_mapping("Style/Encoding").unwrap().get_bool("Enabled"), Some(false));
     }
@@ -533,7 +533,7 @@ mod tests {
 
     #[test]
     fn rejects_disallowed_ruby_classes() {
-        // spec/rubocop/config_loader_spec.rb:1901 "rejects non-allowed yaml types"
+        // spec/rubocop/config_loader_spec.rb:2014 "rejects non-allowed yaml types"
         let err = parse_document("foo: !ruby/object:Rational\n  numerator: 1\n").unwrap_err();
         assert!(err.contains("Rational"), "{err}");
     }

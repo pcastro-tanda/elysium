@@ -7,6 +7,9 @@
 //! whether *every* cop in the department was actually redundant (`DirectiveComment#match?`,
 //! deciding whether to remove the whole directive or just this one entry from its list) versus
 //! only some of them (one department member having been legitimately, individually re-enabled).
+//!
+//! RuboCop 1.91 added `check_orphan_pops` on top of that: a `# rubocop:pop` with no still-open
+//! `# rubocop:push` before it restores nothing, so it is reported (and removed) on its own.
 
 use std::sync::LazyLock;
 
@@ -15,7 +18,7 @@ use linter::{
     RuleMeta, RuleOptions, Severity, Stability,
 };
 use regex::Regex;
-use ruby_directives::{CopRef, Directive};
+use ruby_directives::{CopRef, Directive, DirectiveKind};
 use ruby_source::Span;
 
 /// Detects `# rubocop:enable` directives that never re-enabled a pending disable, mirroring
@@ -77,8 +80,9 @@ impl Rule for RedundantCopEnableDirective {
         stability: Stability::Stable,
         kinds: &[],
         config: &[],
-        blind_spots: "`-next` directives, out of `ruby_directives`' scope, never count as a \
-                      disable or a redundant enable here.",
+        blind_spots: "The `push`/`pop` stack is replayed only for the orphan-`pop` check; the \
+                      signed arguments of a `push`/`next` are never analyzed for redundancy, \
+                      matching upstream.",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
@@ -113,6 +117,7 @@ impl Rule for RedundantCopEnableDirective {
         for redundant in analyze(&directives, &self.known_cops, &disabled_by_config) {
             Self::register_offense(ctx, &redundant);
         }
+        Self::check_orphan_pops(ctx, &directives);
     }
 }
 
@@ -134,7 +139,8 @@ impl RedundantCopEnableDirective {
         for (i, (name, span)) in spans.iter().enumerate() {
             let message = format!("Unnecessary enabling of {}.", all_or_name(name));
             let removal = if redundant.whole {
-                Span::new(redundant.span.start, swallow_directive_end(ctx, redundant.span.end))
+                let with_reason = range_with_reason(ctx, redundant.span, comment_span);
+                Span::new(with_reason.start, swallow_directive_end(ctx, with_reason.end))
             } else if has_adjacent_comma(ctx, *span) {
                 let is_trailing = ends_line && trailing_range(ctx, &spans, i);
                 directive_range_in_list(ctx, *span, is_trailing)
@@ -154,12 +160,41 @@ impl RedundantCopEnableDirective {
             );
         }
     }
+
+    /// `check_orphan_pops`: a `# rubocop:pop` with no `# rubocop:push` still open before it
+    /// restores nothing.
+    fn check_orphan_pops(ctx: &mut Context<'_>, directives: &[Directive]) {
+        let mut push_depth = 0_u32;
+        for directive in directives {
+            match directive.kind {
+                DirectiveKind::Push => push_depth += 1,
+                DirectiveKind::Pop if push_depth > 0 => push_depth -= 1,
+                DirectiveKind::Pop => {
+                    let removal = Span::new(
+                        directive.span.start,
+                        swallow_directive_end(ctx, directive.span.end),
+                    );
+                    ctx.report_with_fix(
+                        &<Self as Rule>::META,
+                        directive.span,
+                        "Unnecessary `rubocop:pop` without a matching `rubocop:push`.".to_string(),
+                        Fix {
+                            applicability: Applicability::Safe,
+                            edits: vec![Edit::delete(removal)],
+                        },
+                    );
+                }
+                _ => {}
+            }
+        }
+    }
 }
 
 /// Replays RuboCop's `CommentConfig#extra_enabled_comments` (a pending-disable-count state
-/// machine over every own-line, non-`-next` directive with a non-empty cop list) far enough to
-/// recover, for every redundantly-enabled directive, both which references it redundantly
-/// enables and whether *every* cop each department reference stands for was actually redundant.
+/// machine over every own-line, non-self-closing directive with a non-empty cop list) far
+/// enough to recover, for every redundantly-enabled directive, both which references it
+/// redundantly enables and whether *every* cop each department reference stands for was
+/// actually redundant.
 fn analyze(
     directives: &[Directive],
     universe: &[String],
@@ -174,7 +209,7 @@ fn analyze(
 
     let mut out = Vec::new();
     let relevant =
-        directives.iter().filter(|d| !d.inline && !d.kind.is_next() && !d.cops.is_empty());
+        directives.iter().filter(|d| !d.inline && !d.kind.self_closing() && !d.cops.is_empty());
     for directive in relevant {
         if directive.kind.disables() {
             for cop in &directive.cops {
@@ -284,6 +319,19 @@ fn enclosing_comment_span(ctx: &Context<'_>, directive_span: Span) -> Span {
         .map_or(directive_span, |comment| comment.span)
 }
 
+/// `DirectiveComment#range_with_reason`: a `--` reason sits outside the directive's own range,
+/// but it documents the directive and means nothing once it is gone, so removing the directive
+/// has to cover it. Any other trailing text is an ordinary comment and is left alone.
+fn range_with_reason(ctx: &Context<'_>, directive_span: Span, comment_span: Span) -> Span {
+    let trailing = ctx.text(Span::new(directive_span.end, comment_span.end));
+    let stripped = trailing.iter().position(|b| !b.is_ascii_whitespace()).unwrap_or(trailing.len());
+    if trailing[stripped..].starts_with(b"--") {
+        Span::new(directive_span.start, comment_span.end)
+    } else {
+        directive_span
+    }
+}
+
 /// Finds the byte span of `name` inside the directive's own text, mirroring
 /// `cop_name_indention`/`range_of_offense`.
 fn locate_span(ctx: &Context<'_>, directive_span: Span, name: &str) -> Option<Span> {
@@ -295,6 +343,9 @@ fn locate_span(ctx: &Context<'_>, directive_span: Span, name: &str) -> Option<Sp
     })
 }
 
+/// `cop_name_indention`'s `/#{name}(?!\w)/`: the name has to match as a whole token, so a
+/// shorter name is not found inside a longer one sharing its prefix (`Layout/EmptyLines` in
+/// `Layout/EmptyLinesAfterModuleInclusion`).
 fn find_substring(haystack: &[u8], needle: &str) -> Option<(usize, usize)> {
     let needle = needle.as_bytes();
     if needle.is_empty() {
@@ -302,8 +353,14 @@ fn find_substring(haystack: &[u8], needle: &str) -> Option<(usize, usize)> {
     }
     haystack
         .windows(needle.len())
-        .position(|window| window == needle)
-        .map(|pos| (pos, needle.len()))
+        .enumerate()
+        .find(|(pos, window)| {
+            *window == needle
+                && !haystack
+                    .get(pos + needle.len())
+                    .is_some_and(|b| b.is_ascii_alphanumeric() || *b == b'_')
+        })
+        .map(|(pos, _)| (pos, needle.len()))
 }
 
 /// True when nothing but whitespace follows `pos` through the end of its line, mirroring

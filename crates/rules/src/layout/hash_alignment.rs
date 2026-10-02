@@ -20,7 +20,8 @@
 //! own span for the label form (`foo:`), unlike whitequark's separate
 //! operator token, so [`PairInfo::key_end_col_ws`] strips it back off
 //! wherever RuboCop-AST would report a colon-free key length/column (e.g.
-//! `TableAlignment`'s `max_key_width`); a right-hand-side `.=>`/`:`-agnostic
+//! `TableAlignment`'s `max_key_width`/`multiline_key_end_columns`, whose
+//! larger candidate is [`target_operator_column`]); a right-hand-side `:`-agnostic
 //! column *delta* between two same-kind keys does not need the adjustment
 //! (the constant offset cancels), so [`generic_key_delta`]'s `Side::Right`
 //! path is left alone. A value-shorthand pair (`{foo:}`) parses with an
@@ -126,6 +127,10 @@ struct PairInfo {
     key_col: u32,
     key_end_col_ws: u32,
     key_line: u32,
+    /// `key.last_line`, for RuboCop-AST's `Node#single_line?` on the key
+    /// (`TableAlignment#max_key_width`/`#multiline_key_end_columns`) and for
+    /// `ValueAlignment#value_on_later_line?`.
+    key_end_line: u32,
     value_start: u32,
     value_col: u32,
     value_line: u32,
@@ -456,7 +461,7 @@ impl HashAlignment {
             .position(|e| matches!(e, Elem::Pair(_)))
             .expect("caller checked non-empty");
         let Elem::Pair(fp) = elems[fp_index] else { unreachable!() };
-        let mkw = max_key_width(&pairs);
+        let toc = target_operator_column(&fp, &pairs);
         let mdw = max_delimiter_width(&pairs);
 
         let mut order: Vec<AlignKind> = Vec::new();
@@ -468,7 +473,7 @@ impl HashAlignment {
             ensure_bucket(kind, &mut order, &mut push_count);
             let delta = match kind {
                 AlignKind::Key => key_deltas_for_first(&fp),
-                AlignKind::Table => table_deltas_for_first(&fp, mkw, mdw),
+                AlignKind::Table => table_deltas_for_first(&fp, toc, mdw),
                 AlignKind::Separator => Delta::default(),
             };
             record(kind, fp_index, delta, &mut push_count, &mut latest);
@@ -483,7 +488,7 @@ impl HashAlignment {
                         ensure_bucket(kind, &mut order, &mut push_count);
                         let delta = match kind {
                             AlignKind::Key => key_deltas(&fp, current, ctx),
-                            AlignKind::Table => table_deltas(&fp, current, mkw, mdw),
+                            AlignKind::Table => table_deltas(&fp, current, toc, mdw),
                             AlignKind::Separator => separator_deltas(&fp, current),
                         };
                         record(kind, idx, delta, &mut push_count, &mut latest);
@@ -504,7 +509,9 @@ impl HashAlignment {
         for (idx, delta) in kwsplat_hits {
             let Elem::Splat(s) = elems[idx] else { unreachable!() };
             let mut edits = Vec::new();
-            adjust_edit(ctx, delta.key.unwrap_or(0), s.span.start, &mut edits);
+            // `correct_no_value`'s `clamped_key_delta`: the splat is its own key.
+            let key_delta = delta.key.unwrap_or(0).max(-i64::from(s.key_col));
+            adjust_edit(ctx, key_delta, s.span.start, &mut edits);
             let fix =
                 (!edits.is_empty()).then_some(Fix { applicability: Applicability::Safe, edits });
             out.push((s.span, KWSPLAT_MSG, fix));
@@ -647,6 +654,7 @@ fn build_pair_info(pair: &AssocNode<'_>, ctx: &Context<'_>) -> PairInfo {
     let key_col = ctx.line_col(key_span.start).column;
     let key_line = ctx.line_col(key_span.start).line;
     let key_end_col_raw = ctx.line_col(key_span.end).column;
+    let key_end_line = ctx.line_col(key_span.end).line;
     let key_end_col_ws =
         if hash_rocket { key_end_col_raw } else { key_end_col_raw.saturating_sub(1) };
 
@@ -675,6 +683,7 @@ fn build_pair_info(pair: &AssocNode<'_>, ctx: &Context<'_>) -> PairInfo {
         key_col,
         key_end_col_ws,
         key_line,
+        key_end_line,
         value_start: value_span.start,
         value_col,
         value_line,
@@ -715,13 +724,48 @@ fn checkable_layout(kind: AlignKind, pairs: &[&PairInfo]) -> bool {
     match kind {
         AlignKind::Key => true,
         AlignKind::Table | AlignKind::Separator => {
-            !pairs_on_same_line(pairs) && !mixed_delimiters(pairs)
+            !pairs_on_same_line(pairs) && !mixed_delimiters(pairs) && alignable_values(pairs)
         }
     }
 }
 
+/// `ValueAlignment#alignable_values?`: a leading value-omission pair, or any
+/// pair whose value starts below its key's last line, makes the hash's values
+/// unalignable. (A value-omission pair's value shares the key's range
+/// upstream, so it never trips `value_on_later_line?`.)
+fn alignable_values(pairs: &[&PairInfo]) -> bool {
+    if pairs.first().is_some_and(|p| p.value_omission) {
+        return false;
+    }
+    !pairs.iter().any(|p| p.key_end_line != p.value_line)
+}
+
+/// `TableAlignment#max_key_width`: single-line keys only (a multiline key's
+/// source length would count its newlines), `0` when there are none.
 fn max_key_width(pairs: &[&PairInfo]) -> u32 {
-    pairs.iter().map(|p| p.key_end_col_ws - p.key_col).max().unwrap_or(0)
+    pairs
+        .iter()
+        .filter(|p| p.key_line == p.key_end_line)
+        .map(|p| p.key_end_col_ws - p.key_col)
+        .max()
+        .unwrap_or(0)
+}
+
+/// `TableAlignment#target_operator_column`: the column the separator should
+/// land on -- the first pair's key margin plus the widest single-line key, or
+/// a multiline key's own last-line end column when that is further right.
+fn target_operator_column(fp: &PairInfo, pairs: &[&PairInfo]) -> u32 {
+    let mut column = pairs
+        .iter()
+        .filter(|p| p.key_line != p.key_end_line)
+        .map(|p| p.key_end_col_ws + 1)
+        .max()
+        .unwrap_or(0);
+    let key_width = max_key_width(pairs);
+    if key_width > 0 {
+        column = column.max(fp.key_col + key_width + 1);
+    }
+    column
 }
 
 fn max_delimiter_width(pairs: &[&PairInfo]) -> u32 {
@@ -792,30 +836,31 @@ fn key_value_delta(p: &PairInfo) -> i64 {
     i64::from(p.operator_end_col) + 1 - i64::from(p.value_col)
 }
 
-/// `TableAlignment#deltas_for_first_pair`.
-fn table_deltas_for_first(fp: &PairInfo, mkw: u32, mdw: u32) -> Delta {
-    let sep = if fp.hash_rocket { table_hash_rocket_delta(fp, fp, mkw) } else { 0 };
-    let val = table_value_delta_priv(fp, fp, mkw, mdw) - sep;
+/// `TableAlignment#deltas_for_first_pair`. `toc` is
+/// [`target_operator_column`], `mdw` is `max_delimiter_width`.
+fn table_deltas_for_first(fp: &PairInfo, toc: u32, mdw: u32) -> Delta {
+    let sep = if fp.hash_rocket { table_hash_rocket_delta(toc, fp) } else { 0 };
+    let val = table_value_delta_priv(fp, toc, mdw) - sep;
     Delta { key: None, separator: Some(sep), value: Some(val) }
 }
 
 /// `TableAlignment#deltas` (via `ValueAlignment#deltas`).
-fn table_deltas(fp: &PairInfo, current: &PairInfo, mkw: u32, mdw: u32) -> Delta {
+fn table_deltas(fp: &PairInfo, current: &PairInfo, toc: u32, mdw: u32) -> Delta {
     let key = generic_key_delta(fp, current, Side::Left);
-    let sep = if current.hash_rocket { table_hash_rocket_delta(fp, current, mkw) - key } else { 0 };
-    let val = table_value_delta_priv(fp, current, mkw, mdw) - key - sep;
+    let sep = if current.hash_rocket { table_hash_rocket_delta(toc, current) - key } else { 0 };
+    let val = table_value_delta_priv(current, toc, mdw) - key - sep;
     Delta { key: Some(key), separator: Some(sep), value: Some(val) }
 }
 
-fn table_hash_rocket_delta(fp: &PairInfo, current: &PairInfo, mkw: u32) -> i64 {
-    i64::from(fp.key_col) + i64::from(mkw) + 1 - i64::from(current.operator_col)
+fn table_hash_rocket_delta(toc: u32, current: &PairInfo) -> i64 {
+    i64::from(toc) - i64::from(current.operator_col)
 }
 
-fn table_value_delta_priv(fp: &PairInfo, current: &PairInfo, mkw: u32, mdw: u32) -> i64 {
+fn table_value_delta_priv(current: &PairInfo, toc: u32, mdw: u32) -> i64 {
     if current.value_omission {
         return 0;
     }
-    i64::from(fp.key_col) + i64::from(mkw) + i64::from(mdw) - i64::from(current.value_col)
+    i64::from(toc) + i64::from(mdw) - 1 - i64::from(current.value_col)
 }
 
 /// `SeparatorAlignment#deltas` (via `ValueAlignment#deltas`;
@@ -844,11 +889,14 @@ fn kwsplat_delta(fp: &PairInfo, splat: &SplatInfo, ctx: &Context<'_>) -> Delta {
     Delta { key: Some(key), separator: None, value: None }
 }
 
-/// RuboCop's `correct_node`/`correct_key_value`/`correct_no_value`.
+/// RuboCop's `correct_node`/`correct_key_value`/`correct_no_value`. Both
+/// branches clamp the key delta at `-key.column` (`clamped_key_delta`) so the
+/// correction never tries to unindent past the start of the line.
 fn build_pair_fix(ctx: &Context<'_>, pair: &PairInfo, delta: Delta) -> Fix {
     let mut edits = Vec::new();
     if pair.value_omission {
-        adjust_edit(ctx, delta.key.unwrap_or(0), pair.key_start, &mut edits);
+        let key_delta = delta.key.unwrap_or(0).max(-i64::from(pair.key_col));
+        adjust_edit(ctx, key_delta, pair.key_start, &mut edits);
     } else {
         let key_col = i64::from(pair.key_col);
         let key_delta = delta.key.unwrap_or(0).max(-key_col);

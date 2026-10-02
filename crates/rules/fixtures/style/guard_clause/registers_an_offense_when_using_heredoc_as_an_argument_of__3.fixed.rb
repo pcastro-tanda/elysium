@@ -1,6 +1,5 @@
 def func
-  return unless condition
-    raise <<~MESSAGE
+  raise <<~MESSAGE unless condition
       oops
     MESSAGE
 end

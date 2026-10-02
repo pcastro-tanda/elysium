@@ -1,4 +1,3 @@
 def some_method
-  1.times do |_, foo, _|
-  end
+  foo = bar { |foo| baz(foo) }
 end

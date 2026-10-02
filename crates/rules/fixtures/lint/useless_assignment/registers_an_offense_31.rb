@@ -1,5 +1,5 @@
-def some_method(bar)
-  foo = 1
-  ^^^ Useless assignment to variable - `foo`.
-  super
+begin
+  do_something
+rescue => error
+          ^^^^^ Useless assignment to variable - `error`.
 end

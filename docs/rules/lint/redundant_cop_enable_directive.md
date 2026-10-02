@@ -42,4 +42,4 @@ This rule has no options.
 
 ## Blind spots
 
-`-next` directives, out of `ruby_directives`' scope, never count as a disable or a redundant enable here.
+The `push`/`pop` stack is replayed only for the orphan-`pop` check; the signed arguments of a `push`/`next` are never analyzed for redundancy, matching upstream.

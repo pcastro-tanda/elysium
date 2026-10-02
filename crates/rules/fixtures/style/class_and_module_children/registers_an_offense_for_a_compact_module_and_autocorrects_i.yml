@@ -1,0 +1,3 @@
+Style/ClassAndModuleChildren:
+  EnforcedStyle: compact
+  EnforcedStyleForModules: nested

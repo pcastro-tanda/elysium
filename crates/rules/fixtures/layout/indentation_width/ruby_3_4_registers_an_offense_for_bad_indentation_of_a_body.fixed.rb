@@ -1,0 +1,3 @@
+func {
+  it&.foo
+}

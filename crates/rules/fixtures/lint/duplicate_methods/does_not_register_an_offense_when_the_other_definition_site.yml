@@ -1,0 +1,3 @@
+# file: scripts/import.rb
+Lint/DuplicateMethods:
+  AllowedCrossFilePaths: [scripts/**/*]

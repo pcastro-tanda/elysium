@@ -1,23 +1,19 @@
-//! `# rubocop:disable`/`enable`/`todo` directive comments.
+//! `# rubocop:disable`/`enable`/`todo`/`push`/`pop`/`-next` directive comments.
 //!
 //! Ports RuboCop's `RuboCop::DirectiveComment` (the per-comment directive
 //! parser) and `RuboCop::CommentConfig` (the per-line "is this cop disabled
-//! here" index) from `lib/rubocop/directive_comment.rb` and
-//! `lib/rubocop/comment_config.rb` (RuboCop 1.82.1).
+//! here" index, together with its `PushPop` and `DisableNext` mixins) from
+//! `lib/rubocop/directive_comment.rb`, `lib/rubocop/comment_config.rb` and
+//! `lib/rubocop/comment_config/` (RuboCop 1.91.0).
 //!
 //! This crate is parser-independent: [`Directives::parse`] takes plain
 //! `(Span, &[u8])` comment pairs, so any front end can feed it. Callers that
 //! already hold a [`ruby_ast::Parsed`] tree can use [`Directives::from_parsed`]
-//! instead.
+//! instead, which is what resolves the statement a `-next`/`next` directive
+//! scopes to.
 //!
 //! ## Deliberate deviations from upstream RuboCop
 //!
-//! - **`push`/`pop` directives are not recognized.** RuboCop 1.82 added a
-//!   `# rubocop:push` / `# rubocop:pop` stack mechanism. A comment using
-//!   either mode is simply not treated as a directive at all (as if the
-//!   comment did not start with `# rubocop:`). Nothing in this phase's
-//!   contract calls for push/pop support and [`DirectiveKind`] has no variant
-//!   for them.
 //! - **No cop registry, so `Lint/Syntax` and `Lint/RedundantCopDisableDirective`
 //!   are not special-cased.** Upstream silently drops `Lint/Syntax` from
 //!   *any* directive (even one that names it directly) and drops
@@ -27,12 +23,13 @@
 //!   no knowledge of specific cop names, so both cops behave like any other
 //!   cop name here. The cops that care about this (implemented later in
 //!   `rules`) are expected to special-case it themselves.
-//! - **`DirectiveComment#malformed?`/`#missing_cop_name?` are not ported.**
-//!   They exist upstream only to power `Lint/RedundantCopDisableDirective`
-//!   diagnostics, which is out of scope for this phase; [`Directives`] simply
-//!   ignores any trailing text after a recognized cop list (including a
-//!   `-- reason` suffix), matching the *parsing* behaviour but not upstream's
-//!   "is this malformed" diagnostic.
+//! - **`DirectiveComment#malformed?`/`#missing_cop_name?`/`#invalid_signed_args?`
+//!   are not ported.** They exist upstream only to power
+//!   `Lint/RedundantCopDisableDirective` diagnostics, which is out of scope for
+//!   this crate; [`Directives`] simply ignores any trailing text after a
+//!   recognized cop list (including a `-- reason` suffix) and any `push`/`next`
+//!   argument that carries no `+`/`-` sign, matching the *parsing* behaviour but
+//!   not upstream's "is this malformed" diagnostic.
 //! - **Inline detection is byte-positional, not comment-text-positional.**
 //!   Upstream's `DirectiveComment#single_line?` checks whether the
 //!   *comment's own text* starts with the directive marker (so
@@ -54,36 +51,24 @@
 //!   harmless side effect, also handles multi-level department prefixes
 //!   (e.g. `rubocop-rspec`'s `RSpec/Rails` disabling `RSpec/Rails/HttpStatus`)
 //!   without needing to special-case them.
-//! - **`disable-next`/`todo-next`/`enable-next` scope to one physical line,
-//!   not a full AST statement.** Upstream (`RuboCop::CommentConfig::DisableNext`,
-//!   added in RuboCop 1.91) walks the parsed statement following a `-next`
-//!   directive comment so a multi-line statement, a `when` clause, or a
-//!   heredoc is disabled in its entirety, honors the directive only on a
-//!   comment-only line, and skips past blank lines and other comment-only
-//!   lines while tracking directives that end up attached to nothing. This
-//!   crate has no such statement-scope notion (and no "detached directive"
-//!   bookkeeping, which upstream only collects for diagnostics this phase
-//!   doesn't implement): every `-next` directive instead scopes to exactly
-//!   the one physical source line right after the comment's own line,
-//!   whether the comment sits alone on its line or trails code on it. This
-//!   matches upstream whenever the following statement happens to be a
-//!   single physical line (the common case) and otherwise under- or
-//!   over-disables relative to the true statement extent.
-//! - **No `push`/`pop`/bare `next` support.** RuboCop 1.91 also added a
-//!   `# rubocop:push`/`# rubocop:pop` stack and a signed bare
-//!   `# rubocop:next +Cop -Cop` directive built on the same push/pop
-//!   machinery. Neither is recognized here for the same reason `push`/`pop`
-//!   themselves are not (see above): a comment using any of these modes is
-//!   simply not treated as a directive at all.
+//! - **`comment_only_line?` is derived from the source text, not from a token
+//!   stream.** Upstream asks the lexer which lines carry a non-comment token;
+//!   [`Directives::comment_only_line`] instead calls a line comment-only when
+//!   it is blank or when a comment starts it with nothing but whitespace in
+//!   front. The two differ only for a line *inside* a multi-line literal that
+//!   happens to be blank or to start with `#`: those lines carry string-content
+//!   tokens upstream, but hold no comment here.
 
 use std::collections::BTreeMap;
 use std::sync::LazyLock;
 
 use regex::bytes::Regex;
-use ruby_ast::{LocationExt, Parsed};
+use ruby_ast::ext::is_heredoc;
+use ruby_ast::{walk, LocationExt, Node, NodeExt, Parsed, Visitor};
 use ruby_source::{SourceFile, Span};
 
-/// The recognized `# rubocop:<mode> ...` modes.
+/// The recognized `# rubocop:<mode> ...` modes (upstream's
+/// `DirectiveComment::AVAILABLE_MODES`).
 ///
 /// RuboCop's `todo` mode is functionally identical to `disable`; it exists
 /// only so tooling that auto-inserts directives (`rubocop --auto-gen-config`)
@@ -100,14 +85,20 @@ pub enum DirectiveKind {
     Enable,
     /// `# rubocop:todo ...` (equivalent to `Disable`).
     Todo,
-    /// `# rubocop:disable-next ...`. See the module docs for how this
-    /// crate approximates upstream's AST-statement-scoped "next" directives
-    /// with a single physical line.
+    /// `# rubocop:disable-next ...`, scoped to the statement below.
     DisableNext,
     /// `# rubocop:todo-next ...` (equivalent to `DisableNext`).
     TodoNext,
-    /// `# rubocop:enable-next ...`
+    /// `# rubocop:enable-next ...`, scoped to the statement below.
     EnableNext,
+    /// `# rubocop:push [+Cop -Cop ...]`: saves the current state, then applies
+    /// its signed arguments ([`Directive::signs`]).
+    Push,
+    /// `# rubocop:pop`: restores the state saved by the matching `push`.
+    Pop,
+    /// `# rubocop:next +Cop -Cop ...`: like `push`'s signed arguments, but
+    /// scoped to the statement below instead of to a `pop`.
+    Next,
 }
 
 impl DirectiveKind {
@@ -115,15 +106,37 @@ impl DirectiveKind {
     /// upstream `DirectiveComment#disabled?`.
     #[must_use]
     pub const fn disables(self) -> bool {
-        !matches!(self, Self::Enable | Self::EnableNext)
+        matches!(self, Self::Disable | Self::Todo | Self::DisableNext | Self::TodoNext)
     }
 
-    /// True for the three `-next` modes, matching upstream
-    /// `DirectiveComment#disable_next?` (for `DisableNext`/`TodoNext`) and
-    /// `#enable_next?` combined.
+    /// True for `Enable`/`EnableNext`, matching upstream
+    /// `DirectiveComment#enabled?`.
+    #[must_use]
+    pub const fn enables(self) -> bool {
+        matches!(self, Self::Enable | Self::EnableNext)
+    }
+
+    /// True for every mode whose scope is the statement below the comment:
+    /// the three `-next` modes plus the bare `next` mode (the modes
+    /// `CommentConfig::DisableNext` handles).
     #[must_use]
     pub const fn is_next(self) -> bool {
-        matches!(self, Self::DisableNext | Self::TodoNext | Self::EnableNext)
+        matches!(self, Self::DisableNext | Self::TodoNext | Self::EnableNext | Self::Next)
+    }
+
+    /// True for the modes whose arguments are `+`/`-` signed cop names
+    /// ([`Directive::signs`]): upstream's `push_args`/`signed_args`.
+    #[must_use]
+    pub const fn is_signed(self) -> bool {
+        matches!(self, Self::Push | Self::Next)
+    }
+
+    /// True for the modes that close their own scope and so play no part in
+    /// `disable`/`enable` pairing -- upstream's
+    /// `CommentConfig#self_closing_directive?`.
+    #[must_use]
+    pub const fn self_closing(self) -> bool {
+        self.is_next() || matches!(self, Self::Push | Self::Pop)
     }
 }
 
@@ -161,7 +174,17 @@ impl CopRef {
     }
 }
 
-/// One parsed `# rubocop:disable|enable|todo ...` directive comment.
+/// A `+`/`-` operation in front of one cop name of a `push`/`next`
+/// directive (upstream's `DirectiveComment::SIGNED_OPERATIONS`).
+#[derive(Debug, Clone, Copy, PartialEq, Eq, Hash)]
+pub enum Sign {
+    /// `+Cop`: re-enable the cop within the directive's scope.
+    Plus,
+    /// `-Cop`: disable the cop within the directive's scope.
+    Minus,
+}
+
+/// One parsed `# rubocop:<mode> ...` directive comment.
 #[derive(Debug, Clone, PartialEq, Eq)]
 pub struct Directive {
     /// Byte span of the recognized directive text within the comment (the
@@ -175,11 +198,31 @@ pub struct Directive {
     /// directive named no cops at all (e.g. a bare `# rubocop:disable` with
     /// no cop list), in which case the directive has no effect.
     pub cops: Vec<CopRef>,
+    /// The `+`/`-` sign written in front of each entry of [`Self::cops`], in
+    /// the same order and of the same length, for the signed modes
+    /// (`push`/`next`); empty for every other mode.
+    pub signs: Vec<Sign>,
     /// True when this comment is an end-of-line directive: something other
     /// than whitespace precedes it on its physical source line. Inline
     /// directives affect only their own line; own-line directives affect
     /// every line from themselves to a matching `enable` (or end of file).
     pub inline: bool,
+    /// For the statement-scoped modes ([`DirectiveKind::is_next`]), the
+    /// inclusive `(first_line, last_line)` of the statement the directive
+    /// attached to -- upstream's `CommentConfig#statement_scope_after`.
+    /// `None` when the directive attached to nothing (it sits at the end of
+    /// a code line, or only blank lines / end of file follow it), which makes
+    /// it one of [`Directives::detached_next_directives`]. Always `None` for
+    /// every other mode.
+    pub scope: Option<(u32, u32)>,
+}
+
+impl Directive {
+    /// The `(sign, cop)` pairs of a signed (`push`/`next`) directive, in
+    /// written order; empty for every other mode.
+    pub fn signed_args(&self) -> impl Iterator<Item = (Sign, &CopRef)> {
+        self.signs.iter().copied().zip(self.cops.iter())
+    }
 }
 
 /// The directive comments found in one file, and the disabled/enabled state
@@ -190,18 +233,25 @@ pub struct Directive {
 #[derive(Debug, Clone, Default)]
 pub struct Directives {
     directives: Vec<Directive>,
+    /// Per 1-based source line (index `line - 1`): true when the line holds
+    /// no code -- upstream's `CommentConfig#comment_only_line?`, which is
+    /// also true for a blank line (it has no tokens at all).
+    comment_only: Vec<bool>,
 }
 
-// Ported from RuboCop::DirectiveComment (directive_comment.rb):
+// Ported from RuboCop::DirectiveComment (directive_comment.rb, 1.91.0):
 //   DIRECTIVE_MARKER_PATTERN = '# rubocop : '  (every space -> \s*)
-//   DIRECTIVE_HEADER_PATTERN = marker + "(disable-next|todo-next|enable-next|disable|enable|todo)\b"
+//   AVAILABLE_MODES = disable enable todo push pop disable-next todo-next
+//                     enable-next next
+//   DIRECTIVE_HEADER_PATTERN = marker + "((?:MODES_PATTERN))\b"
 //   COP_NAME_PATTERN = ([A-Za-z]\w+/)*(?:[A-Za-z]\w+)
 //   COPS_PATTERN = (all|(?:COP_NAME_PATTERN , )*COP_NAME_PATTERN)
-// `push`/`pop`/bare `next` modes are intentionally omitted; see module docs.
+//   PUSH_POP_ARGS_PATTERN = ([+-]COP_NAME_NC(?:\s+[+-]COP_NAME_NC)*)
+//   DIRECTIVE_COMMENT_REGEXP = header + "(?:\s+COPS_PATTERN|\s+PUSH_POP_ARGS_PATTERN)?"
 // Modes are listed longest-first in the alternation (matching upstream's
-// `AVAILABLE_MODES.sort_by { |mode| -mode.length }` comment: "Longest first,
-// so a `-next` mode is not matched as its prefix"): the `regex` crate picks
-// the first alternative that matches at a position, not the longest, so
+// `MODES_PATTERN = AVAILABLE_MODES.sort_by { |mode| -mode.length }`: "Longest
+// first, so a `-next` mode is not matched as its prefix"): the `regex` crate
+// picks the first alternative that matches at a position, not the longest, so
 // `disable-next Foo` would otherwise match mode `disable` and leave a
 // dangling `-next Foo` that fails the optional cops group.
 // `(?-u)` restricts \w/\s/\b to ASCII, matching Ruby's default \w for cop
@@ -209,10 +259,17 @@ pub struct Directives {
 // subtleties on raw comment bytes.
 static DIRECTIVE_REGEX: LazyLock<Regex> = LazyLock::new(|| {
     Regex::new(
-        r"(?-u)\#\s*rubocop\s*:\s*(?P<mode>disable-next|todo-next|enable-next|disable|enable|todo)\b(?:\s+(?P<cops>all|(?:[A-Za-z]\w+/)*[A-Za-z]\w+(?:\s*,\s*(?:[A-Za-z]\w+/)*[A-Za-z]\w+)*))?",
+        r"(?-u)\#\s*rubocop\s*:\s*(?P<mode>disable-next|enable-next|todo-next|disable|enable|push|todo|next|pop)\b(?:\s+(?P<cops>all|(?:[A-Za-z]\w+/)*[A-Za-z]\w+(?:\s*,\s*(?:[A-Za-z]\w+/)*[A-Za-z]\w+)*)|\s+(?P<signed>[+\-](?:[A-Za-z]\w+/)*[A-Za-z]\w+(?:\s+[+\-](?:[A-Za-z]\w+/)*[A-Za-z]\w+)*))?",
     )
     .expect("static directive regex is valid")
 });
+
+/// `\A#\s*\z`: upstream drops a match whose `pre_match` is nothing but a
+/// second comment marker, so a commented-out directive (`# # rubocop:disable
+/// Foo`) is an ordinary comment rather than a directive.
+fn is_commented_out(prefix: &[u8]) -> bool {
+    matches!(prefix.split_first(), Some((b'#', rest)) if rest.iter().all(u8::is_ascii_whitespace))
+}
 
 fn classify_cop(token: &str) -> CopRef {
     if token.contains('/') {
@@ -230,6 +287,26 @@ fn parse_cops(raw: &[u8]) -> Vec<CopRef> {
     raw.split(',').map(str::trim).filter(|t| !t.is_empty()).map(classify_cop).collect()
 }
 
+/// `DirectiveComment#parse_signed_args`: whitespace-separated `+`/`-` prefixed
+/// cop names. `all` is not special here (upstream's push/next arguments go
+/// through `expand_cop_name`, never through the `all` short-circuit), so a
+/// literal `-all` names a department that no cop belongs to.
+fn parse_signed_args(raw: &[u8]) -> (Vec<Sign>, Vec<CopRef>) {
+    let raw = std::str::from_utf8(raw).unwrap_or("");
+    let mut signs = Vec::new();
+    let mut cops = Vec::new();
+    for token in raw.split_ascii_whitespace() {
+        let sign = match token.as_bytes().first() {
+            Some(b'+') => Sign::Plus,
+            Some(b'-') => Sign::Minus,
+            _ => continue,
+        };
+        signs.push(sign);
+        cops.push(classify_cop(&token[1..]));
+    }
+    (signs, cops)
+}
+
 fn is_inline(source: &SourceFile, comment_start: u32) -> bool {
     let line = source.line_col(comment_start).line;
     let line_start = source.lines().line_start(line);
@@ -239,6 +316,10 @@ fn is_inline(source: &SourceFile, comment_start: u32) -> bool {
 
 fn parse_comment(source: &SourceFile, span: Span, text: &[u8]) -> Option<Directive> {
     let captures = DIRECTIVE_REGEX.captures(text)?;
+    let whole = captures.get(0).expect("regex match always has a full match");
+    if is_commented_out(&text[..whole.start()]) {
+        return None;
+    }
     let kind = match captures.name("mode")?.as_bytes() {
         b"disable" => DirectiveKind::Disable,
         b"enable" => DirectiveKind::Enable,
@@ -246,17 +327,25 @@ fn parse_comment(source: &SourceFile, span: Span, text: &[u8]) -> Option<Directi
         b"disable-next" => DirectiveKind::DisableNext,
         b"todo-next" => DirectiveKind::TodoNext,
         b"enable-next" => DirectiveKind::EnableNext,
+        b"push" => DirectiveKind::Push,
+        b"pop" => DirectiveKind::Pop,
+        b"next" => DirectiveKind::Next,
         _ => return None,
     };
-    let cops = captures.name("cops").map(|m| parse_cops(m.as_bytes())).unwrap_or_default();
-    let whole = captures.get(0).expect("regex match always has a full match");
+    // Upstream keeps whichever of the two argument groups matched; the cop
+    // list and the signed list are only meaningful for their own modes.
+    let (signs, cops) = if kind.is_signed() {
+        captures.name("signed").map(|m| parse_signed_args(m.as_bytes())).unwrap_or_default()
+    } else {
+        (Vec::new(), captures.name("cops").map(|m| parse_cops(m.as_bytes())).unwrap_or_default())
+    };
     let directive_span = Span::new(
         span.start + u32::try_from(whole.start()).unwrap_or(u32::MAX),
         span.start + u32::try_from(whole.end()).unwrap_or(u32::MAX),
     );
     let line = source.line_col(span.start).line;
     let inline = is_inline(source, span.start);
-    Some(Directive { span: directive_span, line, kind, cops, inline })
+    Some(Directive { span: directive_span, line, kind, cops, signs, inline, scope: None })
 }
 
 impl Directives {
@@ -264,14 +353,14 @@ impl Directives {
     ///
     /// Each item is one comment's byte span (used to compute its 1-based
     /// line and inline/own-line status) paired with its raw text (including
-    /// the leading `#`).
+    /// the leading `#`). Without a syntax tree the statement a `-next`/`next`
+    /// directive scopes to is taken to be the single code line it attaches
+    /// to; [`Directives::from_parsed`] resolves the real statement extent.
     pub fn parse<'a>(
         source: &SourceFile,
         comments: impl Iterator<Item = (Span, &'a [u8])>,
     ) -> Self {
-        let directives =
-            comments.filter_map(|(span, text)| parse_comment(source, span, text)).collect();
-        Self { directives }
+        Self::build(source, comments, &BTreeMap::new())
     }
 
     /// Convenience wrapper over [`Directives::parse`] for a Prism [`Parsed`] tree.
@@ -279,7 +368,30 @@ impl Directives {
     pub fn from_parsed(parsed: &Parsed<'_>) -> Self {
         let source = parsed.source();
         let comments: Vec<_> = parsed.comments().collect();
-        Self::parse(source, comments.iter().map(|c| (c.location().span(), c.text())))
+        let statement_ends = statement_end_lines(&parsed.root(), source);
+        Self::build(
+            source,
+            comments.iter().map(|c| (c.location().span(), c.text())),
+            &statement_ends,
+        )
+    }
+
+    fn build<'a>(
+        source: &SourceFile,
+        comments: impl Iterator<Item = (Span, &'a [u8])>,
+        statement_ends: &BTreeMap<u32, u32>,
+    ) -> Self {
+        let comments: Vec<(Span, &[u8])> = comments.collect();
+        let kinds = line_kinds(source, &comments);
+        let mut directives: Vec<Directive> =
+            comments.iter().filter_map(|&(span, text)| parse_comment(source, span, text)).collect();
+        for directive in &mut directives {
+            if directive.kind.is_next() {
+                directive.scope = statement_scope_after(directive.line, &kinds, statement_ends);
+            }
+        }
+        let comment_only = kinds.iter().map(|&kind| kind != LineKind::Code).collect();
+        Self { directives, comment_only }
     }
 
     /// Every directive found, in source order.
@@ -288,9 +400,25 @@ impl Directives {
         &self.directives
     }
 
+    /// Upstream's `CommentConfig#comment_only_line?`: true when `line` (1-based)
+    /// carries no code token. A blank line -- and any line past the end of the
+    /// file -- qualifies, exactly as it does upstream (it has no tokens at all).
+    #[must_use]
+    pub fn comment_only_line(&self, line: u32) -> bool {
+        let index = line.checked_sub(1).map(|i| i as usize);
+        index.is_none_or(|i| self.comment_only.get(i).copied().unwrap_or(true))
+    }
+
+    /// Upstream's `CommentConfig#detached_next_directives`: the statement-scoped
+    /// directives that affect nothing, because they sit at the end of a code
+    /// line or because no statement follows them.
+    pub fn detached_next_directives(&self) -> impl Iterator<Item = &Directive> {
+        self.directives.iter().filter(|d| d.kind.is_next() && d.scope.is_none())
+    }
+
     /// Builds the inclusive `(start_line, end_line)` ranges (RuboCop's
-    /// `CopAnalysis#line_ranges`) covered by directives matching `covers`, by
-    /// replaying them in source order, starting from `seed` (`None`: the cop
+    /// `CopAnalysis#line_ranges`) that leave `target` disabled, by replaying
+    /// every directive in source order, starting from `seed` (`None`: the cop
     /// begins the file enabled; `Some(0)`: the cop begins the file disabled,
     /// modeling `CommentConfig#inject_disabled_cops_directives`'s synthetic
     /// `-Infinity`-anchored disable for a cop the configuration disables --
@@ -299,50 +427,81 @@ impl Directives {
     /// line exactly like `-Float::INFINITY` does upstream.
     ///
     /// Mirrors `CommentConfig#analyze`'s per-cop state machine
-    /// (`analyze_single_line`/`analyze_disabled`/`analyze_rest`), specialized
-    /// to one already-filtered directive stream instead of a
-    /// registry-expanded one.
-    fn disabled_ranges_from(
-        &self,
-        covers: impl Fn(&Directive) -> bool,
-        mut start: Option<u32>,
-    ) -> Vec<(u32, u32)> {
+    /// (`analyze_single_line`/`analyze_disabled`/`analyze_rest`, plus
+    /// `CommentConfig::PushPop` and `CommentConfig::DisableNext`), specialized
+    /// to one cop instead of a registry-expanded map of them: the `push`/`pop`
+    /// stack saves and restores only this cop's open range, since
+    /// `popped_analysis` keeps the already-closed ranges of the popped state
+    /// and restores nothing but `start_line_number`.
+    fn disabled_ranges_from(&self, target: Target<'_>, seed: Option<u32>) -> Vec<(u32, u32)> {
         let mut ranges = Vec::new();
-        for directive in self.directives.iter().filter(|d| covers(d)) {
-            if directive.kind.is_next() {
-                // apply_disable_next/apply_enable_next, simplified to the
-                // one physical line after the comment (see module docs):
-                // `inline` is irrelevant here, unlike the plain modes below.
-                let target = directive.line + 1;
-                if directive.kind.disables() {
-                    // add_next_range: an independent one-off range that
-                    // doesn't disturb any already-open `start`.
-                    ranges.push((target, target));
-                } else if let Some(s) = start {
-                    // suspend_disable: punch the target line out of the
-                    // open range (a no-op unless something is open).
-                    if target > s {
-                        ranges.push((s, target - 1));
+        let mut start = seed;
+        let mut stack: Vec<Option<u32>> = Vec::new();
+        for directive in &self.directives {
+            match directive.kind {
+                DirectiveKind::Push => {
+                    stack.push(start);
+                    for (sign, cop) in directive.signed_args() {
+                        if target.matches(cop) {
+                            apply_sign(&mut ranges, &mut start, sign, directive.line);
+                        }
                     }
-                    start = Some(target + 1);
                 }
-            } else if directive.inline {
-                // analyze_single_line: an inline `enable` has no effect; an
-                // inline disable/todo affects only its own line.
-                if directive.kind.disables() {
-                    ranges.push((directive.line, directive.line));
+                DirectiveKind::Pop => {
+                    if let Some(restored) = stack.pop() {
+                        // popped_analysis: the open range closes just above
+                        // the `pop`, and a disable that was open at the
+                        // matching `push` resumes *from the `pop` line*.
+                        close(&mut ranges, &mut start, directive.line.saturating_sub(1));
+                        start = restored.map(|_| directive.line);
+                    }
                 }
-            } else if directive.kind.disables() {
-                // analyze_disabled: close any already-open range at this
-                // line (the "double disable" case), then (re)open here.
-                if let Some(s) = start {
-                    ranges.push((s, directive.line));
+                DirectiveKind::DisableNext
+                | DirectiveKind::TodoNext
+                | DirectiveKind::EnableNext => {
+                    let Some(bounds) = directive.scope else { continue };
+                    if !directive.cops.iter().any(|cop| target.matches(cop)) {
+                        continue;
+                    }
+                    if directive.kind.disables() {
+                        // add_next_range: an independent one-off range that
+                        // doesn't disturb any already-open `start`.
+                        ranges.push(bounds);
+                    } else {
+                        suspend(&mut ranges, &mut start, bounds);
+                    }
                 }
-                start = Some(directive.line);
-            } else {
-                // analyze_rest: an own-line `enable` closes an open range.
-                if let Some(s) = start.take() {
-                    ranges.push((s, directive.line));
+                DirectiveKind::Next => {
+                    let Some(bounds) = directive.scope else { continue };
+                    for (sign, cop) in directive.signed_args() {
+                        if !target.matches(cop) {
+                            continue;
+                        }
+                        match sign {
+                            Sign::Minus => ranges.push(bounds),
+                            Sign::Plus => suspend(&mut ranges, &mut start, bounds),
+                        }
+                    }
+                }
+                DirectiveKind::Disable | DirectiveKind::Todo | DirectiveKind::Enable => {
+                    if !directive.cops.iter().any(|cop| target.matches(cop)) {
+                        continue;
+                    }
+                    if directive.inline {
+                        // analyze_single_line: an inline `enable` has no effect;
+                        // an inline disable/todo affects only its own line.
+                        if directive.kind.disables() {
+                            ranges.push((directive.line, directive.line));
+                        }
+                    } else {
+                        // analyze_disabled closes any already-open range at this
+                        // line (the "double disable" case) and reopens here;
+                        // analyze_rest just closes.
+                        close(&mut ranges, &mut start, directive.line);
+                        if directive.kind.disables() {
+                            start = Some(directive.line);
+                        }
+                    }
                 }
             }
         }
@@ -353,8 +512,8 @@ impl Directives {
     }
 
     /// [`Self::disabled_ranges_from`] with no seed: the cop starts the file enabled.
-    fn disabled_ranges(&self, covers: impl Fn(&Directive) -> bool) -> Vec<(u32, u32)> {
-        self.disabled_ranges_from(covers, None)
+    fn disabled_ranges(&self, target: Target<'_>) -> Vec<(u32, u32)> {
+        self.disabled_ranges_from(target, None)
     }
 
     /// True when `cop_name` is disabled at `line`, matching RuboCop's
@@ -371,7 +530,7 @@ impl Directives {
     #[must_use]
     pub fn is_disabled_in(&self, cop_name: &str, first_line: u32, last_line: u32) -> bool {
         overlaps(
-            &self.disabled_ranges(|d| d.cops.iter().any(|c| c.covers(cop_name))),
+            &self.disabled_ranges(Target::Cop { name: cop_name, include_all: true }),
             first_line,
             last_line,
         )
@@ -385,9 +544,7 @@ impl Directives {
     #[must_use]
     pub fn is_disabled_by_name(&self, cop_name: &str, first_line: u32, last_line: u32) -> bool {
         overlaps(
-            &self.disabled_ranges(|d| {
-                d.cops.iter().any(|c| !matches!(c, CopRef::All) && c.covers(cop_name))
-            }),
+            &self.disabled_ranges(Target::Cop { name: cop_name, include_all: false }),
             first_line,
             last_line,
         )
@@ -397,11 +554,7 @@ impl Directives {
     /// any line of `first_line..=last_line`.
     #[must_use]
     pub fn all_disabled_in(&self, first_line: u32, last_line: u32) -> bool {
-        overlaps(
-            &self.disabled_ranges(|d| d.cops.iter().any(|c| matches!(c, CopRef::All))),
-            first_line,
-            last_line,
-        )
+        overlaps(&self.disabled_ranges(Target::AllOnly), first_line, last_line)
     }
 
     /// True when `cop_name` has been "opted in" for this file by an explicit
@@ -423,10 +576,16 @@ impl Directives {
     #[must_use]
     pub fn is_opted_in(&self, cop_name: &str) -> bool {
         self.directives.iter().any(|d| {
-            d.kind == DirectiveKind::Enable
-                && d.cops
-                    .iter()
-                    .any(|c| matches!(c, CopRef::Cop(n) | CopRef::Department(n) if n == cop_name))
+            let named =
+                |c: &CopRef| matches!(c, CopRef::Cop(n) | CopRef::Department(n) if n == cop_name);
+            if d.kind.enables() {
+                d.cops.iter().any(named)
+            } else if d.kind.is_signed() {
+                // A `+` argument of a `push`/`next` opts the cop in too.
+                d.signed_args().any(|(sign, cop)| sign == Sign::Plus && named(cop))
+            } else {
+                false
+            }
         })
     }
 
@@ -451,7 +610,7 @@ impl Directives {
         last_line: u32,
     ) -> bool {
         overlaps(
-            &self.disabled_ranges_from(|d| d.cops.iter().any(|c| c.covers(cop_name)), Some(0)),
+            &self.disabled_ranges_from(Target::Cop { name: cop_name, include_all: true }, Some(0)),
             first_line,
             last_line,
         )
@@ -482,9 +641,9 @@ impl Directives {
     ///
     /// Deviations, on top of the crate-wide ones in the module docs: upstream
     /// tests `comment_only_line?` against the token stream, this uses
-    /// [`Directive::inline`]; and the `-next` modes (which upstream has no
-    /// equivalent of in 1.82, and whose scope is a single following line) never
-    /// count as a disable or as a redundant enable here.
+    /// [`Directive::inline`]. The self-closing modes (`push`, `pop`, and the
+    /// statement-scoped ones) take no part in the disable/enable pairing, per
+    /// upstream's `self_closing_directive?` guard.
     #[must_use]
     pub fn redundant_enables<'a>(
         &self,
@@ -499,8 +658,10 @@ impl Directives {
         }
 
         let mut extras: Vec<(Span, Vec<String>)> = Vec::new();
-        let relevant =
-            self.directives.iter().filter(|d| !d.inline && !d.kind.is_next() && !d.cops.is_empty());
+        let relevant = self
+            .directives
+            .iter()
+            .filter(|d| !d.inline && !d.kind.self_closing() && !d.cops.is_empty());
         for directive in relevant {
             let disables = directive.kind.disables();
             if !disables && directive.cops == [CopRef::All] {
@@ -537,6 +698,202 @@ impl Directives {
         }
         extras
     }
+}
+
+/// Which cop one replay of the directive stream is about.
+#[derive(Debug, Clone, Copy)]
+enum Target<'a> {
+    /// One concrete cop name; `include_all` decides whether a `disable all`
+    /// counts as covering it.
+    Cop { name: &'a str, include_all: bool },
+    /// `all` references only, whatever cops they would expand to.
+    AllOnly,
+}
+
+impl Target<'_> {
+    fn matches(self, cop: &CopRef) -> bool {
+        match self {
+            Self::Cop { name, include_all } => {
+                (include_all || !matches!(cop, CopRef::All)) && cop.covers(name)
+            }
+            Self::AllOnly => matches!(cop, CopRef::All),
+        }
+    }
+}
+
+/// `CopAnalysis#close`: the open range, if any, ends at `line` -- unless that
+/// would be above its own start, in which case it yields no range at all.
+fn close(ranges: &mut Vec<(u32, u32)>, start: &mut Option<u32>, line: u32) {
+    if let Some(s) = start.take() {
+        if line >= s {
+            ranges.push((s, line));
+        }
+    }
+}
+
+/// `PushPop#apply_cop_op`: a `-` opens a range unless one is already open, a
+/// `+` closes the open one, and either is a no-op otherwise.
+fn apply_sign(ranges: &mut Vec<(u32, u32)>, start: &mut Option<u32>, sign: Sign, line: u32) {
+    match sign {
+        Sign::Minus if start.is_none() => *start = Some(line),
+        Sign::Plus if start.is_some() => close(ranges, start, line),
+        _ => {}
+    }
+}
+
+/// `DisableNext#suspend_disable`: punch a statement-sized hole into the open
+/// disable -- it closes just above the statement and reopens right below it.
+/// A no-op when nothing is open.
+fn suspend(ranges: &mut Vec<(u32, u32)>, start: &mut Option<u32>, bounds: (u32, u32)) {
+    if start.is_none() {
+        return;
+    }
+    close(ranges, start, bounds.0.saturating_sub(1));
+    *start = Some(bounds.1 + 1);
+}
+
+/// What one physical source line holds, as far as directive analysis cares.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum LineKind {
+    /// The line has at least one code token.
+    Code,
+    /// The line is nothing but a comment.
+    Comment,
+    /// The line is empty or all whitespace.
+    Blank,
+}
+
+/// Classifies every 1-based source line, standing in for upstream's
+/// `CommentConfig#non_comment_token_line_numbers` (which it derives from the
+/// token stream): a line is [`LineKind::Comment`] when a comment starts on it
+/// with nothing but whitespace in front, and [`LineKind::Blank`] when it holds
+/// no non-whitespace byte at all. Both count as `comment_only_line?`.
+fn line_kinds(source: &SourceFile, comments: &[(Span, &[u8])]) -> Vec<LineKind> {
+    let count = source.line_count();
+    let mut kinds: Vec<LineKind> = (1..=count)
+        .map(|line| {
+            if source.line_text(line).iter().all(u8::is_ascii_whitespace) {
+                LineKind::Blank
+            } else {
+                LineKind::Code
+            }
+        })
+        .collect();
+    for &(span, _) in comments {
+        if is_inline(source, span.start) {
+            continue;
+        }
+        let line = source.line_col(span.start).line;
+        if let Some(kind) = line.checked_sub(1).and_then(|i| kinds.get_mut(i as usize)) {
+            *kind = LineKind::Comment;
+        }
+    }
+    kinds
+}
+
+fn kind_at(kinds: &[LineKind], line: u32) -> Option<LineKind> {
+    line.checked_sub(1).and_then(|i| kinds.get(i as usize)).copied()
+}
+
+/// `DisableNext#statement_scope_after`: the inclusive line range of the
+/// statement a next-statement directive on `line` attaches to, or `None` when
+/// it attaches to nothing. The directive is honored only on a comment-only
+/// line; comment-only lines chain (so several directives can stack) while a
+/// blank line breaks the attachment.
+fn statement_scope_after(
+    line: u32,
+    kinds: &[LineKind],
+    statement_ends: &BTreeMap<u32, u32>,
+) -> Option<(u32, u32)> {
+    if kind_at(kinds, line) == Some(LineKind::Code) {
+        return None;
+    }
+    let code_line = attached_code_line(line, kinds)?;
+    // `statement_bounds_at`: a code line where no statement starts (e.g. a
+    // lone `end`) scopes the directive to that line alone.
+    let end = statement_ends.get(&code_line).copied().unwrap_or(code_line);
+    Some((code_line, end.max(code_line)))
+}
+
+/// `DisableNext#attached_code_line`.
+fn attached_code_line(directive_line: u32, kinds: &[LineKind]) -> Option<u32> {
+    let mut line = directive_line + 1;
+    while let Some(kind) = kind_at(kinds, line) {
+        match kind {
+            LineKind::Code => return Some(line),
+            LineKind::Blank => return None,
+            LineKind::Comment => line += 1,
+        }
+    }
+    None
+}
+
+/// The last line of the statement starting on each code line -- upstream's
+/// `DisableNext#statement_bounds_at`/`#statement_end_line`, precomputed in one
+/// post-order walk instead of re-scanning the tree per directive.
+///
+/// Upstream picks the node starting on the line whose own `last_line` is
+/// greatest and then takes the maximum end line over *its* descendants
+/// (counting a heredoc's closing line, since a heredoc node's own location
+/// stops at the opener); taking the maximum over every node that starts on the
+/// line reaches the same result, because the node that reaches furthest is the
+/// one upstream selects. `StatementsNode` is skipped for the same reason
+/// upstream skips `begin` nodes: a sequence of statements is not a statement,
+/// and scoping a directive to one would cover everything up to the last
+/// statement of the sequence.
+fn statement_end_lines(root: &Node<'_>, source: &SourceFile) -> BTreeMap<u32, u32> {
+    struct Walker<'a> {
+        source: &'a SourceFile,
+        /// One entry per open ancestor: the greatest end line seen below it.
+        stack: Vec<u32>,
+        ends: BTreeMap<u32, u32>,
+    }
+
+    impl<'pr> Visitor<'pr> for Walker<'_> {
+        fn enter(&mut self, _node: &Node<'pr>) {
+            self.stack.push(0);
+        }
+
+        fn leave(&mut self, node: &Node<'pr>) {
+            let below = self.stack.pop().unwrap_or(0);
+            let span = node.span();
+            let end = heredoc_end_line(node, self.source)
+                .unwrap_or_else(|| self.source.line_col(span.end.saturating_sub(1)).line);
+            let reach = below.max(end);
+            if let Some(parent) = self.stack.last_mut() {
+                *parent = (*parent).max(reach);
+            }
+            if !matches!(node, Node::StatementsNode { .. } | Node::ProgramNode { .. }) {
+                let first = self.source.line_col(span.start).line;
+                let entry = self.ends.entry(first).or_default();
+                *entry = (*entry).max(reach);
+            }
+        }
+    }
+
+    let mut walker = Walker { source, stack: Vec::new(), ends: BTreeMap::new() };
+    walk(root, &mut walker);
+    walker.ends
+}
+
+/// The line of a heredoc's terminator, which its node's own location (stopping
+/// at the opener) does not reach -- `Node#heredoc?`'s `loc.heredoc_end.line`.
+fn heredoc_end_line(node: &Node<'_>, source: &SourceFile) -> Option<u32> {
+    if !is_heredoc(node) {
+        return None;
+    }
+    let closing = match node {
+        Node::StringNode { .. } => node.as_string_node().and_then(|n| n.closing_loc()),
+        Node::InterpolatedStringNode { .. } => {
+            node.as_interpolated_string_node().and_then(|n| n.closing_loc())
+        }
+        Node::XStringNode { .. } => node.as_x_string_node().map(|n| n.closing_loc()),
+        Node::InterpolatedXStringNode { .. } => {
+            node.as_interpolated_x_string_node().map(|n| n.closing_loc())
+        }
+        _ => None,
+    }?;
+    Some(source.line_col(closing.span().start).line)
 }
 
 /// Every cop name `cop` stands for, against the known cop universe --
@@ -839,17 +1196,15 @@ mod tests {
     }
 
     #[test]
-    fn inline_disable_next_targets_the_following_line_not_its_own() {
+    fn disable_next_at_the_end_of_a_code_line_is_detached() {
         // comment_config_spec.rb, "disable-next directives" > "when the
-        // directive sits at the end of a code line" -> upstream does *not*
-        // honor this (it requires a comment-only line and records the
-        // directive as detached instead). This crate has no notion of a
-        // "detached" directive and, per the module docs, resolves every
-        // `-next` directive to the physical next line regardless of
-        // inline-ness, so it deliberately diverges here and disables line 2.
+        // directive sits at the end of a code line" -> it is not honored (a
+        // next-statement directive is only honored on a comment-only line)
+        // and is recorded as detached instead.
         let d = directives_for("puts 1 # rubocop:disable-next Metrics/MethodLength\nputs 2\n");
         assert!(!d.is_disabled("Metrics/MethodLength", 1));
-        assert!(d.is_disabled("Metrics/MethodLength", 2));
+        assert!(!d.is_disabled("Metrics/MethodLength", 2));
+        assert_eq!(d.detached_next_directives().count(), 1);
     }
 
     #[test]
@@ -1108,5 +1463,101 @@ mod tests {
             extras("# rubocop:disable Custom/Cop\nfoo\n# rubocop:enable Custom/Cop\n").is_empty()
         );
         assert_eq!(extras("foo\n# rubocop:enable Custom/Cop\n"), [["Custom/Cop"]]);
+    }
+
+    #[test]
+    fn push_with_a_minus_argument_disables_until_the_pop() {
+        // comment_config_spec.rb, "push/pop directives" > "temporarily
+        // disable a cop for a problematic block".
+        let d = directives_for(
+            "def process_data(input)\n  result = input.upcase\n  # rubocop:push -Style/GuardClause\n  if result.present?\n    return result.strip\n  end\n  # rubocop:pop\n  nil\nend\n",
+        );
+        assert!(d.is_disabled("Style/GuardClause", 4));
+        assert!(d.is_disabled("Style/GuardClause", 6));
+        assert!(!d.is_disabled("Style/GuardClause", 2));
+        assert!(!d.is_disabled("Style/GuardClause", 7));
+        assert!(!d.is_disabled("Style/GuardClause", 8));
+    }
+
+    #[test]
+    fn push_with_a_plus_argument_suspends_an_open_disable_until_the_pop() {
+        // comment_config_spec.rb, "push/pop directives" > "enable a disabled
+        // cop temporarily": the `pop` restores the disable the `push` saved.
+        let d = directives_for(
+            "# rubocop:disable Metrics/MethodLength\ndef long_method\n  line1\n  line2\n  # rubocop:push +Metrics/MethodLength\n  def short_method\n    line3\n  end\n  # rubocop:pop\n  line4\nend\n",
+        );
+        for line in [1, 2, 3, 4, 5] {
+            assert!(d.is_disabled("Metrics/MethodLength", line), "line {line}");
+        }
+        for line in [6, 7, 8] {
+            assert!(!d.is_disabled("Metrics/MethodLength", line), "line {line}");
+        }
+        for line in [9, 10, 11] {
+            assert!(d.is_disabled("Metrics/MethodLength", line), "line {line}");
+        }
+    }
+
+    #[test]
+    fn an_unmatched_pop_leaves_the_state_alone() {
+        // `pop_state` only runs `if @stack.any?`.
+        let d = directives_for("# rubocop:disable Style/For\nfoo\n# rubocop:pop\nbar\n");
+        assert!(d.is_disabled("Style/For", 2));
+        assert!(d.is_disabled("Style/For", 4));
+    }
+
+    #[test]
+    fn bare_next_applies_its_signed_arguments_to_the_statement_below() {
+        // `apply_next_directive`: `-` disables the attached statement, `+`
+        // suspends an open disable for it.
+        let d = directives_for(
+            "# rubocop:disable Style/Not\n# rubocop:next -Style/For +Style/Not\nfor y in [3, 4] do not y end\nnot z\n",
+        );
+        assert!(d.is_disabled("Style/For", 3));
+        assert!(!d.is_disabled("Style/For", 4));
+        assert!(!d.is_disabled("Style/Not", 3));
+        assert!(d.is_disabled("Style/Not", 4));
+        assert!(d.is_opted_in("Style/Not"));
+    }
+
+    #[test]
+    fn a_next_statement_directive_scopes_to_the_whole_statement() {
+        // `statement_bounds_at`: the multi-line statement below the
+        // directive, heredoc terminator included.
+        let d = directives_for(
+            "# rubocop:disable-next Layout/LineLength\nfoo(<<~TEXT)\n  body\nTEXT\nbar\n",
+        );
+        assert!(d.is_disabled("Layout/LineLength", 2));
+        assert!(d.is_disabled("Layout/LineLength", 4));
+        assert!(!d.is_disabled("Layout/LineLength", 5));
+    }
+
+    #[test]
+    fn a_next_statement_directive_chains_past_comments_but_not_blank_lines() {
+        // `attached_code_line`: comment-only lines chain, a blank line
+        // detaches the directive.
+        let chained =
+            directives_for("# rubocop:disable-next Style/For\n# a note\nfor x in y do x end\n");
+        assert!(chained.is_disabled("Style/For", 3));
+        assert_eq!(chained.detached_next_directives().count(), 0);
+
+        let detached = directives_for("# rubocop:disable-next Style/For\n\nfor x in y do x end\n");
+        assert!(!detached.is_disabled("Style/For", 3));
+        assert_eq!(detached.detached_next_directives().count(), 1);
+    }
+
+    #[test]
+    fn a_commented_out_directive_is_not_a_directive() {
+        // `DirectiveComment#initialize` drops a match whose `pre_match` is
+        // nothing but a second comment marker.
+        let d = directives_for("# # rubocop:disable Style/For\nfor x in y do x end\n");
+        assert!(d.directives().is_empty());
+        assert!(!d.is_disabled("Style/For", 2));
+    }
+
+    #[test]
+    fn push_and_pop_take_no_part_in_the_enable_pairing() {
+        // `self_closing_directive?`: a `push -Cop` is not an extra enable,
+        // and neither is the `pop` that closes it.
+        assert!(extras("# rubocop:push -Layout/LineLength\nfoo\n# rubocop:pop\n").is_empty());
     }
 }

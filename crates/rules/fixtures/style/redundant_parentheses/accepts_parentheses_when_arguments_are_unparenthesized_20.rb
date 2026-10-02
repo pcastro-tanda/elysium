@@ -1,1 +1,1 @@
-(!yield arg) && foo
+(!x.m arg) && foo

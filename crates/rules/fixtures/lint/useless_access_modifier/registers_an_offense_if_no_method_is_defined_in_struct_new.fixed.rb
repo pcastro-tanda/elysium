@@ -1,0 +1,2 @@
+Struct.new do
+end

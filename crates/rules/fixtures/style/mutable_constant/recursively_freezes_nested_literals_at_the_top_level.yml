@@ -1,0 +1,3 @@
+Style/MutableConstant:
+  EnforcedStyle: strict
+  Recursive: true

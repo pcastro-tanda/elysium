@@ -48,6 +48,32 @@ jobs:
       # extra setup step is needed on either runner.
       - run: cargo test --workspace
 
+  rubocop-pin:
+    # Everything taken from RuboCop must come from the version the corpus job
+    # checks against (pinned in ci/corpus/*/Gemfile): the embedded
+    # config/default.yml and config/obsoletion.yml verbatim, and every fixture
+    # exactly as tools/port_spec.rb generates it from that version's specs,
+    # minus crates/rules/fixtures/REMOVED.txt.
+    name: matches pinned RuboCop
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: ruby/setup-ruby@v1
+        with:
+          ruby-version: '3.4'
+      - name: RuboCop version pinned by the corpus Gemfiles
+        id: pin
+        run: echo "version=$(ruby -e 'print File.read("ci/corpus/discourse/Gemfile")[/gem "rubocop", "([^"]+)"/, 1]')" >> "$GITHUB_OUTPUT"
+      - name: Install RuboCop and spec dependencies
+        run: gem install --no-document "rubocop:${{ steps.pin.outputs.version }}" rspec 'mcp:~> 0.6'
+      - name: RuboCop source (specs)
+        run: git clone --quiet --depth 1 --branch "v${{ steps.pin.outputs.version }}" https://github.com/rubocop/rubocop.git "$RUNNER_TEMP/rubocop"
+      - name: Embedded config files are the pinned version's
+        run: |
+          diff -u "$RUNNER_TEMP/rubocop/config/default.yml" crates/config/rubocop/default.yml
+          diff -u "$RUNNER_TEMP/rubocop/config/obsoletion.yml" crates/config/rubocop/obsoletion.yml
+      - run: ruby tools/check_fixtures.rb --rubocop-src "$RUNNER_TEMP/rubocop" --jobs 4
+
   deny:
     name: deny
     runs-on: ubuntu-latest

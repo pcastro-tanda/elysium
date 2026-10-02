@@ -1,4 +1,5 @@
 Style/Documentation:
+  Preview: ~
   AllowedConstants: ~
   Exclude: ~
 Style/CommentAnnotation:

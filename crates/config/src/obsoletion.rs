@@ -8,7 +8,7 @@ use std::sync::LazyLock;
 
 use crate::yaml::{parse_document, Mapping, YamlValue};
 
-/// The RuboCop 1.82.1 `config/obsoletion.yml`.
+/// The RuboCop 1.91.0 `config/obsoletion.yml`.
 const OBSOLETION_YML: &str = include_str!("../rubocop/obsoletion.yml");
 
 /// A cop that was renamed (possibly only moved to another department).
@@ -25,6 +25,9 @@ struct Removed {
     old_name: String,
     reason: Option<String>,
     alternatives: Vec<String>,
+    /// `RemovedCop#warning?`: rules may opt into `severity: warning`, added
+    /// in RuboCop 1.91.0's `config_obsoletion/removed_cop.rb`.
+    warning: bool,
 }
 
 /// A cop whose functionality moved into several cops.
@@ -116,6 +119,7 @@ impl Obsoletion {
                     alternatives: meta
                         .map(|m| m.get_string_list("alternatives"))
                         .unwrap_or_default(),
+                    warning: meta.and_then(|m| m.get_str("severity")) == Some("warning"),
                 });
             }
         }
@@ -234,7 +238,12 @@ impl Obsoletion {
             } else {
                 format!("{base}. Please use {} instead.", to_sentence(&rule.alternatives, "and/or"))
             };
-            out.errors.push(format!("{message}{suffix}"));
+            let message = format!("{message}{suffix}");
+            if rule.warning {
+                out.warnings.push(message);
+            } else {
+                out.errors.push(message);
+            }
         }
         for rule in &self.split {
             if !violates_cop_rule(hash, &rule.old_name) {
@@ -406,7 +415,7 @@ mod tests {
 
     #[test]
     fn reports_split_cops() {
-        // spec/rubocop/config_loader_spec.rb:2025 expects `Style/MethodMissing` to raise.
+        // spec/rubocop/config_loader_spec.rb:2231 expects `Style/MethodMissing` to raise.
         let out = check("Style/MethodMissing:\n  Enabled: true\n");
         assert_eq!(out.errors.len(), 1);
         assert!(
@@ -477,6 +486,61 @@ mod tests {
             out.errors[0],
             "obsolete parameter `IndentWhenRelativeTo` (for `Layout/CaseIndentation`) \
              found in .rubocop.yml\n`IndentWhenRelativeTo` has been renamed to `EnforcedStyle`."
+        );
+    }
+
+    #[test]
+    fn removed_with_warning_severity_is_not_an_error() {
+        // spec/rubocop/config_obsoletion_spec.rb:239 "a removed cop that only warns"
+        let out = check("Style/DoubleCopDisableDirective:\n  Enabled: true\n");
+        assert!(out.errors.is_empty(), "{:?}", out.errors);
+        assert_eq!(
+            out.warnings,
+            ["The `Style/DoubleCopDisableDirective` cop has been removed since it has been \
+              superseded by `Lint/CopDirectiveSyntax`. Please use `Lint/CopDirectiveSyntax` \
+              instead.\n(obsolete configuration found in .rubocop.yml, please update it)"]
+        );
+    }
+
+    #[test]
+    fn parameters_renamed_for_consistency_only_warn() {
+        // spec/rubocop/config_obsoletion_spec.rb:603 "parameters renamed for consistency"
+        let out = check(concat!(
+            "Bundler/GemComment:\n  IgnoredGems:\n    - rake\n",
+            "Lint/MissingCopEnableDirective:\n  MaximumRangeSize: 2\n",
+            "Lint/NumberConversion:\n  IgnoredClasses:\n    - Time\n",
+            "Metrics/CollectionLiteralLength:\n  LengthThreshold: 100\n",
+            "Style/FetchEnvVar:\n  AllowedVars:\n    - FOO\n",
+        ));
+        assert!(out.errors.is_empty(), "{:?}", out.errors);
+        assert_eq!(
+            out.warnings.join("\n"),
+            concat!(
+                "obsolete parameter `IgnoredGems` (for `Bundler/GemComment`) found in \
+                 .rubocop.yml\n`IgnoredGems` has been renamed to `AllowedGems`.\n",
+                "obsolete parameter `IgnoredClasses` (for `Lint/NumberConversion`) found in \
+                 .rubocop.yml\n`IgnoredClasses` has been renamed to `AllowedClasses`.\n",
+                "obsolete parameter `MaximumRangeSize` (for `Lint/MissingCopEnableDirective`) \
+                 found in .rubocop.yml\n`MaximumRangeSize` has been renamed to `MaxRangeSize`.\n",
+                "obsolete parameter `LengthThreshold` (for `Metrics/CollectionLiteralLength`) \
+                 found in .rubocop.yml\n`LengthThreshold` has been renamed to `Max`.\n",
+                "obsolete parameter `AllowedVars` (for `Style/FetchEnvVar`) found in \
+                 .rubocop.yml\n`AllowedVars` has been renamed to `AllowedVariables`.",
+            )
+        );
+    }
+
+    #[test]
+    fn new_changed_enforced_style_rules_warn() {
+        // `Style/EmptyClassDefinition: EnforcedStyle: class_definition` became
+        // obsolete in 1.91.0's `changed_enforced_styles`.
+        let out = check("Style/EmptyClassDefinition:\n  EnforcedStyle: class_definition\n");
+        assert!(out.errors.is_empty(), "{:?}", out.errors);
+        assert_eq!(
+            out.warnings,
+            ["obsolete `EnforcedStyle: class_definition` (for `Style/EmptyClassDefinition`) \
+              found in .rubocop.yml\n`EnforcedStyle: class_definition` has been renamed to \
+              `EnforcedStyle: class_keyword`."]
         );
     }
 

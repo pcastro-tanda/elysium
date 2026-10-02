@@ -1,0 +1,3 @@
+# file: app/model.rb
+Lint/DuplicateMethods:
+  AllowedCrossFilePaths: [scripts/**/*]

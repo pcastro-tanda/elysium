@@ -42,8 +42,15 @@ impl Rule for SendWithMixinArgument {
             return;
         }
 
-        let Some(receiver) = call.receiver() else { return };
-        if !is_const(&receiver) {
+        // RuboCop 1.91's `send_with_mixin_argument?` pattern widened the
+        // receiver from `(const _ _)` alone to `{nil? self (const _ _)}`:
+        // a bare call (implicit `self`), an explicit `self.`, or a
+        // (possibly namespaced) constant receiver.
+        let receiver_matches = match call.receiver() {
+            None => true,
+            Some(receiver) => receiver.as_self_node().is_some() || is_const(&receiver),
+        };
+        if !receiver_matches {
             return;
         }
 

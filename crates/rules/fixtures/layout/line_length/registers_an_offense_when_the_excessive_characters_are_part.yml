@@ -1,0 +1,8 @@
+Layout/LineLength:
+  Max: 80
+  AllowQualifiedName: false
+  AllowHeredoc: false
+  AllowCopDirectives: false
+  AllowedPatterns: ~
+Layout/IndentationStyle:
+  IndentationWidth: 2

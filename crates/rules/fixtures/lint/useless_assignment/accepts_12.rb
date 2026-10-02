@@ -1,5 +1,5 @@
-def some_method
-  foo = [1, 2]
-  foo = foo.map { |i| i + 1 }
-  puts foo
+def some_method(bar)
+  foo = 1
+  bar &&= (foo = 2)
+  [foo, bar]
 end

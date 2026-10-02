@@ -7,7 +7,7 @@ created and registered, and its fixtures are already generated.
 ## Your job
 
 1. Read the upstream cop: `$RUBOCOP/lib/rubocop/cop/<dept>/<cop>.rb`
-   (`RUBOCOP=/Users/paulo/Work/lab/corpus/rubocop-1.82.1`); its spec is
+   (`RUBOCOP=/Users/paulo/Work/lab/corpus/rubocop-1.91.0`); its spec is
    `$RUBOCOP/spec/rubocop/cop/<dept>/<cop>_spec.rb`, its options are in
    `$RUBOCOP/config/default.yml`.
 2. Fill in `crates/rules/src/<dept>/<cop>.rs` (the skeleton). Edit **only

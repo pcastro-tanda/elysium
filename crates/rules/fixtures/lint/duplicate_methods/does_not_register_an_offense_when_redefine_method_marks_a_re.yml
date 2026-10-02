@@ -1,0 +1,6 @@
+# file: first.rb
+AllCops:
+  ActiveSupportExtensionsEnabled: true
+Lint/DuplicateMethods:
+  DelegatingMethods: ~
+  AllowedCrossFilePaths: ~

@@ -1,5 +1,5 @@
-(1..4)&.inject(0) do |acc, i|
-  next if i.odd?
+(1..4)&.reduce(0) do
+  next if it.odd?
   ^^^^ Use `next` with an accumulator argument in a `reduce`.
-  acc + i
+  it + 1
 end

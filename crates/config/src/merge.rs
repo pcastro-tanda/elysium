@@ -1,6 +1,8 @@
 //! Hash merging, `inherit_mode` and department-override semantics, ported from
 //! `lib/rubocop/config_loader_resolver.rb`.
 
+use std::borrow::Cow;
+
 use crate::yaml::{Mapping, YamlValue};
 
 /// Options for [`merge`], mirroring the Ruby keyword arguments.
@@ -68,11 +70,49 @@ fn lists(mode: Option<&Mapping>, which: &str, key: &str) -> bool {
     mode.is_some_and(|m| m.get_string_list(which).iter().any(|k| k == key))
 }
 
+/// `ConfigLoaderResolver#preview?`: `AllCops/Preview: true` in the
+/// configuration being resolved. RuboCop also lets `--preview`/`--no-preview`
+/// win over it; elysium has no such flag.
+pub(crate) fn preview_enabled(hash: &Mapping) -> bool {
+    hash.get_mapping("AllCops").and_then(|all| all.get("Preview")) == Some(&YamlValue::Bool(true))
+}
+
+/// `ConfigLoaderResolver#with_preview_exclude_merge` (RuboCop 1.91.0): under
+/// preview, `Exclude` is unioned rather than replaced unless an explicit
+/// `inherit_mode` already decides it either way.
+pub(crate) fn with_preview_exclude_merge(
+    mode: Option<&Mapping>,
+    preview: bool,
+) -> Option<Cow<'_, Mapping>> {
+    if !preview {
+        return mode.map(Cow::Borrowed);
+    }
+    let decided = mode.is_some_and(|m| {
+        ["override", "merge"]
+            .iter()
+            .any(|which| m.get_string_list(which).iter().any(|key| key == "Exclude"))
+    });
+    if decided {
+        return mode.map(Cow::Borrowed);
+    }
+    let mut out = mode.cloned().unwrap_or_default();
+    let mut merged = out.get_string_list("merge");
+    merged.push("Exclude".to_string());
+    out.insert("merge", YamlValue::Array(merged.into_iter().map(YamlValue::String).collect()));
+    Some(Cow::Owned(out))
+}
+
 /// `ConfigLoaderResolver#determine_inherit_mode`.
-pub(crate) fn inherit_mode_for<'a>(hash: &'a Mapping, key: &str) -> Option<&'a Mapping> {
-    hash.get_mapping(key)
+pub(crate) fn inherit_mode_for<'a>(
+    hash: &'a Mapping,
+    key: &str,
+    preview: bool,
+) -> Option<Cow<'a, Mapping>> {
+    let mode = hash
+        .get_mapping(key)
         .and_then(|cop| cop.get_mapping("inherit_mode"))
-        .or_else(|| hash.get_mapping("inherit_mode"))
+        .or_else(|| hash.get_mapping("inherit_mode"));
+    with_preview_exclude_merge(mode, preview)
 }
 
 /// True when `hash` disables `department` outright.
@@ -139,7 +179,7 @@ mod tests {
 
     #[test]
     fn merges_recursively() {
-        // spec/rubocop/config_loader_spec.rb:2084 ".merge"
+        // spec/rubocop/config_loader_spec.rb:2290 ".merge"
         let base = mapping("AllCops:\n  Include: ['**/*.gemspec']\n  Exclude: []\n");
         let derived = mapping("AllCops:\n  Exclude: ['example.rb']\n");
         let merged = merge(&base, &derived, MergeOpts::default());
@@ -150,7 +190,7 @@ mod tests {
 
     #[test]
     fn unset_nil_deletes_the_key() {
-        // spec/rubocop/config_loader_spec.rb:563 "inherits and overrides a hash with nil"
+        // spec/rubocop/config_loader_spec.rb:590 "inherits and overrides a hash with nil"
         let base = mapping("Style/For:\n  Exclude: ['a.rb']\n");
         let derived = mapping("Style/For: ~\n");
         let merged = merge(&base, &derived, MergeOpts { inherit_mode: None, unset_nil: true });
@@ -183,7 +223,7 @@ mod tests {
 
     #[test]
     fn union_coerces_bare_strings_to_arrays() {
-        // spec/rubocop/config_loader_spec.rb:769 InheritedStringSpecifiedArray
+        // spec/rubocop/config_loader_spec.rb:796 InheritedStringSpecifiedArray
         let base = mapping("Naming/VariableNumber:\n  Param: 'bare string'\n");
         let derived = mapping(concat!(
             "Naming/VariableNumber:\n  inherit_mode:\n    merge:\n      - Param\n",

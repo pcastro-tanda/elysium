@@ -18,13 +18,22 @@
 //! singleton class, or the program root" (RuboCop-AST's `in_macro_scope?`
 //! node pattern, translated one-for-one since Prism has no synthetic
 //! `begin`/`kwbegin` wrapper for a bare statements list).
+//!
+//! A candidate's "end" (the boundary the gap-of-blank-lines check and the
+//! autocorrect anchor both use) is not always the node's own textual span:
+//! an endless method whose body is a heredoc (`def a = <<~TEXT`) has a
+//! `source_range` stopping at the opening line, before the heredoc body
+//! and terminator that actually follow it in the source. [`end_span`]
+//! ports RuboCop's `end_loc`/`trailing_heredoc_end` by walking the
+//! candidate's descendants for any heredoc string/xstring literal whose
+//! closing delimiter ends later than the node's own span.
 
 use linter::{
     Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
     OptionError, OptionValue, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::node::Node;
-use ruby_ast::{LocationExt as _, NodeExt as _, NodeKind};
+use ruby_ast::{each_descendant, LocationExt as _, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 /// RuboCop's `MSG`.
@@ -117,8 +126,9 @@ impl EmptyLineBetweenDefs {
         ctx: &Context<'_>,
         in_macro_scope: bool,
     ) -> Option<Candidate> {
-        let span = node.span();
-        let single_line = ctx.is_single_line(span);
+        let raw_span = node.span();
+        let single_line = ctx.is_single_line(raw_span);
+        let span = end_span(node, raw_span);
 
         if let Some(def) = node.as_def_node() {
             if !self.enabled_for.method {
@@ -214,6 +224,51 @@ fn find_byte(bytes: &[u8], needle: u8, from: u32) -> Option<u32> {
         .iter()
         .position(|&b| b == needle)
         .map(|i| u32::try_from(from + i).unwrap_or(u32::MAX))
+}
+
+/// RuboCop's `end_loc`/`trailing_heredoc_end`: extends `span`'s end past
+/// any heredoc literal nested anywhere inside `node` whose closing
+/// delimiter ends later in the source, needed because an endless method
+/// whose body is a heredoc (`def a = <<~TEXT`) has a `source_range` that
+/// stops at the heredoc's opening line, before the heredoc body and
+/// terminator that follow it.
+fn end_span(node: &Node<'_>, span: Span) -> Span {
+    let mut max_end = span.end;
+    each_descendant(node, &mut |child| {
+        if let Some(closing) = heredoc_closing_span(child) {
+            if closing.end > max_end {
+                max_end = closing.end;
+            }
+        }
+    });
+    if max_end > span.end {
+        Span::new(span.start, max_end)
+    } else {
+        span
+    }
+}
+
+/// RuboCop's `heredoc?(node) = node.any_str_type? && node.heredoc?`, fused
+/// with reading `node.loc.heredoc_end`: the closing-terminator location of
+/// a heredoc string/xstring literal, or `None` for anything else
+/// (including a non-heredoc string of the same node kinds).
+fn heredoc_closing_span(node: &Node<'_>) -> Option<Span> {
+    if !ruby_ast::ext::is_heredoc(node) {
+        return None;
+    }
+    match node {
+        Node::StringNode { .. } => {
+            node.as_string_node().and_then(|n| n.closing_loc()).map(|l| l.span())
+        }
+        Node::InterpolatedStringNode { .. } => {
+            node.as_interpolated_string_node().and_then(|n| n.closing_loc()).map(|l| l.span())
+        }
+        Node::XStringNode { .. } => node.as_x_string_node().map(|n| n.closing_loc().span()),
+        Node::InterpolatedXStringNode { .. } => {
+            node.as_interpolated_x_string_node().map(|n| n.closing_loc().span())
+        }
+        _ => None,
+    }
 }
 
 /// A string that is empty or contains only whitespace: RuboCop's core-ext

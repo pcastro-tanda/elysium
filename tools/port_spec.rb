@@ -24,7 +24,7 @@
 #
 # Usage:
 #   ruby tools/port_spec.rb --cop Style/TrailingCommaInArguments \
-#     --rubocop-src /Users/paulo/Work/lab/corpus/rubocop-1.82.1 \
+#     --rubocop-src /Users/paulo/Work/lab/corpus/rubocop-1.91.0 \
 #     --out crates/rules/fixtures
 #
 # Requires: the exact RuboCop version pinned by --rubocop-src's
@@ -305,12 +305,19 @@ begin
         value.map { |o| { 'cop' => o.cop_name, 'line' => o.line } }
       end
 
+      # A spec may pass a `Tempfile` as `file` (`Lint/ScriptPermission`);
+      # upstream then lints the source under that file's random temp path, so
+      # record a stable stand-in rather than the object's `inspect`.
+      def fixture_file(file)
+        file.respond_to?(:path) ? 'tempfile' : file
+      end
+
       def expect_offense(source, file = nil, severity: nil, chomp: false, **replacements)
         raw = cop_config_overrides
         entry = {
           'kind' => 'offense',
           'path' => current_path,
-          'file' => file,
+          'file' => fixture_file(file),
           'cop_config' => raw,
           'other_cops' => port_other_cops,
           'ruby_version' => ruby_version
@@ -400,7 +407,7 @@ begin
         entry = {
           'kind' => 'no_offense',
           'path' => current_path,
-          'file' => file,
+          'file' => fixture_file(file),
           'source' => source,
           'cop_config' => raw,
           'other_cops' => port_other_cops,

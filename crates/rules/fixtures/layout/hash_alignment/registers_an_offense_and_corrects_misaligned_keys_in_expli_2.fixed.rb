@@ -1,2 +1,2 @@
-yield({a: 0,
+super({a: 0,
        b: 1})

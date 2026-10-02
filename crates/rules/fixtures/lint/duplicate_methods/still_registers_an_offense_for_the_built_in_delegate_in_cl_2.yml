@@ -1,0 +1,6 @@
+# file: example.rb
+AllCops:
+  ActiveSupportExtensionsEnabled: true
+Lint/DuplicateMethods:
+  DelegatingMethods: [delegate, expose]
+  AllowedCrossFilePaths: ~

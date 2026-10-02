@@ -1,1 +1,1 @@
-test.bar = foo || 'baz'
+CONST = foo || 'bar'

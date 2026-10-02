@@ -1,0 +1,1 @@
+# rubocop:disable Lint/AmbiguousOperatorPrecedence

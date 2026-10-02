@@ -1,1 +1,1 @@
-foo && (!x.m arg)
+(!defined? arg) && foo

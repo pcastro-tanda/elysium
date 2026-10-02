@@ -47,14 +47,19 @@ some_object.method(arg)    # this is some comment
 There is no real token stream to work from (see the module docs for the
 approximation this file builds instead), which has these consequences:
 
-- `AllowForAlignment`'s alignment search only matches RuboCop's own
-  `ASSIGNMENT_OR_COMPARISON_TOKENS` for the equals-sign fallback with plain
-  `=` and the compound assignment operators (`+=`, `-=`, ..., `**=`,
-  `<<=`, `>>=`, `||=`, `&&=`); comparison operators (`==`, `===`, `!=`,
-  `<=`, `>=`) and the bare `<<` append operator are not tracked as
-  alignment landmarks. This can only under-recognize an alignment RuboCop
-  would allow (an over-reporting risk), not the reverse; no fixture in
-  this port exercises it.
+- `spacing_varies?`'s `(column, type)` grouping (1.91.0) relies on
+  [`TokKind`], a coarse lexical classification (word/number/literal/one
+  operator byte) rather than RuboCop's real, fine-grained lexer token
+  types; two genuinely different real token types that happen to share a
+  [`TokKind`] at the same column could be grouped together (or the
+  reverse) when they wouldn't be upstream, which can tip `spacing_varies?`
+  either way.
+- `interrupting_operator_lines` (1.91.0, `ForceEqualSignAlignment`'s
+  block-boundary detection) finds a bare `<<` append operator lexically,
+  telling it apart from a bare heredoc opener (`<<HEREDOC`, no `~`/`-`) by
+  requiring an expression-like byte immediately before it; a heredoc
+  opener directly preceded by such a byte (unusual, but not impossible)
+  would be misdetected as an interrupting append operator.
 - Column/token comparisons index by byte offset within a line, i.e. assume
   one byte per character; a line with multi-byte UTF-8 content before the
   compared column can misalign the comparison (offense spans themselves

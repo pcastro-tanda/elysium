@@ -1,2 +1,4 @@
-def some_method(name: value, **)
+def some_method(foo)
+  foo = 1
+  super
 end

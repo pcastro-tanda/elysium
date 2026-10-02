@@ -12,7 +12,7 @@
 # Existing files and registrations are left alone, so it is safe to re-run.
 # Fixtures are still produced separately by tools/port_spec.rb (ADR 0006).
 #
-#   ruby tools/scaffold_cop.rb --rubocop-src /path/to/rubocop-1.82.1 Lint/EmptyWhen Style/Dir
+#   ruby tools/scaffold_cop.rb --rubocop-src /path/to/rubocop-1.91.0 Lint/EmptyWhen Style/Dir
 
 require 'optparse'
 require 'yaml'

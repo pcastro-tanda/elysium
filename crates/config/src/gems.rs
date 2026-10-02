@@ -361,7 +361,7 @@ mod tests {
 
     #[test]
     fn rubocop_gem_is_rejected() {
-        // spec/rubocop/config_loader_spec.rb:1251 "when a file inherits from the rubocop gem"
+        // spec/rubocop/config_loader_spec.rb:1278 "when a file inherits from the rubocop gem"
         let search = GemSearch::default();
         assert!(matches!(
             search.config_path(Path::new("/"), "rubocop", "config/default.yml"),

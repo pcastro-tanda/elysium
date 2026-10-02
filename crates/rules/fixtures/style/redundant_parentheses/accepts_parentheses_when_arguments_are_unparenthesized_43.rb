@@ -1,1 +1,1 @@
-(foo[key] & bar.baz).any?
+x + (foo; bar)

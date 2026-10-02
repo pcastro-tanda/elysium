@@ -1,4 +1,5 @@
-begin
-  a = (a || 0) + 1
-  puts a
-end while a <= 2
+def some_method
+  foo = 1
+  foo += 1
+  foo
+end

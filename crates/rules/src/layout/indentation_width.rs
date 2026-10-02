@@ -11,8 +11,8 @@ use ruby_source::Span;
 use std::collections::HashSet;
 
 /// RuboCop's `MSG`.
-const MSG: &str =
-    "Use %<configured_indentation_width>d (not %<indentation>d) spaces for%<name>s indentation.";
+const MSG: &str = "Use %<configured_indentation_width>d (not %<indentation>d) \
+                   %<indentation_type>s for%<name>s indentation.";
 
 /// `Layout/DefEndAlignment`'s `EnforcedStyleAlignWith` default.
 const DEF_END_ALIGNMENT_DEFAULT: &str = "start_of_line";
@@ -22,20 +22,45 @@ const END_ALIGNMENT_DEFAULT: &str = "keyword";
 const ACCESS_MODIFIER_STYLE_DEFAULT: &str = "indent";
 /// `Layout/IndentationConsistency`'s `EnforcedStyle` default.
 const CONSISTENCY_STYLE_DEFAULT: &str = "normal";
+/// `Layout/IndentationStyle`'s `EnforcedStyle` default.
+const INDENTATION_STYLE_DEFAULT: &str = "spaces";
+
+/// Resolved `EnforcedStyle` booleans, read from peer cops' configuration, that govern how
+/// [`IndentationWidth::check_members`] treats a class/module/block body's bare access
+/// modifiers and internal methods -- grouped together the way
+/// `layout/leading_comment_space.rs`'s `AllowedAnnotations` groups its `Allow*` flags.
+#[derive(Debug, Clone, Copy, Default)]
+struct MemberStyle {
+    /// `Layout/IndentationConsistency` `EnforcedStyle == 'indented_internal_methods'`.
+    indented_internal_methods: bool,
+    /// `Layout/AccessModifierIndentation` `EnforcedStyle == 'outdent'`.
+    access_modifier_outdent: bool,
+}
+
+/// Resolved `EnforcedStyleAlignWith`/`EnforcedStyle` booleans, read from peer cops' (and this
+/// cop's own) configuration, that govern how a body's expected indentation base and measured
+/// column are computed.
+#[derive(Debug, Clone, Copy, Default)]
+struct AlignmentStyle {
+    /// `Layout/DefEndAlignment` `EnforcedStyleAlignWith == 'def'`.
+    def_end_alignment_is_def: bool,
+    /// This cop's own `EnforcedStyleAlignWith == 'relative_to_receiver'`: a method-chain
+    /// block's body is indented from the chain's dot/selector rather than from the line the
+    /// `end` sits on.
+    relative_to_receiver: bool,
+    /// `Layout/IndentationStyle` `EnforcedStyle == 'tabs'` (RuboCop's `using_tabs?`).
+    using_tabs: bool,
+}
 
 /// Checks for indentation that doesn't use the configured number of spaces.
 #[derive(Debug, Clone)]
 pub struct IndentationWidth {
     width: i64,
     allowed_patterns: Vec<regex::Regex>,
-    /// `Layout/IndentationConsistency` `EnforcedStyle == 'indented_internal_methods'`.
-    indented_internal_methods: bool,
-    /// `Layout/AccessModifierIndentation` `EnforcedStyle == 'outdent'`.
-    access_modifier_outdent: bool,
+    member_style: MemberStyle,
+    alignment_style: AlignmentStyle,
     /// `Layout/EndAlignment` `EnforcedStyleAlignWith`.
     end_alignment: EndAlignment,
-    /// `Layout/DefEndAlignment` `EnforcedStyleAlignWith == 'def'`.
-    def_end_alignment_is_def: bool,
     /// Byte ranges already flagged this file, autocorrect target narrowed to the first one
     /// (RuboCop's `other_offense_in_same_range?`).
     offense_ranges: Vec<Span>,
@@ -73,6 +98,30 @@ fn column_of(ctx: &Context<'_>, span: Span) -> i64 {
         column -= 1;
     }
     column
+}
+
+/// RuboCop's `line_indentation`: the bytes of `span`'s line that precede `span`. For a range
+/// that begins its line this is exactly the line's leading whitespace; for a base location
+/// mid-line it may contain other characters, which `visual_column` ignores just as upstream
+/// does (it only counts tabs and spaces).
+fn line_prefix<'a>(ctx: &'a Context<'_>, span: Span) -> &'a [u8] {
+    let line_start = ctx.line_span(ctx.line_col(span.start).line).start;
+    ctx.text(Span::new(line_start, span.start.max(line_start)))
+}
+
+/// RuboCop's `line_uses_tabs?`.
+fn line_uses_tabs(ctx: &Context<'_>, span: Span) -> bool {
+    line_prefix(ctx, span).contains(&b'\t')
+}
+
+/// RuboCop's `visual_column`: each tab in the prefix counts as one full indentation step,
+/// each space as one column.
+fn visual_column(ctx: &Context<'_>, span: Span, width: i64) -> i64 {
+    line_prefix(ctx, span).iter().fold(0, |acc, &byte| match byte {
+        b'\t' => acc + width,
+        b' ' => acc + 1,
+        _ => acc,
+    })
 }
 
 /// RuboCop's `opening_line_start`: a synthetic base location at the first non-whitespace
@@ -123,7 +172,7 @@ impl IndentationWidth {
             return;
         }
         let body_span = body.span();
-        let indentation = column_of(ctx, body_span) - column_of(ctx, base);
+        let indentation = self.column_offset_between(ctx, body_span, base);
         let delta = self.width - indentation;
         if delta == 0 {
             return;
@@ -150,6 +199,32 @@ impl IndentationWidth {
         true
     }
 
+    /// RuboCop's `column_offset_between` override: with `Layout/IndentationStyle:
+    /// EnforcedStyle: tabs`, a line indented with tabs is measured in visual columns (one tab
+    /// per configured indentation step) instead of raw character columns.
+    fn column_offset_between(&self, ctx: &Context<'_>, body: Span, base: Span) -> i64 {
+        if self.alignment_style.using_tabs
+            && (line_uses_tabs(ctx, body) || line_uses_tabs(ctx, base))
+        {
+            return visual_column(ctx, body, self.width) - visual_column(ctx, base, self.width);
+        }
+        column_of(ctx, body) - column_of(ctx, base)
+    }
+
+    /// RuboCop's `message`/`message_for_tabs`/`message_for_spaces`.
+    fn message(&self, indentation: i64, name: &str) -> String {
+        let (configured, actual, kind) = if self.alignment_style.using_tabs {
+            let actual = if self.width > 0 { indentation.div_euclid(self.width) } else { 0 };
+            (1, actual, "tabs")
+        } else {
+            (self.width, indentation, "spaces")
+        };
+        MSG.replace("%<configured_indentation_width>d", &configured.to_string())
+            .replace("%<indentation>d", &actual.to_string())
+            .replace("%<indentation_type>s", kind)
+            .replace("%<name>s", name)
+    }
+
     /// RuboCop's `offense`: reassigns to the first statement for multi-statement bodies,
     /// computes the message and offense range, and attaches an autocorrect fix unless another
     /// offense already covers the same range.
@@ -165,12 +240,16 @@ impl IndentationWidth {
         let fix_span = fix_target.span();
 
         let name = if style == "normal" { String::new() } else { format!(" {style}") };
-        let message = MSG
-            .replace("%<configured_indentation_width>d", &self.width.to_string())
-            .replace("%<indentation>d", &indentation.to_string())
-            .replace("%<name>s", &name);
+        let message = self.message(indentation, &name);
 
-        let range = offending_range(body_span.start, indentation);
+        let range = if self.alignment_style.using_tabs {
+            // RuboCop's `offending_range` tab branch: the reported range is the body line's
+            // whole leading whitespace rather than `indentation` columns of it.
+            let line_start = ctx.line_span(ctx.line_col(body_span.start).line).start;
+            Span::new(line_start, body_span.start.max(line_start))
+        } else {
+            offending_range(body_span.start, indentation)
+        };
 
         let overlaps = self.offense_ranges.iter().any(|r| r.contains(fix_span));
         if !overlaps {
@@ -179,7 +258,12 @@ impl IndentationWidth {
 
         let column_delta = self.width - indentation;
         if !overlaps {
-            if let Some(edits) = build_alignment_edits(ctx, &fix_target, column_delta) {
+            let edits = if self.alignment_style.using_tabs {
+                build_tab_indent_edits(ctx, &fix_target, column_delta, self.width)
+            } else {
+                build_alignment_edits(ctx, &fix_target, column_delta)
+            };
+            if let Some(edits) = edits {
                 ctx.report_with_fix(
                     &Self::META,
                     range,
@@ -191,6 +275,7 @@ impl IndentationWidth {
         }
         ctx.report(&Self::META, range, message);
     }
+
     /// RuboCop's `on_def`/`on_defs`.
     fn on_def(&mut self, ctx: &mut Context<'_>, node: &Node<'_>) {
         if self.ignored.contains(&node.span().start) {
@@ -237,7 +322,11 @@ impl IndentationWidth {
             return;
         }
         self.check_indentation(ctx, end_span, lambda.body(), "normal");
-        if self.indented_internal_methods {
+        // RuboCop 1.91's `on_block` gate: the `indented_internal_methods` member walk only
+        // runs when the body actually contains a bare access modifier.
+        if self.member_style.indented_internal_methods
+            && contains_access_modifier(lambda.body().as_ref())
+        {
             self.check_members(ctx, end_span, lambda.body());
         }
     }
@@ -465,7 +554,7 @@ impl IndentationWidth {
             .and_then(ruby_ast::NodeList::first)
             .filter(is_bare_access_modifier_node);
         let select = if let Some(first) = first_is_modifier {
-            if self.access_modifier_outdent {
+            if self.member_style.access_modifier_outdent {
                 None
             } else {
                 Some(first)
@@ -476,7 +565,7 @@ impl IndentationWidth {
         self.check_indentation(ctx, base, select, "normal");
 
         let Some(list) = body_list else { return };
-        if self.indented_internal_methods {
+        if self.member_style.indented_internal_methods {
             let mut previous_modifier: Option<Span> = None;
             for child in &list {
                 if is_special_modifier(&child) {
@@ -555,7 +644,7 @@ impl IndentationWidth {
         if !self.ignored.contains(&node.span().start) && call.receiver().is_none() {
             if let Some(arg) = bare_single_argument(&call) {
                 if let Some((def, chain)) = def_through_bare_chain(arg) {
-                    let base = if self.def_end_alignment_is_def {
+                    let base = if self.alignment_style.def_end_alignment_is_def {
                         def.as_node().span()
                     } else {
                         node.span()
@@ -580,22 +669,56 @@ impl IndentationWidth {
         }
 
         // RuboCop's `on_block` (Prism has no parent pointer from a block back to the call
-        // that owns it, so this fires from the owning `CallNode` instead). None of this
-        // rule's target RuboCop versions (1.81.7, 1.63.4, or 1.91.0 with its default
-        // `EnforcedStyleAlignWith: start_of_line`) base a block body's indentation on a
-        // dot-chained receiver: the `end` keyword's position is always the base.
+        // that owns it, so this fires from the owning `CallNode` instead). With the default
+        // `EnforcedStyleAlignWith: start_of_line` the `end` keyword's position is always the
+        // base; `relative_to_receiver` bases a method-chain block's body on the chain's dot
+        // (or, for a trailing-dot chain, on the selector) instead.
         if let Some(block_node) = call.block() {
             if let Node::BlockNode { .. } = &block_node {
                 let block = block_node.as_block_node().expect("kind matched");
                 let end_span = block.closing_loc().span();
                 if ctx.begins_its_line(end_span) {
-                    self.check_indentation(ctx, end_span, block.body(), "normal");
-                    if self.indented_internal_methods {
+                    let base = self.block_body_indentation_base(ctx, &call, end_span);
+                    self.check_indentation(ctx, base, block.body(), "normal");
+                    // RuboCop 1.91's `on_block` gate: the `indented_internal_methods` member
+                    // walk only runs when the body contains a bare access modifier.
+                    if self.member_style.indented_internal_methods
+                        && contains_access_modifier(block.body().as_ref())
+                    {
                         self.check_members(ctx, end_span, block.body());
                     }
                 }
             }
         }
+    }
+
+    /// RuboCop's `block_body_indentation_base` plus its `dot_on_new_line?`/
+    /// `selector_on_new_line?` helpers.
+    fn block_body_indentation_base(
+        &self,
+        ctx: &Context<'_>,
+        call: &ruby_ast::node::CallNode<'_>,
+        end_span: Span,
+    ) -> Span {
+        if !self.alignment_style.relative_to_receiver {
+            return end_span;
+        }
+        let (Some(dot), Some(receiver)) = (call.call_operator_loc(), call.receiver()) else {
+            return end_span;
+        };
+        let dot_span = dot.span();
+        let receiver_last_line =
+            ctx.line_col(receiver.span().end.saturating_sub(1).max(receiver.span().start)).line;
+        if receiver_last_line < ctx.line_col(dot_span.start).line {
+            return dot_span;
+        }
+        if let Some(selector) = call.message_loc() {
+            let selector_span = selector.span();
+            if receiver_last_line < ctx.line_col(selector_span.start).line {
+                return selector_span;
+            }
+        }
+        end_span
     }
 }
 
@@ -608,6 +731,17 @@ fn starts_with_access_modifier(body: &Node<'_>) -> bool {
         }
     }
     false
+}
+
+/// RuboCop 1.91's `contains_access_modifier?`: a multi-statement body with at least one bare
+/// access modifier among its statements.
+fn contains_access_modifier(body: Option<&Node<'_>>) -> bool {
+    let Some(body) = body else { return false };
+    let Node::StatementsNode { .. } = body else { return false };
+    let statements = body.as_statements_node().expect("kind matched");
+    let list = statements.body();
+    // Upstream's `begin_type?` guard: a single-statement body is not a `begin` node.
+    list.len() > 1 && list.iter().any(|child| is_bare_access_modifier_node(&child))
 }
 
 /// The sole argument of a receiver-less call with exactly one positional argument, if any
@@ -797,6 +931,58 @@ fn build_alignment_edits(
     }
 }
 
+/// RuboCop's `AlignmentCorrector.correct_tab_indentation`: with `Layout/IndentationStyle:
+/// EnforcedStyle: tabs`, each line of `target` has its whole leading whitespace rewritten to
+/// the number of whole tabs its corrected visual width calls for. Working in whole tabs (as
+/// opposed to applying the column delta) keeps the correction idempotent.
+fn build_tab_indent_edits(
+    ctx: &Context<'_>,
+    target: &Node<'_>,
+    column_delta: i64,
+    width: i64,
+) -> Option<Vec<Edit>> {
+    if width <= 0 {
+        return None;
+    }
+    let span = target.span();
+    let start_line = ctx.line_col(span.start).line;
+    let end_line = ctx.line_col(span.end.saturating_sub(1).max(span.start)).line;
+
+    // RuboCop's `block_comment_within?`.
+    for line in start_line..=end_line {
+        if ctx.line_text(line).trim_ascii_start().starts_with(b"=begin") {
+            return None;
+        }
+    }
+
+    let taboo = linter::heredoc_bodies(ctx, target);
+    let mut edits = Vec::new();
+    for line in start_line..=end_line {
+        let line_span = ctx.line_span(line);
+        let text = ctx.line_text(line);
+        let lead = text.iter().position(|&b| b != b' ' && b != b'\t').unwrap_or(text.len());
+        if lead == text.len() {
+            // Blank line: upstream leaves it alone.
+            continue;
+        }
+        let range = Span::new(line_span.start, line_span.start + u32::try_from(lead).unwrap_or(0));
+        if taboo.iter().any(|t| t.contains(range)) {
+            continue;
+        }
+        let visual: i64 = text[..lead].iter().map(|&b| if b == b'\t' { width } else { 1 }).sum();
+        let tabs = usize::try_from((visual + column_delta).max(0) / width).unwrap_or(0);
+        let unchanged = lead == tabs && text[..lead].iter().all(|&b| b == b'\t');
+        if !unchanged {
+            edits.push(Edit::replace(range, vec![b'\t'; tabs]));
+        }
+    }
+    if edits.is_empty() {
+        None
+    } else {
+        Some(edits)
+    }
+}
+
 impl Rule for IndentationWidth {
     const META: RuleMeta = RuleMeta {
         name: "Layout/IndentationWidth",
@@ -804,6 +990,8 @@ impl Rule for IndentationWidth {
         summary: "Checks for indentation that doesn't use the specified number of spaces.",
         explanation: "\
 The indentation width can be configured using the `Width` setting. The default width is 2.
+The block body indentation for method chain blocks can be configured using the
+`EnforcedStyleAlignWith` setting.
 
 See also the `Layout/IndentationConsistency` cop which is the companion to this one.
 
@@ -844,7 +1032,35 @@ class B
     puts 'hello'
   end
 end
+```
+
+A multi-line parenthesized grouping expression has its body indented one step from the line
+the opening parenthesis is on:
+
+```ruby
+# bad
+value = (
+foo - bar
+)
+
+# good
+value = (
+  foo - bar
+)
+```
+
+```ruby
+# EnforcedStyleAlignWith: start_of_line (default)
+records.uniq { |el| el[:profile_id] }
+       .map do |message|
+  SomeJob.perform_later(message[:id])
 end
+
+# EnforcedStyleAlignWith: relative_to_receiver
+records.uniq { |el| el[:profile_id] }
+       .map do |message|
+         SomeJob.perform_later(message[:id])
+       end
 ```",
         enabled_by_default: true,
         severity: Severity::Convention,
@@ -897,6 +1113,14 @@ end
                 doc: "Number of spaces for each indentation level.",
             },
             ConfigOption {
+                name: "EnforcedStyleAlignWith",
+                default: ConfigDefault::Str("start_of_line"),
+                allowed: &["start_of_line", "relative_to_receiver"],
+                doc: "Whether a method-chain block's body is indented relative to the start \
+                      of the line the block starts on (`start_of_line`) or relative to the \
+                      method call's position in the chain (`relative_to_receiver`).",
+            },
+            ConfigOption {
                 name: "AllowedPatterns",
                 default: ConfigDefault::StrList(&[]),
                 allowed: &[],
@@ -912,7 +1136,13 @@ verification). Autocorrection does not special-case parenthesized multi-statemen
 `parentheses?` guard); it always narrows to the first statement. Non-heredoc multi-line string/
 symbol literals are not added to the autocorrect taboo ranges (only heredoc bodies are), so a
 reindented statement that embeds a multi-line plain string could shift that string's continuation
-lines; this has not triggered in the fixture set.",
+lines; this has not triggered in the fixture set. A `rescue`/`ensure` body's autocorrect target
+is only the leading statements, where upstream's whitequark `:rescue`/`:ensure` node spans the
+clause keywords and their bodies too, so correcting a misindented `begin`/`rescue`/`ensure`
+leading body does not drag the clause keywords along with it. `other_offense_in_same_range?`
+state is also cleared at the start of every autocorrect round, where upstream's is never reset,
+so a converged correction can differ from upstream's (upstream suppresses later rounds'
+corrections with stale byte ranges).",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
@@ -950,13 +1180,25 @@ lines; this has not triggered in the fixture set.",
             .unwrap_or(DEF_END_ALIGNMENT_DEFAULT)
             == "def";
 
+        let relative_to_receiver =
+            options.style("EnforcedStyleAlignWith")? == "relative_to_receiver";
+
+        let using_tabs = options
+            .peer("Layout/IndentationStyle", "EnforcedStyle")
+            .and_then(|v| v.as_str())
+            .unwrap_or(INDENTATION_STYLE_DEFAULT)
+            == "tabs";
+
         Ok(Self {
             width: options.int("Width"),
             allowed_patterns,
-            indented_internal_methods,
-            access_modifier_outdent,
+            member_style: MemberStyle { indented_internal_methods, access_modifier_outdent },
+            alignment_style: AlignmentStyle {
+                def_end_alignment_is_def,
+                relative_to_receiver,
+                using_tabs,
+            },
             end_alignment,
-            def_end_alignment_is_def,
             offense_ranges: Vec::new(),
             ignored: HashSet::new(),
         })

@@ -1,1 +1,1 @@
-allow(cop).to(receive(:on_int) { raise RuntimeError })
+assert_equal(results.first, posts.find { |p| p.title == "Foo" })

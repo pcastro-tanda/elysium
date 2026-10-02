@@ -1,6 +1,9 @@
 use std::path::{Path, PathBuf};
+use std::sync::LazyLock;
 
 use globset::{Glob, GlobBuilder, GlobSet, GlobSetBuilder};
+
+use crate::defaults::DEFAULT_CONFIG;
 
 /// True when some `/`-separated component of `path` starts with `.` (other
 /// than `.`/`..`), i.e. the path RuboCop's `TargetFinder` considers hidden
@@ -13,65 +16,20 @@ pub fn is_hidden_path(path: &Path) -> bool {
     })
 }
 
-/// RuboCop's `AllCops/Include` defaults (rubocop 1.82).
-pub const DEFAULT_INCLUDE: &[&str] = &[
-    "**/*.rb",
-    "**/*.arb",
-    "**/*.axlsx",
-    "**/*.builder",
-    "**/*.fcgi",
-    "**/*.gemfile",
-    "**/*.gemspec",
-    "**/*.god",
-    "**/*.jb",
-    "**/*.jbuilder",
-    "**/*.mspec",
-    "**/*.opal",
-    "**/*.pluginspec",
-    "**/*.podspec",
-    "**/*.rabl",
-    "**/*.rake",
-    "**/*.rbuild",
-    "**/*.rbw",
-    "**/*.rbx",
-    "**/*.ru",
-    "**/*.ruby",
-    "**/*.schema",
-    "**/*.spec",
-    "**/*.thor",
-    "**/*.watchr",
-    "**/.irbrc",
-    "**/.pryrc",
-    "**/.simplecov",
-    "**/buildfile",
-    "**/Appraisals",
-    "**/Berksfile",
-    "**/Brewfile",
-    "**/Buildfile",
-    "**/Capfile",
-    "**/Cheffile",
-    "**/Dangerfile",
-    "**/Deliverfile",
-    "**/Fastfile",
-    "**/*Fastfile",
-    "**/Gemfile",
-    "**/Guardfile",
-    "**/Jarfile",
-    "**/Mavenfile",
-    "**/Podfile",
-    "**/Puppetfile",
-    "**/Rakefile",
-    "**/rakefile",
-    "**/Schemafile",
-    "**/Snapfile",
-    "**/Steepfile",
-    "**/Thorfile",
-    "**/Vagabondfile",
-    "**/Vagrantfile",
-];
+/// RuboCop's `AllCops/Include` defaults, read straight out of the embedded
+/// `config/default.yml` so the two can never drift.
+pub static DEFAULT_INCLUDE: LazyLock<Vec<String>> = LazyLock::new(|| all_cops_list("Include"));
 
-/// RuboCop's `AllCops/Exclude` defaults (rubocop 1.82).
-pub const DEFAULT_EXCLUDE: &[&str] = &["node_modules/**/*", "tmp/**/*", "vendor/**/*", ".git/**/*"];
+/// RuboCop's `AllCops/Exclude` defaults, read straight out of the embedded
+/// `config/default.yml`.
+pub static DEFAULT_EXCLUDE: LazyLock<Vec<String>> = LazyLock::new(|| all_cops_list("Exclude"));
+
+fn all_cops_list(key: &str) -> Vec<String> {
+    DEFAULT_CONFIG
+        .get_mapping("AllCops")
+        .map(|all_cops| all_cops.get_string_list(key))
+        .unwrap_or_default()
+}
 
 /// Decides which files under a project root are lint targets.
 ///
@@ -141,7 +99,10 @@ impl Clusivity {
                 continue;
             };
             let dotted = has_explicit_dot_segment(pattern);
-            if Path::new(pattern).is_absolute() {
+            // `Config#match_relative_or_absolute_path?` (RuboCop 1.91.0)
+            // matches an absolute pattern, or one reaching out of the config
+            // directory, against the absolute path only.
+            if Path::new(pattern).is_absolute() || pattern.starts_with("..") {
                 has_absolute = true;
                 absolute.add(glob.clone());
                 if dotted {
@@ -166,9 +127,36 @@ impl Clusivity {
         })
     }
 
+    /// Exclude-side matching: a relative pattern is tried against the path
+    /// relative to the configuration's directory and an absolute one against
+    /// the absolute path. RuboCop's `Config#file_to_exclude?` only ever
+    /// matches the absolute path, which agrees because
+    /// `Config#make_excludes_absolute` has already absolutised every
+    /// `Exclude` entry a configuration file declares.
     fn is_match(&self, root: &Path, relative: &Path, default: bool) -> bool {
         if self.unset {
             return default;
+        }
+        if self.relative.is_match(relative) {
+            return true;
+        }
+        self.has_absolute && self.absolute.is_match(root.join(relative))
+    }
+
+    /// `Config#file_to_include?` as of RuboCop 1.91.0, which routes each
+    /// pattern to exactly one of the two paths
+    /// (`Config#match_relative_or_absolute_path?`): the absolute one when the
+    /// pattern is itself absolute or reaches out of the configuration's
+    /// directory, or when the file lies outside that directory; the relative
+    /// one otherwise. Before 1.91.0 every pattern was tried against both.
+    fn is_include_match(&self, root: &Path, relative: &Path, default: bool) -> bool {
+        if self.unset {
+            return default;
+        }
+        if relative.starts_with("..") {
+            let absolute = crate::paths::normalize(&root.join(relative));
+            return self.relative.is_match(&absolute)
+                || (self.has_absolute && self.absolute.is_match(&absolute));
         }
         if self.relative.is_match(relative) {
             return true;
@@ -215,7 +203,8 @@ impl FileMatcher {
 
     /// RuboCop's defaults.
     pub fn rubocop_defaults() -> Self {
-        Self::new(DEFAULT_INCLUDE, DEFAULT_EXCLUDE).expect("default patterns are valid")
+        Self::rooted(PathBuf::new(), Some(&DEFAULT_INCLUDE), Some(&DEFAULT_EXCLUDE))
+            .expect("default patterns are valid")
     }
 
     /// The directory relative paths are resolved against.
@@ -226,7 +215,7 @@ impl FileMatcher {
     /// True when `relative` (a path relative to the project root) matches an
     /// include pattern.
     pub fn is_included(&self, relative: &Path) -> bool {
-        self.include.is_match(&self.root, relative, true)
+        self.include.is_include_match(&self.root, relative, true)
     }
 
     /// True when `relative` is hidden (see [`is_hidden_path`]) and matches an
@@ -309,5 +298,49 @@ mod tests {
         // `**/.simplecov` spells out the dot, so it does.
         assert!(m.is_included_hidden(Path::new(".simplecov")));
         assert!(m.is_included_hidden(Path::new("lib/.simplecov")));
+    }
+
+    #[test]
+    fn defaults_track_the_embedded_default_yml() {
+        // RuboCop 1.91.0 dropped `**/*.fcgi`, `**/*.god`, `**/*.rbuild`,
+        // `**/*.rbx`, `**/*.watchr`, `**/Cheffile` and `**/Vagabondfile` from
+        // `AllCops/Include`.
+        let m = FileMatcher::rubocop_defaults();
+        assert!(!m.is_target(Path::new("dispatch.fcgi")));
+        assert!(!m.is_target(Path::new("Cheffile")));
+        assert!(!m.is_target(Path::new("Vagabondfile")));
+        assert!(m.is_target(Path::new("Vagrantfile")));
+        assert!(m.is_target(Path::new("Steepfile")));
+    }
+
+    #[test]
+    fn includes_match_a_file_outside_the_config_directory_by_absolute_path() {
+        // `Config#match_relative_or_absolute_path?` (RuboCop 1.91.0): a file
+        // whose relative path escapes the configuration's directory is only
+        // ever matched as an absolute path, and so is a pattern that itself
+        // reaches out of it.
+        let exclude: [String; 0] = [];
+        let m = FileMatcher::rooted(
+            "/project/sub",
+            Some(&["**/*.rb".to_string()]),
+            Some(exclude.as_slice()),
+        )
+        .unwrap();
+        assert!(m.is_included(Path::new("app/user.rb")));
+        // `**/*.rb` is tried against `/project/other/user.rb`, which it matches.
+        assert!(m.is_included(Path::new("../other/user.rb")));
+        assert!(!m.is_included(Path::new("../other/user.txt")));
+
+        // A relative pattern spelled with `..` is only ever tried against the
+        // expanded absolute path, which it can never match -- exactly as
+        // `File.fnmatch?('../shared/*.rb', '/project/shared/user.rb')` cannot.
+        let m = FileMatcher::rooted(
+            "/project/sub",
+            Some(&["../shared/*.rb".to_string()]),
+            Some(exclude.as_slice()),
+        )
+        .unwrap();
+        assert!(!m.is_included(Path::new("../shared/user.rb")));
+        assert!(!m.is_included(Path::new("app/user.rb")));
     }
 }

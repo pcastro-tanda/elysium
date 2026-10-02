@@ -1,2 +1,2 @@
-foo&.bar(a: 0,
-         b: 1)
+yield(a: 0,
+      b: 1)
