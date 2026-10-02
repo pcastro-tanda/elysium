@@ -1,0 +1,3 @@
+Rails/TimeZone:
+  AutoCorrect: 'true'
+  EnforcedStyle: strict

@@ -17,5 +17,10 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::redundant_travel_back::RedundantTravelBack,
+    rails::strip_heredoc::StripHeredoc,
+    rails::request_referer::RequestReferer,
+    rails::multiple_route_paths::MultipleRoutePaths,
+    rails::time_zone::TimeZone,
     rails::application_record::ApplicationRecord,
 }
