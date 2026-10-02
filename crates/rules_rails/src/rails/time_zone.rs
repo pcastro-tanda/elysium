@@ -350,7 +350,7 @@ fn attach_timezone_specifier(date: &Node<'_>) -> bool {
     } else if let Some(interpolated) = date.as_interpolated_string_node() {
         // `DstrNode#value`: literal parts' values joined with the source of the rest.
         let mut joined = Vec::new();
-        for part in interpolated.parts().iter() {
+        for part in &interpolated.parts() {
             match part.as_string_node() {
                 Some(string) => joined.extend_from_slice(string.unescaped()),
                 None => joined.extend_from_slice(part.location().as_slice()),
