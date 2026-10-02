@@ -1,0 +1,3 @@
+Style/CollectionMethods:
+  PreferredMethods: {map: collect}
+  Enabled: true

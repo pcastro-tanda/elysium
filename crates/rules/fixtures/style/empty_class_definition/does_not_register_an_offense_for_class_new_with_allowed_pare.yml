@@ -1,0 +1,3 @@
+Style/EmptyClassDefinition:
+  EnforcedStyle: class_new
+  AllowedParentClasses: [ApplicationRecord]

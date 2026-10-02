@@ -1,0 +1,3 @@
+Style/MethodCallWithArgsParentheses:
+  EnforcedStyle: omit_parentheses
+  AllowParenthesesInMultilineCall: true

@@ -48,9 +48,18 @@ per line, which the check honours) and explained here:
   `..._4`, and `style/single_argument_dig/registers_and_corrects_an_offense`: like `style/unless_else` above, upstream relies on `ignore_node` state
   persisting across correction rounds, so the chained inner call stays
   uncorrected; elysium starts every round with a fresh rule.
+- `style/hash_conversion/registers_an_offense_and_corrects_nested_hash_calls_with_mul`,
+  `reports_an_offense_when_using_nested_hash_with_arguments` and
+  `..._without_arguments`: same `ignore_node`-across-rounds artifact; the
+  expected correction stops at a nested `Hash[...]` that `rubocop -A`
+  converts too.
 - `style/rescue_modifier/excluded_file_processes_excluded_files_with_issue`: the
   case sets the cop's `Exclude`, which the fixture harness does not apply (the
   CLI does, before rules run).
+- `style/redundant_line_continuation/does_not_register_an_offense_when_a_line_continuation_prec_2`:
+  the source's last line, `      ^ 4`, is itself valid `^^^` annotation syntax,
+  so the harness strips it as an annotation (upstream's `expect_no_offenses`
+  never parses annotations), leaving the third `\` trailing the program.
 - `style/percent_literal_delimiters`: 7 cases
   (`autocorrect_escape_characters_corrects_r_with_n_in_it`,
   `..._r_with_t_in_it`,

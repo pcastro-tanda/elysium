@@ -1,0 +1,1 @@
+refute_match /^no/i, result

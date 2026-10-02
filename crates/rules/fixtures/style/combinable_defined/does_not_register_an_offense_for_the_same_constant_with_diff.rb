@@ -1,0 +1,1 @@
+defined?(Foo) && defined?(::Foo)

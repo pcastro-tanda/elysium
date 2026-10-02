@@ -1,0 +1,6 @@
+# frozen-string-literal: true
+# encoding: utf-8
+# shareable-constant-value: literal
+# typed: ignore
+
+puts 1

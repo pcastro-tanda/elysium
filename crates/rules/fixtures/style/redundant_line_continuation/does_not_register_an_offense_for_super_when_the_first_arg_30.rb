@@ -1,0 +1,2 @@
+super \
+  defined?(bar)

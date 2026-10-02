@@ -1,0 +1,1 @@
+:sym.to_i(arg)

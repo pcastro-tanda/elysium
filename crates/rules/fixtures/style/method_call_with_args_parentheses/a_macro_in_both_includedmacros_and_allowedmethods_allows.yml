@@ -1,0 +1,4 @@
+Style/MethodCallWithArgsParentheses:
+  IgnoreMacros: 'true'
+  IncludedMacros: [bar]
+  AllowedMethods: [bar]

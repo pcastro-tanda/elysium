@@ -1,0 +1,2 @@
+Style/EndlessMethod:
+  EnforcedStyle: require_single_line

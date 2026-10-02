@@ -1,0 +1,3 @@
+<<~MYHEREDOC
+fo\u006f
+MYHEREDOC

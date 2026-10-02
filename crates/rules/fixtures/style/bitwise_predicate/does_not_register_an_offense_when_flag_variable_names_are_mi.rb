@@ -1,0 +1,1 @@
+(flags & variable) == flagments

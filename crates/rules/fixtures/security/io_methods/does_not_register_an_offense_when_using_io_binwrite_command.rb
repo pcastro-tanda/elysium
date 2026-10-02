@@ -1,0 +1,1 @@
+IO.binwrite("| command", "hi")

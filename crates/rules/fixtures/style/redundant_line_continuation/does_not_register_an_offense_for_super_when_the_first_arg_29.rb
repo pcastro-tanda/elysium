@@ -1,0 +1,2 @@
+super \
+  %s[bar]

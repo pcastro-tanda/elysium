@@ -1,0 +1,1 @@
+Foo::MIN...Foo::MAX

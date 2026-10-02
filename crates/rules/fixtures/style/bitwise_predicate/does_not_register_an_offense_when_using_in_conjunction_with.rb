@@ -1,0 +1,1 @@
+(variable & flags) > 1

@@ -1,0 +1,2 @@
+Style/ObjectThen:
+  EnforcedStyle: yield_self

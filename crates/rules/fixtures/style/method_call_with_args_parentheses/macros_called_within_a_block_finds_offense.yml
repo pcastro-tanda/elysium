@@ -1,0 +1,3 @@
+Style/MethodCallWithArgsParentheses:
+  IgnoreMacros: 'true'
+  IncludedMacros: [assert_equal]

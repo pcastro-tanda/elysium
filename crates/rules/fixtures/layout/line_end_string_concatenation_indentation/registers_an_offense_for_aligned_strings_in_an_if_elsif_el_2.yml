@@ -1,0 +1,4 @@
+Layout/LineEndStringConcatenationIndentation:
+  EnforcedStyle: indented
+Layout/IndentationStyle:
+  EnforcedStyle: ~

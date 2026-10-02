@@ -1,0 +1,2 @@
+bar \
+  while foo

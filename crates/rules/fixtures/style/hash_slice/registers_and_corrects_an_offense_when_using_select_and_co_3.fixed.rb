@@ -1,0 +1,1 @@
+hash.slice('str')

@@ -1,0 +1,9 @@
+Layout/RedundantLineBreak:
+  Enabled: true
+  InspectBlocks: true
+Layout/LineLength:
+  Max: 20
+  AllowHeredoc: false
+  AllowURI: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false

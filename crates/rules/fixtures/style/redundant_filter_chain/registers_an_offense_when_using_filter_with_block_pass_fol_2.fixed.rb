@@ -1,0 +1,1 @@
+arr&.none?(&:odd?)

@@ -51,15 +51,39 @@ offenses, over the identical 22,282-file set; elysium 11 s, RuboCop `-P` 155 s.
 - ERB: none in elysium; payaus replaces the ERB block with the static list
   (decision C).
 
-### 2. Remaining core cops payaus enables (~3-4 waves)
-158 cops: 123 pending (Lint 43, Style 69, Gemspec 5, Layout 4, Security 2),
-13 opt-in (`Layout/ClassStructure`, the 5 `First*LineBreak`/
-`MultilineHashKeyLineBreaks`, `Style/AutoResourceCleanup`, `CollectionMethods`,
-`DateTime`, `MethodCallWithArgsParentheses`, `MultilineMethodSignature`,
-`ReturnNil`, `Send`), and 22 added in 1.83-1.91 (Lint 7, Style 15). Same
-pipeline as waves 3-11: fixtures from 1.91.0 specs, conformance on
-discourse/mastodon and payaus.
-`Style/DoubleCopDisableDirective` is obsolete in 1.91 and is not ported.
+### 2. Remaining core cops payaus enables — done
+158 cops (`docs/planning/waves/payaus-step2.txt`): 123 pending (Lint 43,
+Style 69, Gemspec 5, Layout 4, Security 2), 13 opt-in (`Layout/ClassStructure`,
+the 5 `First*LineBreak`/`MultilineHashKeyLineBreaks`, `Style/AutoResourceCleanup`,
+`CollectionMethods`, `DateTime`, `MethodCallWithArgsParentheses`,
+`MultilineMethodSignature`, `ReturnNil`, `Send`), and 22 added in 1.83-1.91
+(Lint 7, Style 15). `Style/DoubleCopDisableDirective` is obsolete in 1.91 and
+is not ported.
+
+Result: 154 are implemented and stable, reporting exactly RuboCop 1.91.0's offenses
+on discourse and mastodon (own config and `--defaults`). On payaus, all 498
+implemented target cops (344 + 154) agree over the identical 22,282-file set;
+elysium takes 10 s.
+
+- Nursery no-ops: `Lint/ArgumentMismatch`, `DeprecatedReference`, `NameTypo`,
+  `SuperArgumentMismatch` resolve methods/constants across files, which needs
+  a project index elysium doesn't have.
+- Engine: `rule_set!` boxes the slot chain in balanced groups of 32 rules; at
+  ~555 rules, the nested slot types overflowed the 2 MiB test-thread stack in
+  debug builds.
+- `Style/MethodCallWithArgsParentheses`: `in_macro_scope?` mapped onto Prism
+  (`ProgramNode` is `root?`, a `BlockNode` continues from its call, a `begin`
+  with `rescue`/`ensure` is not a wrapper), and a `&blk` pass counts as an
+  argument, as in whitequark.
+- Removed fixture cases (README "Deliberately removed cases"): 3
+  `Style/HashConversion` (`ignore_node` across correction rounds) and 1
+  `Style/RedundantLineContinuation` (its last source line parses as an
+  annotation).
+- Known blind spots, recorded per cop: `MethodCallWithArgsParentheses`
+  `omit_parentheses` has no reparse safety net; `Layout/ClassStructure`
+  doesn't check sibling adjacency across `begin` blocks; `RedundantFormat` and
+  `MagicCommentFormat` approximate parts of upstream; `RedundantConstantBase`
+  has no project index.
 
 ### 3. Extension cops (~5 waves)
 250 cops payaus enables: Rails 115, Minitest 49, Performance 41, Sorbet 36,

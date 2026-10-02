@@ -1,0 +1,3 @@
+<<~'MYHEREDOC'
+fo\157
+MYHEREDOC

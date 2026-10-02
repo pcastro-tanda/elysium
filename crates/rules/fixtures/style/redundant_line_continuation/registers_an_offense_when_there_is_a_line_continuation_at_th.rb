@@ -1,0 +1,2 @@
+foo \
+    ^ Redundant line continuation.

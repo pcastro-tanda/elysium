@@ -1,0 +1,1 @@
+foo().bar(3).quux.wait(4)

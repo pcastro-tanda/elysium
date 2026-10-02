@@ -1,0 +1,21 @@
+# Style/MinMaxComparison
+
+Enforces the use of `max` or `min` instead of comparison for greater or less.
+
+| | |
+| --- | --- |
+| Department | Style |
+| Enabled by default | false |
+| Default severity | convention |
+| Fix | unsafe |
+| Stability | stable |
+
+
+
+## Options
+
+This rule has no options.
+
+## Blind spots
+
+None recorded.

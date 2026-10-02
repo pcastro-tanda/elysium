@@ -1,0 +1,1 @@
+top.test(:first, {foo: :bar}.merge(baz: :maz))

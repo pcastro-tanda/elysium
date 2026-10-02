@@ -1,0 +1,1 @@
+Integer("number", exception: true)

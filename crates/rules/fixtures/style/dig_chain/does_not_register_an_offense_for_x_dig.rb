@@ -1,0 +1,1 @@
+X::dig(:foo, :bar)

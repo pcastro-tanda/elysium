@@ -1,0 +1,1 @@
+Set.new.to_a(arg)

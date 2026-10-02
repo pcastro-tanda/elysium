@@ -1,0 +1,1 @@
+File.binwrite(path, "hi")

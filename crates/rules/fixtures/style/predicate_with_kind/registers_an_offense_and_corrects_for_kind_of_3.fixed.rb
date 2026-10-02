@@ -1,0 +1,1 @@
+array.none?(String)

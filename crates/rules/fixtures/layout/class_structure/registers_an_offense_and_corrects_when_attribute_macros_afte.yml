@@ -1,0 +1,3 @@
+Layout/ClassStructure:
+  ExpectedOrder: [all_constants, attribute_macros]
+  Categories: {all_constants: [constants], attribute_macros: [attr_accessor]}

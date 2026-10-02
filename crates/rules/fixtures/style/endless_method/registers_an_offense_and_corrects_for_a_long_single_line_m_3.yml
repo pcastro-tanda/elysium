@@ -1,0 +1,9 @@
+Style/EndlessMethod:
+  EnforcedStyle: require_always
+Layout/LineLength:
+  Enabled: false
+  Max: 80
+  AllowHeredoc: false
+  AllowURI: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false

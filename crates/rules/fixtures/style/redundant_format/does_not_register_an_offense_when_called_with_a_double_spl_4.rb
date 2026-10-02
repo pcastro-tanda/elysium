@@ -1,0 +1,1 @@
+sprintf('%<username>s', **args)

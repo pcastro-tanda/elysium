@@ -1,0 +1,1 @@
+IO.readlines(" | command")

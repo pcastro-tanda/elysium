@@ -1,0 +1,1 @@
+class FooError < StandardError; end

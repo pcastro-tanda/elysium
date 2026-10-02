@@ -1,0 +1,3 @@
+<<~'MYHEREDOC'
+\#$foo
+MYHEREDOC

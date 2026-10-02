@@ -1,0 +1,3 @@
+Style/MagicCommentFormat:
+  DirectiveCapitalization: uppercase
+  ValueCapitalization: lowercase

@@ -1,0 +1,1 @@
+SortedSet[foo, bar]

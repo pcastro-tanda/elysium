@@ -1,0 +1,2 @@
+Style/EmptyStringInsideInterpolation:
+  EnforcedStyle: ternary
