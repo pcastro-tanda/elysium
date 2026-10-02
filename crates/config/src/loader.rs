@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use crate::defaults::{DEFAULT_CONFIG, DEPARTMENTS};
 use crate::error::ConfigError;
 use crate::gems::{self, GemSearch};
+use crate::lockfile::{self, GemVersions};
 use crate::merge::{
     inherit_mode_for, merge, override_department_setting_for_cops,
     override_enabled_for_disabled_departments, preview_enabled, with_preview_exclude_merge,
@@ -41,6 +42,8 @@ pub struct ConfigLoader {
     /// `(gem, config/default.yml text)` merged into the defaults as though
     /// that gem were a loaded plugin; see [`Self::with_extension_defaults`].
     extension_defaults: Vec<(&'static str, &'static str)>,
+    /// Stands in for the lockfile's gem versions; see [`Self::with_gem_versions`].
+    gem_versions: Option<GemVersions>,
 }
 
 impl Default for ConfigLoader {
@@ -80,7 +83,16 @@ impl ConfigLoader {
             allow_gem_lookup: true,
             ignore_parent_exclusion: false,
             extension_defaults: Vec::new(),
+            gem_versions: None,
         }
+    }
+
+    /// Uses `versions` as the target's locked gems instead of reading a
+    /// lockfile, as RuboCop's specs stub `Config#gem_versions_in_target`.
+    #[must_use]
+    pub fn with_gem_versions(mut self, versions: GemVersions) -> Self {
+        self.gem_versions = Some(versions);
+        self
     }
 
     /// Overrides the working directory, which is where paths in config files
@@ -227,6 +239,11 @@ impl ConfigLoader {
         };
         let mut resolved = resolved;
         infer_target_ruby_version(&mut resolved, &root);
+        // `Config#bundler_lock_file_path` needs a loaded configuration file.
+        let gem_versions = self.gem_versions.clone().or_else(|| {
+            loaded_path.as_ref()?;
+            lockfile::find_bundler_lockfile(&root).map(|path| lockfile::read_gem_versions(&path))
+        });
         Ok(LoadedConfig::new(
             resolved,
             loaded_path,
@@ -234,7 +251,8 @@ impl ConfigLoader {
             state.extensions,
             resolved_extensions,
             state.warnings,
-        ))
+        )
+        .with_gem_versions(gem_versions))
     }
 
     /// RuboCop's `ConfigLoader.load_file`: read, resolve `inherit_gem`,
