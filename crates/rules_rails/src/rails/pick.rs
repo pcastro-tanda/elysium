@@ -8,8 +8,6 @@ use linter::{
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
-use super::application_record::target_rails_version;
-
 /// `minimum_target_rails_version 6.0`.
 const MINIMUM_TARGET_RAILS_VERSION: f64 = 6.0;
 
@@ -48,7 +46,7 @@ impl Rule for Pick {
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
-        Ok(Self { supported: target_rails_version(options) >= MINIMUM_TARGET_RAILS_VERSION })
+        Ok(Self { supported: options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION })
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {

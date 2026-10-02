@@ -8,7 +8,6 @@ use linter::{
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
-
 const SPECIFY_MSG: &str = "Specify an `:inverse_of` option.";
 const NIL_MSG: &str =
     "You specified `inverse_of: nil`, you probably meant to use `inverse_of: false`.";
