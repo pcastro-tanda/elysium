@@ -6,7 +6,7 @@ use linter::{
     Stability,
 };
 use ruby_ast::ext::{const_name, is_bare_or_toplevel_const};
-use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind, each_descendant};
+use ruby_ast::{each_descendant, LocationExt as _, Node, NodeExt as _, NodeKind};
 
 const MSG: &str = "Tagging a string as html safe may be a security risk.";
 
@@ -49,8 +49,7 @@ impl Rule for OutputSafety {
         let Some(selector) = call.message_loc() else { return };
 
         // A `&block` argument is an ordinary `send` argument in whitequark.
-        let block_argument =
-            call.block().filter(|block| block.as_block_argument_node().is_some());
+        let block_argument = call.block().filter(|block| block.as_block_argument_node().is_some());
         let argument_count = call.arguments().map_or(0, |args| args.arguments().iter().count())
             + usize::from(block_argument.is_some());
 
@@ -72,7 +71,7 @@ impl Rule for OutputSafety {
             each_descendant(receiver, &mut visit);
         }
         if let Some(arguments) = call.arguments() {
-            for argument in arguments.arguments().iter() {
+            for argument in &arguments.arguments() {
                 visit(&argument);
                 each_descendant(&argument, &mut visit);
             }
@@ -100,9 +99,11 @@ impl Rule for OutputSafety {
 fn non_interpolated_string(node: &Node<'_>) -> bool {
     match node.kind() {
         NodeKind::StringNode | NodeKind::SourceFileNode => true,
-        NodeKind::InterpolatedStringNode => node
-            .as_interpolated_string_node()
-            .is_some_and(|string| string.parts().iter().all(|part| part.as_string_node().is_some())),
+        NodeKind::InterpolatedStringNode => {
+            node.as_interpolated_string_node().is_some_and(|string| {
+                string.parts().iter().all(|part| part.as_string_node().is_some())
+            })
+        }
         _ => false,
     }
 }

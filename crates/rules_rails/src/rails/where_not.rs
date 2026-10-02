@@ -11,7 +11,8 @@ use ruby_source::Span;
 
 // Ruby's `\w` and `\s` are ASCII-only, unlike the `regex` crate's.
 /// `column != ?`, `column <> ?`.
-const NOT_EQ_ANONYMOUS: &str = r"\A([A-Za-z0-9_.]+)[ \t\r\n\x0c\x0b]+(?:!=|<>)[ \t\r\n\x0c\x0b]+\?\z";
+const NOT_EQ_ANONYMOUS: &str =
+    r"\A([A-Za-z0-9_.]+)[ \t\r\n\x0c\x0b]+(?:!=|<>)[ \t\r\n\x0c\x0b]+\?\z";
 /// `column NOT IN (?)`.
 const NOT_IN_ANONYMOUS: &str =
     r"(?i)\A([A-Za-z0-9_.]+)[ \t\r\n\x0c\x0b]+NOT[ \t\r\n\x0c\x0b]+IN[ \t\r\n\x0c\x0b]+\(\?\)\z";
@@ -21,7 +22,8 @@ const NOT_EQ_NAMED: &str =
 /// `column NOT IN (:column)`.
 const NOT_IN_NAMED: &str = r"(?i)\A([A-Za-z0-9_.]+)[ \t\r\n\x0c\x0b]+NOT[ \t\r\n\x0c\x0b]+IN[ \t\r\n\x0c\x0b]+\(:([A-Za-z0-9_]+)\)\z";
 /// `column IS NOT NULL`.
-const IS_NOT_NULL: &str = r"(?i)\A([A-Za-z0-9_.]+)[ \t\r\n\x0c\x0b]+IS[ \t\r\n\x0c\x0b]+NOT[ \t\r\n\x0c\x0b]+NULL\z";
+const IS_NOT_NULL: &str =
+    r"(?i)\A([A-Za-z0-9_.]+)[ \t\r\n\x0c\x0b]+IS[ \t\r\n\x0c\x0b]+NOT[ \t\r\n\x0c\x0b]+NULL\z";
 
 /// Identifies places where manually constructed SQL in `where` can be
 /// replaced with `where.not(...)`.
@@ -80,8 +82,7 @@ impl Rule for WhereNot {
         let mut arguments: Vec<Node<'_>> =
             call.arguments().map_or_else(Vec::new, |args| args.arguments().iter().collect());
         let literal_block = call.block().is_some_and(|block| block.as_block_node().is_some());
-        if let Some(block) = call.block().filter(|block| block.as_block_argument_node().is_some())
-        {
+        if let Some(block) = call.block().filter(|block| block.as_block_argument_node().is_some()) {
             arguments.push(block);
         }
 
@@ -92,18 +93,19 @@ impl Rule for WhereNot {
                 let elements: Vec<Node<'_>> = array.elements().iter().collect();
                 match elements.as_slice() {
                     [template] => (template.as_string_node(), None),
-                    [template, value] => (template.as_string_node(), Some(value.clone())),
+                    [template, value] => (template.as_string_node(), Some(*value)),
                     _ => return,
                 }
             }
             [template] => (template.as_string_node(), None),
-            [template, value] => (template.as_string_node(), Some(value.clone())),
+            [template, value] => (template.as_string_node(), Some(*value)),
             _ => return,
         };
         let Some(template) = template else { return };
         let Ok(template) = std::str::from_utf8(template.unescaped()) else { return };
 
-        let Some((column, value)) = self.extract_column_and_value(ctx, template, value_node.as_ref())
+        let Some((column, value)) =
+            self.extract_column_and_value(ctx, template, value_node.as_ref())
         else {
             return;
         };
@@ -124,9 +126,8 @@ impl Rule for WhereNot {
             String::from_utf8_lossy(ctx.text(loc.span())).into_owned()
         });
         let good_method = build_good_method(&dot, column, &value);
-        let message = format!(
-            "Use `{good_method}` instead of manually constructing negated SQL in `where`."
-        );
+        let message =
+            format!("Use `{good_method}` instead of manually constructing negated SQL in `where`.");
         ctx.report_with_fix(
             &Self::META,
             range,
@@ -155,10 +156,8 @@ impl WhereNot {
             .or_else(|| self.not_in_anonymous.captures(template))
         {
             (captures.get(1)?.as_str(), value_node.map(source)?)
-        } else if let Some(captures) = self
-            .not_eq_named
-            .captures(template)
-            .or_else(|| self.not_in_named.captures(template))
+        } else if let Some(captures) =
+            self.not_eq_named.captures(template).or_else(|| self.not_in_named.captures(template))
         {
             let name = captures.get(2)?.as_str().as_bytes();
             let value = value_node?;
@@ -167,13 +166,14 @@ impl WhereNot {
                 NodeKind::KeywordHashNode => value.as_keyword_hash_node()?.elements(),
                 _ => return None,
             };
-            let pair = elements.iter().filter_map(|element| element.as_assoc_node()).find(|pair| {
-                let key = pair.key();
-                key.as_symbol_node()
-                    .map(|symbol| symbol.unescaped().to_vec())
-                    .or_else(|| key.as_string_node().map(|string| string.unescaped().to_vec()))
-                    .is_some_and(|key| key == name)
-            })?;
+            let pair =
+                elements.iter().filter_map(|element| element.as_assoc_node()).find(|pair| {
+                    let key = pair.key();
+                    key.as_symbol_node()
+                        .map(|symbol| symbol.unescaped().to_vec())
+                        .or_else(|| key.as_string_node().map(|string| string.unescaped().to_vec()))
+                        .is_some_and(|key| key == name)
+                })?;
             let pair_value = pair.value();
             let text = if pair_value.as_implicit_node().is_some() {
                 let key = ctx.text(pair.key().span());
@@ -182,10 +182,9 @@ impl WhereNot {
                 source(&pair_value)
             };
             (captures.get(1)?.as_str(), text)
-        } else if let Some(captures) = self.is_not_null.captures(template) {
-            (captures.get(1)?.as_str(), "nil".to_owned())
         } else {
-            return None;
+            let captures = self.is_not_null.captures(template)?;
+            (captures.get(1)?.as_str(), "nil".to_owned())
         };
         if qualifier.bytes().filter(|&b| b == b'.').count() > 1 {
             return None;

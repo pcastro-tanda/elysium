@@ -2,7 +2,7 @@
 //! `lib/rubocop/cop/rails/not_null_column.rb` (with its
 //! `DatabaseTypeResolvable` mixin).
 
-use config::{Mapping, YamlValue, parse_yaml};
+use config::{parse_yaml, Mapping, YamlValue};
 use linter::{
     ConfigDefault, ConfigOption, Context, Department, FixAvailability, OptionError, OptionValue,
     Rule, RuleMeta, RuleOptions, Severity, Stability,
@@ -12,7 +12,7 @@ use ruby_ast::{Node, NodeExt as _, NodeKind};
 const MSG: &str = "Do not add a NOT NULL column without a default value.";
 const DATABASE_YAML: &str = "config/database.yml";
 
-/// Checks for add_column calls with a NOT NULL constraint without a default value.
+/// Checks for `add_column` calls with a NOT NULL constraint without a default value.
 #[derive(Debug, Clone)]
 pub struct NotNullColumn {
     /// `cop_config['Database']`, when set.
@@ -103,8 +103,7 @@ impl NotNullColumn {
     /// `(block (send nil? :change_table ...) (args (arg $_)) _)`.
     fn check_change_table(&mut self, ctx: &mut Context<'_>, call: &ruby_ast::node::CallNode<'_>) {
         let Some(block) = call.block().and_then(|block| block.as_block_node()) else { return };
-        let Some(parameters) = block.parameters().and_then(|p| p.as_block_parameters_node())
-        else {
+        let Some(parameters) = block.parameters().and_then(|p| p.as_block_parameters_node()) else {
             return;
         };
         if !parameters.locals().is_empty() {
@@ -127,7 +126,7 @@ impl NotNullColumn {
 
         let Some(body) = block.body() else { return };
         let Some(statements) = body.as_statements_node() else { return };
-        for child in statements.body().iter() {
+        for child in &statements.body() {
             let Some(child) = child.as_call_node() else { continue };
             // `(send (lvar $_) ...)`.
             let Some(receiver) = child.receiver().and_then(|r| r.as_local_variable_read_node())
@@ -264,7 +263,9 @@ fn database_from_yaml() -> Option<String> {
 
 fn adapter_of(mapping: &Mapping) -> Option<String> {
     let adapter = mapping.get("adapter")?;
-    adapter.is_truthy().then(|| adapter.as_str().map_or_else(|| format!("{adapter:?}"), str::to_owned))
+    adapter
+        .is_truthy()
+        .then(|| adapter.as_str().map_or_else(|| format!("{adapter:?}"), str::to_owned))
 }
 
 /// `database_yaml(environment)`: the environment's hash in `config/database.yml`.

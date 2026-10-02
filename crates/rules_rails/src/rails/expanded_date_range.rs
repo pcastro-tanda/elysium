@@ -132,9 +132,7 @@ fn as_send<'pr>(node: &Node<'pr>) -> Option<Send<'pr>> {
     let mut arguments: Vec<Node<'pr>> =
         call.arguments().map_or_else(Vec::new, |args| args.arguments().iter().collect());
     if let Some(block) = call.block() {
-        if block.as_block_argument_node().is_none() {
-            return None;
-        }
+        block.as_block_argument_node()?;
         arguments.push(block);
     }
     Some(Send { receiver: call.receiver()?, name: call.name().as_slice().to_vec(), arguments })
