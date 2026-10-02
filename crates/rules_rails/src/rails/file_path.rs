@@ -1,6 +1,8 @@
 //! `Rails/FilePath`, ported from rubocop-rails's
 //! `lib/rubocop/cop/rails/file_path.rb`.
 
+use std::fmt::Write as _;
+
 use linter::{
     Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
     OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
@@ -84,9 +86,11 @@ impl FilePath {
         }
         let parts: Vec<Node<'_>> = string.parts().iter().collect();
         // `dstr_separated_by_colon?`
-        if parts.iter().skip(1).any(|part| {
-            part.as_string_node().is_some() && ctx.text(part.span()).starts_with(b":")
-        }) {
+        if parts
+            .iter()
+            .skip(1)
+            .any(|part| part.as_string_node().is_some() && ctx.text(part.span()).starts_with(b":"))
+        {
             return;
         }
         let Some(index) = parts.iter().position(contains_rails_root) else { return };
@@ -103,8 +107,7 @@ impl FilePath {
         ctx: &mut Context<'_>,
     ) {
         let Some(slash_node) = parts.get(index + 1) else { return };
-        if slash_node.as_string_node().is_none() || !ctx.text(slash_node.span()).starts_with(b"/")
-        {
+        if slash_node.as_string_node().is_none() || !ctx.text(slash_node.span()).starts_with(b"/") {
             return;
         }
         let Some(root_node) = interpolated_first_statement(&parts[index]) else { return };
@@ -154,16 +157,15 @@ impl FilePath {
         {
             return;
         }
-        let edits = interpolated_first_statement(&parts[index])
-            .and_then(|root_node| {
-                let call = root_node.as_call_node()?;
-                let last = arguments_of(&call).pop()?;
-                let closing = last.as_string_node()?.closing_loc()?;
-                Some(vec![
-                    Edit::insert(closing.span().start, ctx.text(extension_node.span()).to_vec()),
-                    Edit::delete(extension_node.span()),
-                ])
-            });
+        let edits = interpolated_first_statement(&parts[index]).and_then(|root_node| {
+            let call = root_node.as_call_node()?;
+            let last = arguments_of(&call).pop()?;
+            let closing = last.as_string_node()?.closing_loc()?;
+            Some(vec![
+                Edit::insert(closing.span().start, ctx.text(extension_node.span()).to_vec()),
+                Edit::delete(extension_node.span()),
+            ])
+        });
         self.register(ctx, node.span(), false, edits);
     }
 
@@ -183,11 +185,7 @@ impl FilePath {
         }
     }
 
-    fn check_file_join_with_rails_root(
-        &self,
-        call: &CallNode<'_>,
-        ctx: &mut Context<'_>,
-    ) {
+    fn check_file_join_with_rails_root(&self, call: &CallNode<'_>, ctx: &mut Context<'_>) {
         // `(send (const {nil? cbase} :File) :join ...)`
         let Some(receiver) = call.receiver() else { return };
         if !is_bare_or_toplevel_const(&receiver) || const_name(&receiver).as_deref() != Some("File")
@@ -479,7 +477,7 @@ fn ruby_inspect(value: &str) -> String {
             '#' if matches!(chars.peek(), Some('{' | '$' | '@')) => out.push_str("\\#"),
             '\u{7f}' => out.push_str("\\x7F"),
             c if c.is_control() => {
-                out.push_str(&format!("\\u{:04X}", u32::from(c)));
+                let _ = write!(out, "\\u{:04X}", u32::from(c));
             }
             c => out.push(c),
         }

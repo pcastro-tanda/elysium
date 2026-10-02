@@ -63,10 +63,8 @@ fn render_with_inline_option(node: &Node<'_>) -> Option<Span> {
     let (Some(argument), None) = (arguments.next(), arguments.next()) else { return None };
     let elements = if let Some(hash) = argument.as_keyword_hash_node() {
         hash.elements()
-    } else if let Some(hash) = argument.as_hash_node() {
-        hash.elements()
     } else {
-        return None;
+        argument.as_hash_node()?.elements()
     };
     let found = elements.iter().any(|element| {
         let Some(pair) = element.as_assoc_node() else { return false };

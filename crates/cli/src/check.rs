@@ -314,10 +314,11 @@ pub struct CopOverride {
 /// stays cheap.
 fn cop_overrides(cfg: &LoadedConfig, only: &[String]) -> Vec<CopOverride> {
     cfg.cops()
-        .filter(|(_, cop)| {
+        .filter(|(name, cop)| {
             !cop.enabled
                 || !cop.include.is_empty()
                 || !cop.exclude.is_empty()
+                || cfg.cop_file_matcher(name).is_some()
                 || cop.severity.is_some()
         })
         .map(|(name, cop)| CopOverride {
