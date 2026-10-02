@@ -155,7 +155,7 @@ fn extract_column_and_value(
             hash.as_hash_node()?.elements().iter().collect()
         };
         let wanted = captures[2].as_bytes();
-        let pair = elements.iter().filter_map(|element| element.as_assoc_node()).find(|pair| {
+        let pair = elements.iter().filter_map(Node::as_assoc_node).find(|pair| {
             let key = pair.key();
             if let Some(symbol) = key.as_symbol_node() {
                 symbol.unescaped() == wanted
@@ -164,10 +164,9 @@ fn extract_column_and_value(
             }
         })?;
         (captures[1].to_owned(), source(&pair.value()))
-    } else if let Some(captures) = patterns.is_null.captures(template) {
-        (captures[1].to_owned(), "nil".to_owned())
     } else {
-        return None;
+        let captures = patterns.is_null.captures(template)?;
+        (captures[1].to_owned(), "nil".to_owned())
     };
     (column.matches('.').count() <= 1).then_some((column, value))
 }

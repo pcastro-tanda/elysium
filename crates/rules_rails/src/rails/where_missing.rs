@@ -82,7 +82,7 @@ impl Rule for WhereMissing {
             {
                 return false;
             }
-            found = Some((where_node.clone(), where_call, argument));
+            found = Some((*where_node, where_call, argument));
             true
         });
         let Some((where_node, where_call, argument)) = found else { return };
@@ -104,7 +104,7 @@ impl Rule for WhereMissing {
             .and_then(|args| args.arguments().first())
             .is_some_and(|hash| hash_elements(&hash).is_some_and(|elements| elements.len() > 1));
         if multi_condition {
-            let mut hash_stack = vec![where_node.clone()];
+            let mut hash_stack = vec![where_node];
             walk(&mut hash_stack, true, &mut |stack| {
                 let Some(elements) = stack.last().and_then(hash_elements) else { return false };
                 for (index, element) in elements.iter().enumerate() {
@@ -158,12 +158,12 @@ fn find_path<'pr>(node: &Node<'pr>, target: Span, path: &mut Vec<Node<'pr>>) -> 
     if span.start > target.start || span.end < target.end {
         return false;
     }
-    path.push(node.clone());
+    path.push(*node);
     if node.kind() == NodeKind::CallNode && span == target {
         return true;
     }
     let mut children = Vec::new();
-    for_each_child(node, |child| children.push(child.clone()));
+    for_each_child(node, |child| children.push(*child));
     for child in &children {
         if find_path(child, target, path) {
             return true;
@@ -215,9 +215,9 @@ fn walk<'pr>(
     if visit(stack) {
         return true;
     }
-    let Some(node) = stack.last().cloned() else { return false };
+    let Some(node) = stack.last().copied() else { return false };
     let mut children = Vec::new();
-    for_each_child(&node, |child| children.push(child.clone()));
+    for_each_child(&node, |child| children.push(*child));
     for child in children {
         if top && child.kind() == NodeKind::BlockNode && node.as_call_node().is_some() {
             continue;

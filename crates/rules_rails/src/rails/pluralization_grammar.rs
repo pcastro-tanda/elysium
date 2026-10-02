@@ -27,7 +27,7 @@ const METHODS: &[(&str, &str)] = &[
     ("zettabyte", "zettabytes"),
 ];
 
-/// Checks for correct grammar when using ActiveSupport's core extensions to
+/// Checks for correct grammar when using `ActiveSupport`'s core extensions to
 /// the numeric classes.
 #[derive(Debug, Clone)]
 pub struct PluralizationGrammar;
@@ -37,7 +37,7 @@ impl Rule for PluralizationGrammar {
         name: "Rails/PluralizationGrammar",
         department: Department::Rails,
         summary: "Checks for incorrect grammar when using methods like `3.day.ago`.",
-        explanation: "Checks for correct grammar when using ActiveSupport's core extensions to \
+        explanation: "Checks for correct grammar when using `ActiveSupport`'s core extensions to \
                       the numeric classes.\n\n```ruby\n# bad\n3.day.ago\n1.months.ago\n\
                       5.megabyte\n1.gigabytes\n\n# good\n3.days.ago\n1.month.ago\n\
                       5.megabytes\n1.gigabyte\n```",
@@ -70,7 +70,7 @@ impl Rule for PluralizationGrammar {
 
         let plural_method = method == plural;
         let singular_receiver = number.abs_is_one;
-        if !((singular_receiver && plural_method) || (!singular_receiver && !plural_method)) {
+        if singular_receiver != plural_method {
             return;
         }
         let correct = if plural_method { singular } else { plural };
@@ -98,7 +98,10 @@ impl Number {
     fn of(node: &Node<'_>, ctx: &Context<'_>) -> Option<Self> {
         if let Some(float) = node.as_float_node() {
             let value = float.value();
-            return Some(Self { text: ruby_float_to_s(value), abs_is_one: value.abs() == 1.0 });
+            return Some(Self {
+                text: ruby_float_to_s(value),
+                abs_is_one: (value.abs() - 1.0).abs() < f64::EPSILON,
+            });
         }
         node.as_integer_node()?;
         let source = String::from_utf8_lossy(ctx.text(node.span())).replace('_', "");

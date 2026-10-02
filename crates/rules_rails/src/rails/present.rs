@@ -20,8 +20,19 @@ pub struct Present {
     not_blank: bool,
     unless_blank: bool,
     /// `config.cop_enabled?('Style/UnlessElse')`.
-    unless_else_enabled: bool,
+    unless_else: UnlessElse,
 }
+
+/// Whether `Style/UnlessElse` is enabled.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+enum UnlessElse {
+    Enabled,
+    Disabled,
+}
+
+/// A captured variable: `None` when the matched send has no receiver.
+#[derive(Debug, Clone, Copy)]
+struct Subject<'pr>(Option<Node<'pr>>);
 
 impl Rule for Present {
     const META: RuleMeta = RuleMeta {
@@ -70,10 +81,14 @@ impl Rule for Present {
             not_nil_and_not_empty: options.bool("NotNilAndNotEmpty"),
             not_blank: options.bool("NotBlank"),
             unless_blank: options.bool("UnlessBlank"),
-            unless_else_enabled: !matches!(
+            unless_else: if matches!(
                 options.peer("Style/UnlessElse", "Enabled"),
                 Some(OptionValue::Bool(false))
-            ),
+            ) {
+                UnlessElse::Disabled
+            } else {
+                UnlessElse::Enabled
+            },
         })
     }
 
@@ -95,10 +110,10 @@ impl Present {
         let Some(receiver) = not_blank(node) else { return };
         let message = format!(
             "Use `{}` instead of `{}`.",
-            replacement(ctx, receiver.as_ref()),
+            replacement(ctx, receiver),
             String::from_utf8_lossy(ctx.text(node.span()))
         );
-        report(ctx, node.span(), message, node.span(), receiver.as_ref());
+        report(ctx, node.span(), message, node.span(), receiver);
     }
 
     fn on_and(&self, node: &Node<'_>, ctx: &mut Context<'_>) {
@@ -109,10 +124,10 @@ impl Present {
         let Some(var) = exists_and_not_empty(ctx, &and.left(), &and.right()) else { return };
         let message = format!(
             "Use `{}` instead of `{}`.",
-            replacement(ctx, var.as_ref()),
+            replacement(ctx, var),
             String::from_utf8_lossy(ctx.text(node.span()))
         );
-        report(ctx, node.span(), message, node.span(), var.as_ref());
+        report(ctx, node.span(), message, node.span(), var);
     }
 
     fn on_unless(&self, node: &Node<'_>, ctx: &mut Context<'_>) {
@@ -120,7 +135,7 @@ impl Present {
             return;
         }
         let Some(unless) = node.as_unless_node() else { return };
-        if unless.else_clause().is_some() && self.unless_else_enabled {
+        if unless.else_clause().is_some() && self.unless_else == UnlessElse::Enabled {
             return;
         }
         let predicate = unless.predicate();
@@ -133,7 +148,7 @@ impl Present {
         {
             return;
         }
-        let receiver = call.receiver();
+        let receiver = Subject(call.receiver());
         let keyword = unless.keyword_loc().span();
         let range = if unless.end_keyword_loc().is_none() {
             Span::new(keyword.start, node.span().end)
@@ -142,10 +157,10 @@ impl Present {
         };
         let message = format!(
             "Use `if {}` instead of `{}`.",
-            replacement(ctx, receiver.as_ref()),
+            replacement(ctx, receiver),
             String::from_utf8_lossy(ctx.text(range))
         );
-        let replacement = replacement(ctx, receiver.as_ref());
+        let replacement = replacement(ctx, receiver);
         ctx.report_with_fix(
             &Self::META,
             range,
@@ -161,13 +176,7 @@ impl Present {
     }
 }
 
-fn report(
-    ctx: &mut Context<'_>,
-    span: Span,
-    message: String,
-    replace: Span,
-    var: Option<&Node<'_>>,
-) {
+fn report(ctx: &mut Context<'_>, span: Span, message: String, replace: Span, var: Subject<'_>) {
     let replacement = replacement(ctx, var);
     ctx.report_with_fix(
         &Present::META,
@@ -182,14 +191,14 @@ fn report(
 
 /// `(send (send $_ :blank?) :!)`; the outer `Option` is the match, the inner
 /// the (possibly absent) receiver.
-fn not_blank<'pr>(node: &Node<'pr>) -> Option<Option<Node<'pr>>> {
+fn not_blank<'pr>(node: &Node<'pr>) -> Option<Subject<'pr>> {
     let call = node.as_call_node()?;
     let inner = bang_target(&call)?;
     let inner = inner.as_call_node()?;
     if !is_plain(&inner, b"blank?") {
         return None;
     }
-    Some(inner.receiver())
+    Some(Subject(inner.receiver()))
 }
 
 /// The receiver of a plain `!x` send.
@@ -213,7 +222,7 @@ fn exists_and_not_empty<'pr>(
     ctx: &Context<'_>,
     left: &Node<'pr>,
     right: &Node<'pr>,
-) -> Option<Option<Node<'pr>>> {
+) -> Option<Subject<'pr>> {
     // Right: `(send (send $_ :empty?) :!)`.
     let right_call = right.as_call_node()?;
     let empty = bang_target(&right_call)?;
@@ -223,7 +232,7 @@ fn exists_and_not_empty<'pr>(
     }
     let var2 = empty.receiver();
     let var1 = left_variable(left);
-    let same = match (&var1, &var2) {
+    let same = match (&var1.0, &var2) {
         (Some(a), Some(b)) => ctx.text(a.span()) == ctx.text(b.span()),
         (None, None) => true,
         _ => false,
@@ -233,12 +242,12 @@ fn exists_and_not_empty<'pr>(
 
 /// The alternatives for the left side of the `and`, in upstream's order; the
 /// last (`$_`) captures the whole node.
-fn left_variable<'pr>(left: &Node<'pr>) -> Option<Node<'pr>> {
+fn left_variable<'pr>(left: &Node<'pr>) -> Subject<'pr> {
     if let Some(call) = left.as_call_node() {
         // `(send (send $_ :nil?) :!)` and `(send (send $_ :!) :!)`
         if let Some(inner) = bang_target(&call).and_then(|inner| inner.as_call_node()) {
             if is_plain(&inner, b"nil?") || is_plain(&inner, b"!") {
-                return inner.receiver();
+                return Subject(inner.receiver());
             }
         }
         // `(send $_ :!= nil)`
@@ -250,15 +259,15 @@ fn left_variable<'pr>(left: &Node<'pr>) -> Option<Node<'pr>> {
                 args.len() == 1 && args.first().is_some_and(|a| a.as_nil_node().is_some())
             })
         {
-            return call.receiver();
+            return Subject(call.receiver());
         }
     }
-    Some(left.clone())
+    Subject(Some(*left))
 }
 
 /// `replacement`: `"<source>.present?"`, or `present?` without a receiver.
-fn replacement(ctx: &Context<'_>, node: Option<&Node<'_>>) -> String {
-    node.map_or_else(
+fn replacement(ctx: &Context<'_>, subject: Subject<'_>) -> String {
+    subject.0.map_or_else(
         || "present?".to_owned(),
         |node| format!("{}.present?", String::from_utf8_lossy(ctx.text(node.span()))),
     )
