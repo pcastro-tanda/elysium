@@ -283,7 +283,12 @@ impl ConfigLoader {
         add_missing_namespaces(&mut hash)?;
 
         let target_ruby = target_ruby_version(&hash, path, &self.cwd, self.home.as_deref());
-        let extensions: HashSet<String> = state.extensions.iter().cloned().collect();
+        let extensions: HashSet<String> = state
+            .extensions
+            .iter()
+            .cloned()
+            .chain(self.extension_defaults.iter().map(|&(gem, _)| gem.to_owned()))
+            .collect();
         let obsoletions = RULES.check(&hash, path, target_ruby, &extensions);
         if !obsoletions.errors.is_empty() {
             return Err(ConfigError::ObsoleteCop(obsoletions.errors.join("\n")));
