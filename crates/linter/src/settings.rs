@@ -76,6 +76,7 @@ pub struct FileSettings {
     disabled: Vec<&'static str>,
     severities: Vec<(&'static str, Severity)>,
     annotations: Arc<Annotations>,
+    migrated_schema_version: Option<String>,
 }
 
 impl FileSettings {
@@ -114,6 +115,29 @@ impl FileSettings {
     #[must_use]
     pub fn severity_override(&self, rule: &str) -> Option<Severity> {
         self.severities.iter().find(|(name, _)| *name == rule).map(|(_, severity)| *severity)
+    }
+
+    /// Sets `AllCops/MigratedSchemaVersion`: rubocop-rails' `MigrationFileSkippable`,
+    /// prepended to every cop, drops the offenses of a file whose name carries a
+    /// 14-digit timestamp not after this version.
+    pub fn set_migrated_schema_version(&mut self, version: Option<String>) {
+        self.migrated_schema_version = version;
+    }
+
+    /// `MigrationFileSkippable#already_migrated_file?` for the file at `path`: the
+    /// first run of 14 digits in its basename, compared as a string with the
+    /// migrated schema version.
+    #[must_use]
+    pub(crate) fn is_already_migrated_file(&self, path: &std::path::Path) -> bool {
+        let Some(version) = &self.migrated_schema_version else { return false };
+        let Some(name) = path.file_name() else { return false };
+        let bytes = name.as_encoded_bytes();
+        let Some(start) =
+            bytes.windows(14).position(|window| window.iter().all(u8::is_ascii_digit))
+        else {
+            return false;
+        };
+        bytes[start..start + 14] <= *version.as_bytes()
     }
 
     /// Sets the [`Annotations`] this file's diagnostics are annotated with.

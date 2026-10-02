@@ -1,0 +1,1 @@
+class MyJob < ActiveJob::Base; end

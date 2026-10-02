@@ -8,7 +8,6 @@ use linter::{
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
-use super::application_record::target_rails_version;
 
 const SPECIFY_MSG: &str = "Specify an `:inverse_of` option.";
 const NIL_MSG: &str =
@@ -96,7 +95,7 @@ impl Rule for InverseOf {
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
         Ok(Self {
             ignore_scopes: options.bool("IgnoreScopes"),
-            rails_5_2: target_rails_version(options) >= 5.2,
+            rails_5_2: options.target_rails_version() >= 5.2,
             with_options: Vec::new(),
         })
     }

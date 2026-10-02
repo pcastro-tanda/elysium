@@ -24,14 +24,23 @@
 //! [`Diagnostic`] spanning that line, fed to `Rule::file_finish` through
 //! `linter::lint_parsed_with_injected` without appearing in the case's own
 //! expected output.
+//!
+//! A `# gem_versions: rack=3.1.0` comment line in a case's `.yml` gives the
+//! locked gem versions the spec stubbed into `Config#gem_versions_in_target`
+//! (what `requires_gem` checks); without it the case's lockfile is empty.
+//!
+//! A sibling `<case>.schema.rb` is the `db/schema.rb` the spec wrote through
+//! RuboCop's 'with `SchemaLoader`' context (its `let(:schema)`); it reaches the
+//! rules as `RuleOptions::db_schema`. Without one the case has no schema.
 
-use config::{ConfigLoader, LoadedConfig};
+use config::{ConfigLoader, GemVersions, LoadedConfig};
 use linter::{Diagnostic, FileSettings, RuleMeta};
 use registry::{RuleSet, ALL_RULES};
 use ruby_ast::{ParseOptions, Parsed, RubyVersion};
 use ruby_source::SourceFile;
 use std::fmt::Write as _;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 #[test]
 fn bundler() {
@@ -235,6 +244,7 @@ fn run_department(dept: &str) {
             .filter(|path| {
                 path.extension().is_some_and(|ext| ext == "rb")
                     && !path.to_string_lossy().ends_with(".fixed.rb")
+                    && !path.to_string_lossy().ends_with(".schema.rb")
             })
             .collect();
         cases.sort();
@@ -372,6 +382,7 @@ fn load_config(case: &Path, suite: &Suite) -> LoadedConfig {
         loader = loader.with_extension_defaults(gem, default_yml);
     }
     let stated = std::fs::read_to_string(&yml).unwrap_or_default();
+    loader = loader.with_gem_versions(stated_gem_versions(&stated));
     let settings = unstated_all_cops(&stated, suite);
     if settings.is_empty() {
         return loader.load(Some(&yml)).expect("load fixture config");
@@ -389,6 +400,20 @@ fn load_config(case: &Path, suite: &Suite) -> LoadedConfig {
     let config = loader.load(Some(&scratch)).expect("load fixture config");
     std::fs::remove_file(&scratch).expect("remove scratch fixture config");
     config
+}
+
+/// The gems a spec stubbed into `Config#gem_versions_in_target`: the case
+/// yml's `# gem_versions: rack=3.1.0, other=1.2` comment. A case that states
+/// none has an empty lockfile, never whatever `Gemfile.lock` happens to sit
+/// above the fixtures.
+fn stated_gem_versions(yml: &str) -> GemVersions {
+    yml.lines()
+        .find_map(|line| line.strip_prefix("# gem_versions: "))
+        .into_iter()
+        .flat_map(|list| list.split(", "))
+        .filter_map(|pair| pair.split_once('='))
+        .map(|(gem, version)| (gem.to_string(), version.to_string()))
+        .collect()
 }
 
 /// Adds `settings` under `AllCops` to a case's YAML text, either into its
@@ -498,7 +523,10 @@ fn run_case(meta: &'static RuleMeta, case: &Path, suite: &Suite) -> Result<(), S
     let (source_bytes, expected) = parse_annotated(&bytes);
 
     let cfg = load_config(case, suite);
-    let rule_set = RuleSet::isolated(&[meta.name], &cfg).map_err(|err| err.to_string())?;
+    // The spec's `let(:schema)` (RuboCop's 'with SchemaLoader' context), when it had one.
+    let db_schema = std::fs::read_to_string(case.with_extension("schema.rb")).ok().map(Arc::from);
+    let rule_set =
+        RuleSet::isolated(&[meta.name], &cfg, db_schema).map_err(|err| err.to_string())?;
     let options = ParseOptions {
         version: ruby_version(cfg.all_cops().target_ruby_version),
         partial_script: true,
@@ -511,13 +539,10 @@ fn run_case(meta: &'static RuleMeta, case: &Path, suite: &Suite) -> Result<(), S
         let messages: Vec<String> = parsed.errors().map(|e| e.message).collect();
         return Err(format!("  de-annotated source does not parse: {}", messages.join("; ")));
     }
+    let mut settings = FileSettings::all_enabled();
+    settings.set_migrated_schema_version(cfg.all_cops().migrated_schema_version.clone());
     let mut lint_rules = rule_set.clone();
-    let result = linter::lint_parsed_with_injected(
-        &parsed,
-        &mut lint_rules,
-        &FileSettings::all_enabled(),
-        &offenses,
-    );
+    let result = linter::lint_parsed_with_injected(&parsed, &mut lint_rules, &settings, &offenses);
     let cop_name = cfg.all_cops().display_cop_names.then_some(meta.name);
     let actual = to_annotations(&source, &result.diagnostics, cop_name);
 
@@ -534,14 +559,22 @@ fn run_case(meta: &'static RuleMeta, case: &Path, suite: &Suite) -> Result<(), S
         ));
     }
 
-    check_correction(meta, case, &source, options, &rule_set, &result.diagnostics, &offenses)
+    check_correction(
+        meta,
+        case,
+        &source,
+        (options, &settings),
+        &rule_set,
+        &result.diagnostics,
+        &offenses,
+    )
 }
 
 fn check_correction(
     meta: &'static RuleMeta,
     case: &Path,
     source: &SourceFile,
-    options: ParseOptions,
+    (options, settings): (ParseOptions, &FileSettings),
     rule_set: &RuleSet,
     diagnostics: &[Diagnostic],
     offenses: &[(&'static str, u32)],
@@ -564,7 +597,7 @@ fn check_correction(
             source,
             options,
             &mut fix_rules,
-            &FileSettings::all_enabled(),
+            settings,
             true,
             offenses,
         );
