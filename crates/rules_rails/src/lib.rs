@@ -35,5 +35,10 @@ rules_support::rule_set! {
     rails::scope_args::ScopeArgs,
     rails::has_and_belongs_to_many::HasAndBelongsToMany,
     rails::dangerous_column_names::DangerousColumnNames,
+    rails::inquiry::Inquiry,
+    rails::application_mailer::ApplicationMailer,
+    rails::time_zone_assignment::TimeZoneAssignment,
+    rails::i18n_locale_assignment::I18nLocaleAssignment,
+    rails::reversible_migration::ReversibleMigration,
     rails::application_record::ApplicationRecord,
 }
