@@ -1,0 +1,1 @@
+User.where.not(name: name).order(:name).each { |u| u.something }

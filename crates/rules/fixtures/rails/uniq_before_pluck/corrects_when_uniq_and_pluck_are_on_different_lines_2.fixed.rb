@@ -1,0 +1,2 @@
+Model
+  .distinct.pluck(:name)

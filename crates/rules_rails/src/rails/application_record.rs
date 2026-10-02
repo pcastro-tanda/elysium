@@ -3,8 +3,8 @@
 //! `EnforceSuperclass` mixin, `lib/rubocop/cop/mixin/enforce_superclass.rb`).
 
 use linter::{
-    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, OptionValue, Rule,
-    RuleMeta, RuleOptions, Severity, Stability,
+    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule, RuleMeta,
+    RuleOptions, Severity, Stability,
 };
 use ruby_ast::ext::{const_name, is_bare_or_toplevel_const};
 use ruby_ast::{Node, NodeExt as _, NodeKind};
@@ -15,9 +15,6 @@ const SUPERCLASS: &str = "ApplicationRecord";
 
 /// `minimum_target_rails_version 5.0`.
 const MINIMUM_TARGET_RAILS_VERSION: f64 = 5.0;
-/// `TargetRailsVersion::DEFAULT_RAILS_VERSION`, used when the configuration
-/// states none.
-const DEFAULT_RAILS_VERSION: f64 = 5.0;
 
 /// Check that models subclass `ApplicationRecord`.
 #[derive(Debug, Clone)]
@@ -56,13 +53,12 @@ impl Rule for ApplicationRecord {
             NodeKind::ConstantPathWriteNode,
         ],
         config: &[],
-        blind_spots: "Without `AllCops/TargetRailsVersion` the Rails version is taken to be \
-                      5.0; RuboCop reads `railties` from the project's `Gemfile.lock` first.",
+        blind_spots: "",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
         Ok(Self {
-            supported: target_rails_version(options) >= MINIMUM_TARGET_RAILS_VERSION,
+            supported: options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION,
             definition_value: None,
         })
     }
@@ -154,13 +150,4 @@ fn register_offense(ctx: &mut Context<'_>, span: Span) {
             edits: vec![Edit::replace(span, SUPERCLASS.as_bytes().to_vec())],
         },
     );
-}
-
-/// `Config#target_rails_version`: `AllCops/TargetRailsVersion` when set.
-fn target_rails_version(options: &RuleOptions) -> f64 {
-    match options.peer("AllCops", "TargetRailsVersion") {
-        Some(OptionValue::Str(text)) => text.trim().parse().unwrap_or(DEFAULT_RAILS_VERSION),
-        Some(value) => value.as_float().unwrap_or(DEFAULT_RAILS_VERSION),
-        None => DEFAULT_RAILS_VERSION,
-    }
 }
