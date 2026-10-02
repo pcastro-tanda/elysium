@@ -1,0 +1,1 @@
+ApplicationJob = Class.new(ActiveJob::Base)
