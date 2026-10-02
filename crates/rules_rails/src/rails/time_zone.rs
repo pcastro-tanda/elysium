@@ -347,6 +347,16 @@ fn offset_option_provided(node: &CallNode<'_>) -> bool {
 fn attach_timezone_specifier(date: &Node<'_>) -> bool {
     let bytes: Vec<u8> = if let Some(string) = date.as_string_node() {
         string.unescaped().to_vec()
+    } else if let Some(interpolated) = date.as_interpolated_string_node() {
+        // `DstrNode#value`: literal parts' values joined with the source of the rest.
+        let mut joined = Vec::new();
+        for part in interpolated.parts().iter() {
+            match part.as_string_node() {
+                Some(string) => joined.extend_from_slice(string.unescaped()),
+                None => joined.extend_from_slice(part.location().as_slice()),
+            }
+        }
+        joined
     } else if let Some(symbol) = date.as_symbol_node() {
         symbol.unescaped().to_vec()
     } else if let Some(integer) = date.as_integer_node() {
@@ -435,7 +445,8 @@ fn find_ancestors(node: &Node<'_>, target: Span, kind: NodeKind, path: &mut Vec<
     if span == target && node.kind() == kind {
         return true;
     }
-    if span.start > target.start || target.end > span.end {
+    // No end-of-span pruning: a heredoc's body lies outside its parents' spans.
+    if span.start > target.start {
         return false;
     }
     path.push(ancestor_info(node));
