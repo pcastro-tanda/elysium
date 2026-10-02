@@ -1,0 +1,15 @@
+[package]
+name = "rules_support"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "What every rule crate shares: the `rule_set!` slot-list machinery"
+
+[dependencies]
+linter.workspace = true
+config.workspace = true
+ruby_ast.workspace = true
+
+[lints]
+workspace = true

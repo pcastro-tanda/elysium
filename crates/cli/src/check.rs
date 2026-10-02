@@ -63,7 +63,7 @@ pub struct Session {
     pub annotations: Arc<linter::Annotations>,
     pub parse_options: ParseOptions,
     /// The configured rules, cloned per file (rules keep per-file state).
-    pub rule_set: rules::RuleSet,
+    pub rule_set: registry::RuleSet,
     /// Names of the cops `rule_set` includes. Reused by [`effective_rule_set`]
     /// to detect, per file, a cop this run's base selection left out that the
     /// file nonetheless "opts in" via a `# rubocop:enable <Cop>` directive.
@@ -110,8 +110,8 @@ fn select_rules(
     cfg: &LoadedConfig,
     only: &[String],
     except: &[String],
-) -> Result<(rules::RuleSet, Vec<&'static str>)> {
-    let names: Vec<&str> = rules::ALL_RULES
+) -> Result<(registry::RuleSet, Vec<&'static str>)> {
+    let names: Vec<&str> = registry::ALL_RULES
         .iter()
         .filter(|meta| {
             let selected = if only.is_empty() {
@@ -123,15 +123,15 @@ fn select_rules(
         })
         .map(|meta| meta.name)
         .collect();
-    let rule_set = rules::RuleSet::only(&names, cfg).map_err(|err| anyhow::anyhow!("{err}"))?;
+    let rule_set = registry::RuleSet::only(&names, cfg).map_err(|err| anyhow::anyhow!("{err}"))?;
     Ok((rule_set, names))
 }
 
-/// Builds the [`rules::RuleSet`] `path`'s file runs with: `session.rule_set`
+/// Builds the [`registry::RuleSet`] `path`'s file runs with: `session.rule_set`
 /// as-is, unless `directives` shows the file "opts in" (RuboCop's
 /// `CommentConfig#cop_opted_in?`, `comment_config.rb:59-61`) a cop this
 /// run's base selection (`session.rule_names`) left disabled. When it does, a
-/// fresh [`rules::RuleSet`] including that cop is built for this file alone --
+/// fresh [`registry::RuleSet`] including that cop is built for this file alone --
 /// mirroring `Cop::Team#roundup_relevant_cops` (`team.rb:263-271`,
 /// RuboCop 1.91.0), whose `next true if
 /// processed_source.comment_config.cop_opted_in?(cop)` reactivates a cop
@@ -142,8 +142,8 @@ fn select_rules(
 fn effective_rule_set(
     session: &Session,
     directives: &ruby_directives::Directives,
-) -> rules::RuleSet {
-    let extra: Vec<&'static str> = rules::ALL_RULES
+) -> registry::RuleSet {
+    let extra: Vec<&'static str> = registry::ALL_RULES
         .iter()
         .filter_map(|meta| {
             let name = meta.name;
@@ -155,7 +155,7 @@ fn effective_rule_set(
     }
     let mut names = session.rule_names.clone();
     names.extend(extra);
-    rules::RuleSet::only(&names, &session.cfg).unwrap_or_else(|err| {
+    registry::RuleSet::only(&names, &session.cfg).unwrap_or_else(|err| {
         eprintln!("warning: cannot opt a disabled cop in for this file: {err}");
         session.rule_set.clone()
     })
@@ -170,7 +170,7 @@ fn style_guide_annotations(cfg: &LoadedConfig) -> linter::Annotations {
     let all_cops = cfg.all_cops();
     let mut annotations =
         linter::Annotations::new(all_cops.display_style_guide, all_cops.extra_details);
-    for meta in rules::ALL_RULES {
+    for meta in registry::ALL_RULES {
         if let Some(annotation) = cfg.style_guide_annotation(meta.name) {
             annotations.insert(meta.name, annotation);
         }

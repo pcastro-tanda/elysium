@@ -10,7 +10,7 @@ use std::process::ExitCode;
 
 use anyhow::{Context as _, Result};
 use linter::{ConfigDefault, FixAvailability, RuleMeta, Stability};
-use rules::ALL_RULES;
+use registry::ALL_RULES;
 
 use crate::bench::workspace_root;
 

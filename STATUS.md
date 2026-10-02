@@ -11,8 +11,10 @@ payaus enables (556 rules total; `docs/planning/payaus-readiness.md`).
   with RuboCop-identical message text, line, and column (verified against
   `rubocop --format json` with `ParserEngine: parser_prism`, including
   multi-byte columns and same-range deduplication).
-- Rules: 556 core cops (see `docs/rules/`), each registered
-  through `rule_set!` with a compile-time node-kind subscription table and
+- Rules: 556 core cops (see `docs/rules/`) in the `rules` crate, each
+  registered through `rules_support::rule_set!` (composed with future
+  extension-gem crates by `registry`) with a compile-time node-kind
+  subscription table and
   configured from RuboCop option names (`RuleOptions`, incl. peer-cop and
   `AllCops` reads). `elysium fix [--unsafe] [--diff]` applies byte-range
   fixes and reparses to convergence; `check --only/--except` mirror RuboCop
