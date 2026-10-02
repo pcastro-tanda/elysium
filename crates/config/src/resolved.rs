@@ -91,6 +91,8 @@ pub struct AllCops {
     pub display_style_guide: bool,
     /// `ExtraDetails`.
     pub extra_details: bool,
+    /// `MigratedSchemaVersion` (rubocop-rails), as `to_s` renders it.
+    pub migrated_schema_version: Option<String>,
     raw: Mapping,
 }
 
@@ -116,6 +118,9 @@ impl AllCops {
             display_cop_names: raw.get("DisplayCopNames").is_some_and(YamlValue::is_truthy),
             display_style_guide: raw.get("DisplayStyleGuide").is_some_and(YamlValue::is_truthy),
             extra_details: raw.get("ExtraDetails").is_some_and(YamlValue::is_truthy),
+            migrated_schema_version: raw
+                .get("MigratedSchemaVersion")
+                .and_then(YamlValue::scalar_text),
             raw,
         }
     }

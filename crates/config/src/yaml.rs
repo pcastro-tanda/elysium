@@ -242,7 +242,7 @@ impl YamlValue {
         }
     }
 
-    fn scalar_text(&self) -> Option<String> {
+    pub(crate) fn scalar_text(&self) -> Option<String> {
         match self {
             YamlValue::String(s) | YamlValue::Regexp(s) => Some(s.clone()),
             YamlValue::Int(i) => Some(i.to_string()),
