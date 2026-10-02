@@ -511,13 +511,10 @@ fn run_case(meta: &'static RuleMeta, case: &Path, suite: &Suite) -> Result<(), S
         let messages: Vec<String> = parsed.errors().map(|e| e.message).collect();
         return Err(format!("  de-annotated source does not parse: {}", messages.join("; ")));
     }
+    let mut settings = FileSettings::all_enabled();
+    settings.set_migrated_schema_version(cfg.all_cops().migrated_schema_version.clone());
     let mut lint_rules = rule_set.clone();
-    let result = linter::lint_parsed_with_injected(
-        &parsed,
-        &mut lint_rules,
-        &FileSettings::all_enabled(),
-        &offenses,
-    );
+    let result = linter::lint_parsed_with_injected(&parsed, &mut lint_rules, &settings, &offenses);
     let cop_name = cfg.all_cops().display_cop_names.then_some(meta.name);
     let actual = to_annotations(&source, &result.diagnostics, cop_name);
 
@@ -534,14 +531,22 @@ fn run_case(meta: &'static RuleMeta, case: &Path, suite: &Suite) -> Result<(), S
         ));
     }
 
-    check_correction(meta, case, &source, options, &rule_set, &result.diagnostics, &offenses)
+    check_correction(
+        meta,
+        case,
+        &source,
+        (options, &settings),
+        &rule_set,
+        &result.diagnostics,
+        &offenses,
+    )
 }
 
 fn check_correction(
     meta: &'static RuleMeta,
     case: &Path,
     source: &SourceFile,
-    options: ParseOptions,
+    (options, settings): (ParseOptions, &FileSettings),
     rule_set: &RuleSet,
     diagnostics: &[Diagnostic],
     offenses: &[(&'static str, u32)],
@@ -564,7 +569,7 @@ fn check_correction(
             source,
             options,
             &mut fix_rules,
-            &FileSettings::all_enabled(),
+            settings,
             true,
             offenses,
         );
