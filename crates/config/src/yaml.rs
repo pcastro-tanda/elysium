@@ -266,7 +266,7 @@ impl YamlValue {
 ///
 /// Returns `Ok(None)` for an empty document (RuboCop treats that as `{}`), and
 /// `Err(message)` for a scan error or a disallowed Ruby class tag.
-pub fn parse_document(source: &str) -> Result<Option<YamlValue>, String> {
+pub(crate) fn parse_document(source: &str) -> Result<Option<YamlValue>, String> {
     let docs = Yaml::load_from_str(source).map_err(|e| e.to_string())?;
     match docs.into_iter().next() {
         None | Some(Yaml::BadValue) => Ok(None),

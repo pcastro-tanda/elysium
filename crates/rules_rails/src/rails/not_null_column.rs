@@ -2,7 +2,7 @@
 //! `lib/rubocop/cop/rails/not_null_column.rb` (with its
 //! `DatabaseTypeResolvable` mixin).
 
-use config::{Mapping, YamlValue, parse_document};
+use config::{Mapping, YamlValue, parse_yaml};
 use linter::{
     ConfigDefault, ConfigOption, Context, Department, FixAvailability, OptionError, OptionValue,
     Rule, RuleMeta, RuleOptions, Severity, Stability,
@@ -270,7 +270,7 @@ fn adapter_of(mapping: &Mapping) -> Option<String> {
 /// `database_yaml(environment)`: the environment's hash in `config/database.yml`.
 fn database_yaml(environment: &str) -> Option<Mapping> {
     let text = std::fs::read_to_string(DATABASE_YAML).ok()?;
-    let YamlValue::Mapping(yaml) = parse_document(&text).ok()?? else { return None };
+    let YamlValue::Mapping(yaml) = parse_yaml(&text).ok()?? else { return None };
     match yaml.get(environment)? {
         YamlValue::Mapping(config) => Some(config.clone()),
         _ => None,

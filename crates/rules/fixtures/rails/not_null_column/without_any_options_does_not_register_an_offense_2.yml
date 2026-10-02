@@ -1,3 +1,5 @@
+AllCops:
+  MigratedSchemaVersion: '20240101010101'
 Rails/NotNullColumn:
   Database: sqlite3
   Include: ~
