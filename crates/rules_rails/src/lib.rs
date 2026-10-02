@@ -85,4 +85,9 @@ rules_support::rule_set! {
     rails::root_public_path::RootPublicPath,
     rails::bulk_change_table::BulkChangeTable,
     rails::application_record::ApplicationRecord,
+    rails::http_status::HttpStatus,
+    rails::index_by::IndexBy,
+    rails::mailer_name::MailerName,
+    rails::belongs_to::BelongsTo,
+    rails::active_support_on_load::ActiveSupportOnLoad,
 }
