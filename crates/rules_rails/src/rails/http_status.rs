@@ -155,7 +155,7 @@ impl Rule for HttpStatus {
                 Some(first)
                     if first.as_integer_node().is_some() || first.as_symbol_node().is_some() =>
                 {
-                    Some(first.clone())
+                    Some(*first)
                 }
                 _ => None,
             },

@@ -1,0 +1,1 @@
+UserMailer = Class.new(ApplicationMailer)

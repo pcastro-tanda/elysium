@@ -1,0 +1,1 @@
+ActiveRecord::TestFixtures.include(MyClass)
