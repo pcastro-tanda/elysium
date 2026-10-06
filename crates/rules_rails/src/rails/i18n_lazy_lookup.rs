@@ -11,21 +11,23 @@ use ruby_ast::node::CallNode;
 use ruby_ast::{Node, NodeExt as _, NodeKind};
 
 use crate::inflector::underscore;
+use crate::parent_module::{self, ParentModule};
 
-/// A lexical `class`/`module`/`class <<` ancestor.
+/// A lexical `class` ancestor.
 #[derive(Debug, Clone)]
-enum Scope {
-    /// `class Foo::BarController`: identifier source and defined module name.
-    Class { identifier: String, name: String },
-    Module { name: String },
-    Singleton,
+struct ClassScope {
+    /// `class.identifier.source`.
+    identifier: String,
+    /// `class.parent_module_name`.
+    parent_module: Option<String>,
 }
 
 /// Checks for places where I18n "lazy" lookup can be used.
 #[derive(Debug, Clone)]
 pub struct I18nLazyLookup {
     lazy: bool,
-    scopes: Vec<Scope>,
+    classes: Vec<ClassScope>,
+    modules: ParentModule,
     /// Receiverless `def` ancestors: whether each is public.
     defs: Vec<(bool, String)>,
     /// Start offset of a `def` -> whether it is public.
@@ -54,6 +56,9 @@ impl Rule for I18nLazyLookup {
             NodeKind::ClassNode,
             NodeKind::ModuleNode,
             NodeKind::SingletonClassNode,
+            NodeKind::ConstantWriteNode,
+            NodeKind::ConstantPathWriteNode,
+            NodeKind::LambdaNode,
             NodeKind::DefNode,
             NodeKind::StatementsNode,
             NodeKind::CallNode,
@@ -70,30 +75,23 @@ impl Rule for I18nLazyLookup {
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
         Ok(Self {
             lazy: options.style("EnforcedStyle")? == "lazy",
-            scopes: Vec::new(),
+            classes: Vec::new(),
+            modules: ParentModule::default(),
             defs: Vec::new(),
             visibility: HashMap::new(),
         })
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
+        if parent_module::KINDS.contains(&node.kind()) {
+            if let Some(class) = node.as_class_node() {
+                let identifier =
+                    String::from_utf8_lossy(ctx.text(class.constant_path().span())).into_owned();
+                self.classes.push(ClassScope { identifier, parent_module: self.modules.name() });
+            }
+            self.modules.enter(node);
+        }
         match node.kind() {
-            NodeKind::ClassNode => {
-                let class = node.as_class_node().expect("kind matched");
-                let path = class.constant_path();
-                let identifier = String::from_utf8_lossy(ctx.text(path.span())).into_owned();
-                let name = ruby_ast::ext::const_name(&path).unwrap_or_else(|| identifier.clone());
-                self.scopes.push(Scope::Class { identifier, name });
-            }
-            NodeKind::ModuleNode => {
-                let module = node.as_module_node().expect("kind matched");
-                let path = module.constant_path();
-                let name = ruby_ast::ext::const_name(&path).unwrap_or_else(|| {
-                    String::from_utf8_lossy(ctx.text(path.span())).into_owned()
-                });
-                self.scopes.push(Scope::Module { name });
-            }
-            NodeKind::SingletonClassNode => self.scopes.push(Scope::Singleton),
             NodeKind::StatementsNode => {
                 let stmts = node.as_statements_node().expect("kind matched");
                 let stmts: Vec<Node<'_>> = stmts.body().iter().collect();
@@ -116,14 +114,16 @@ impl Rule for I18nLazyLookup {
     }
 
     fn leave(&mut self, node: &Node<'_>, _ctx: &mut Context<'_>) {
-        match node.kind() {
-            NodeKind::ClassNode | NodeKind::ModuleNode | NodeKind::SingletonClassNode => {
-                self.scopes.pop();
+        if parent_module::KINDS.contains(&node.kind()) {
+            self.modules.leave();
+            if node.kind() == NodeKind::ClassNode {
+                self.classes.pop();
             }
-            NodeKind::DefNode if node.as_def_node().is_some_and(|d| d.receiver().is_none()) => {
-                self.defs.pop();
-            }
-            _ => {}
+        }
+        if node.kind() == NodeKind::DefNode
+            && node.as_def_node().is_some_and(|d| d.receiver().is_none())
+        {
+            self.defs.pop();
         }
     }
 }
@@ -235,28 +235,16 @@ impl I18nLazyLookup {
         if !public {
             return None;
         }
-        let (idx, identifier, name) =
-            self.scopes.iter().enumerate().rev().find_map(|(i, s)| match s {
-                Scope::Class { identifier, name } => Some((i, identifier, name)),
-                _ => None,
-            })?;
-        if !identifier.ends_with("Controller") {
+        let class = self.classes.last()?;
+        if !class.identifier.ends_with("Controller") {
             return None;
         }
-        // `parent_module_name`: enclosing modules/classes, outermost first.
-        let mut parts = Vec::new();
-        for scope in &self.scopes[..idx] {
-            match scope {
-                Scope::Class { name, .. } | Scope::Module { name } => parts.push(name.as_str()),
-                Scope::Singleton => return None,
-            }
-        }
-        let path = if parts.is_empty() {
-            identifier.clone()
+        let module_name = class.parent_module.as_deref().unwrap_or_default();
+        let path = if module_name == "Object" {
+            class.identifier.clone()
         } else {
-            format!("{}::{identifier}", parts.join("::"))
+            format!("{module_name}::{}", class.identifier)
         };
-        let _ = name;
         let path = path.strip_suffix("Controller").unwrap_or(&path);
         Some((underscore(path).replace('/', "."), action.clone()))
     }
