@@ -8,7 +8,7 @@ use linter::{
 use ruby_ast::{Node, NodeKind};
 
 /// This cop checks for the obsolete pattern for initializing instance variables that was required for older Sorbet versions in `#typed: strict` files.
-It's no longer required, as of Sorbet 0.5.10210 See https://sorbet.org/docs/type-assertions#put-type-assertions-behind-memoization
+/// It's no longer required, as of Sorbet 0.5.10210 See https://sorbet.org/docs/type-assertions#put-type-assertions-behind-memoization
 #[derive(Debug, Clone)]
 pub struct ObsoleteStrictMemoization;
 
