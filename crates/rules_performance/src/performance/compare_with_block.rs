@@ -35,6 +35,7 @@ impl Rule for CompareWithBlock {
         Ok(Self)
     }
 
+    #[allow(clippy::too_many_lines)]
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
         let Some(send) = node.as_call_node() else { return };
         if send.is_safe_navigation() || send.arguments().is_some() {
