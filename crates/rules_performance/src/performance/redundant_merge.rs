@@ -9,7 +9,6 @@ use linter::{
     Applicability, ConfigDefault, ConfigOption, Context, Department, Edit, Fix, FixAvailability,
     OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
-use ruby_ast::ext::call_span_excluding_block;
 use ruby_ast::{for_each_child, LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
@@ -338,7 +337,9 @@ receiver of `merge!` is actually a hash or not.",
             return;
         }
         let Some(receiver) = call.receiver() else { return };
-        if call.block().is_some_and(|b| b.as_block_argument_node().is_some()) {
+        // A `BlockArgumentNode` is a third argument in whitequark; with a literal
+        // block the send's parent is the block, so its value counts as used.
+        if call.block().is_some() {
             return;
         }
         let Some(arguments) = call.arguments() else { return };
@@ -360,7 +361,7 @@ receiver of `merge!` is actually a hash or not.",
         {
             return;
         }
-        let node_span = call_span_excluding_block(&call);
+        let node_span = node.span();
         let Some(path) = find_path(&ctx.parsed().root(), node.span()) else { return };
         let idx = path.len() - 1;
         if value_used(&path, idx) {
