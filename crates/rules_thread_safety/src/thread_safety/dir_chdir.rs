@@ -4,8 +4,8 @@
 use std::collections::HashSet;
 
 use linter::{
-    ConfigDefault, ConfigOption, Context, Department, FixAvailability, OptionError, Rule,
-    RuleMeta, RuleOptions, Severity, Stability,
+    ConfigDefault, ConfigOption, Context, Department, FixAvailability, OptionError, Rule, RuleMeta,
+    RuleOptions, Severity, Stability,
 };
 use ruby_ast::ext::{call_span_excluding_block, is_bare_or_toplevel_const};
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
@@ -59,7 +59,7 @@ impl Rule for DirChdir {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[
             NodeKind::CallNode,
             NodeKind::CallOrWriteNode,
@@ -172,10 +172,8 @@ impl DirChdir {
         }
 
         if let (true, Some(call)) = (self.allow_call_with_block, &call) {
-            let block_argument = call
-                .block()
-                .as_ref()
-                .is_some_and(|b| b.kind() == NodeKind::BlockArgumentNode);
+            let block_argument =
+                call.block().as_ref().is_some_and(|b| b.kind() == NodeKind::BlockArgumentNode);
             let own_block = call.block().is_some_and(|b| {
                 b.as_block_node().is_some_and(|block| {
                     !block.parameters().is_some_and(|p| {
@@ -195,9 +193,8 @@ impl DirChdir {
             }
         }
 
-        let dot = dot_span.map_or_else(String::new, |loc| {
-            String::from_utf8_lossy(ctx.text(loc)).into_owned()
-        });
+        let dot = dot_span
+            .map_or_else(String::new, |loc| String::from_utf8_lossy(ctx.text(loc)).into_owned());
         let message = format!(
             "Avoid using `{}{dot}{}` due to its process-wide effect.",
             String::from_utf8_lossy(module),

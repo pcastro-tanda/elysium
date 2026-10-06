@@ -59,7 +59,7 @@ impl Rule for FlatMap {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[ConfigOption {
             name: "EnabledForFlattenWithoutParams",
@@ -71,7 +71,9 @@ impl Rule for FlatMap {
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
-        Ok(Self { enabled_for_flatten_without_params: options.bool("EnabledForFlattenWithoutParams") })
+        Ok(Self {
+            enabled_for_flatten_without_params: options.bool("EnabledForFlattenWithoutParams"),
+        })
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
@@ -101,9 +103,10 @@ impl Rule for FlatMap {
         let Some(selector) = map_call.message_loc() else { return };
 
         let params = call.arguments();
-        let first_param = params.as_ref().and_then(|a| a.arguments().iter().next()).or_else(|| {
-            call.block().filter(|b| b.as_block_argument_node().is_some())
-        });
+        let first_param = params
+            .as_ref()
+            .and_then(|a| a.arguments().iter().next())
+            .or_else(|| call.block().filter(|b| b.as_block_argument_node().is_some()));
         let (has_level, is_one) = flatten_level_is_one(first_param.as_ref());
 
         let message = if self.enabled_for_flatten_without_params && !has_level {

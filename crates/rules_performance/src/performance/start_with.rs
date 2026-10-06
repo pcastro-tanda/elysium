@@ -19,8 +19,21 @@ fn is_safe_literal_char(c: char) -> bool {
         || matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0C' | '\x0B')
         || matches!(
             c,
-            '-' | ',' | '"' | '\'' | '!' | '#' | '%' | '&' | '<' | '>' | '=' | ';' | ':' | '`'
-                | '~' | '/'
+            '-' | ','
+                | '"'
+                | '\''
+                | '!'
+                | '#'
+                | '%'
+                | '&'
+                | '<'
+                | '>'
+                | '='
+                | ';'
+                | ':'
+                | '`'
+                | '~'
+                | '/'
         )
 }
 
@@ -279,7 +292,7 @@ impl Rule for StartWith {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[ConfigOption {
             name: "SafeMultiline",
@@ -338,7 +351,10 @@ impl Rule for StartWith {
             &Self::META,
             span,
             MSG,
-            Fix { applicability: Applicability::Unsafe, edits: vec![Edit::replace(span, new_source)] },
+            Fix {
+                applicability: Applicability::Unsafe,
+                edits: vec![Edit::replace(span, new_source)],
+            },
         );
     }
 }

@@ -5,8 +5,8 @@ use linter::{
     Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule, RuleMeta,
     RuleOptions, Severity, Stability,
 };
-use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_ast::node::{CaseNode, WhenNode};
+use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 const MSG: &str = "Reordering `when` conditions with a splat to the end of the `when` branches can improve performance.";
@@ -73,7 +73,7 @@ end
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CaseNode],
         config: &[],
         blind_spots: "",
@@ -145,7 +145,9 @@ fn is_non_splat(condition: &Node<'_>) -> bool {
 fn when_end(when: &WhenNode<'_>) -> u32 {
     match when.statements() {
         Some(stmts) => stmts.location().span().end,
-        None => when.conditions().iter().last().map_or(when.keyword_loc().span().end, |c| c.span().end),
+        None => {
+            when.conditions().iter().last().map_or(when.keyword_loc().span().end, |c| c.span().end)
+        }
     }
 }
 
@@ -172,9 +174,8 @@ fn autocorrect(
 ) -> Option<Vec<Edit>> {
     let when = &whens[idx];
     let conditions: Vec<Node<'_>> = when.conditions().iter().collect();
-    let needs_reorder = whens[idx + 1..]
-        .iter()
-        .any(|w| w.conditions().iter().any(|c| is_non_splat(&c)));
+    let needs_reorder =
+        whens[idx + 1..].iter().any(|w| w.conditions().iter().any(|c| is_non_splat(&c)));
 
     if !needs_reorder {
         let first = conditions.first()?.span().start;
@@ -192,8 +193,8 @@ fn autocorrect(
     let body = when.statements().map(|s| s.location().span());
 
     let mut text: Vec<u8> = Vec::new();
-    let same_line = body
-        .is_some_and(|b| ctx.line_col(when_start).line == ctx.line_col(b.start).line);
+    let same_line =
+        body.is_some_and(|b| ctx.line_col(when_start).line == ctx.line_col(b.start).line);
     if same_line {
         let body = body?;
         text.extend_from_slice(format!("\n{indent}when ").as_bytes());
@@ -225,10 +226,7 @@ fn autocorrect(
     text.extend_from_slice(&comments.join(&b'\n'));
 
     let last_end = when_end(whens.last()?);
-    Some(vec![
-        Edit::delete(Span::new(when_start, next_start)),
-        Edit::insert(last_end, text),
-    ])
+    Some(vec![Edit::delete(Span::new(when_start, next_start)), Edit::insert(last_end, text)])
 }
 
 /// `CommentsHelp#find_end_line` for a `when` node.

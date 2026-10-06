@@ -17,8 +17,9 @@ use ruby_source::Span;
 
 const MSG: &str = "Use `=~` in places where the `MatchData` returned by `#match` will not be used.";
 
-const HIGHER_PRECEDENCE_OPERATOR_METHODS: &[&[u8]] =
-    &[b"|", b"^", b"&", b"+", b"-", b"*", b"/", b"%", b"**", b">", b">=", b"<", b"<=", b"<<", b">>"];
+const HIGHER_PRECEDENCE_OPERATOR_METHODS: &[&[u8]] = &[
+    b"|", b"^", b"&", b"+", b"-", b"*", b"/", b"%", b"**", b">", b">=", b"<", b"<=", b"<<", b">>",
+];
 
 /// Use `=~` instead of `String#match` or `Regexp#match` in a context where the returned `MatchData` is not needed.
 #[derive(Debug, Clone)]
@@ -48,7 +49,7 @@ return value unless regex =~ 'str'
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
@@ -174,7 +175,11 @@ fn requires_parentheses(ctx: &Context<'_>, arg: &Node<'_>) -> bool {
     }
 }
 
-fn requires_parentheses_for_call_like(parenthesized: bool, has_arguments: bool, name: &[u8]) -> bool {
+fn requires_parentheses_for_call_like(
+    parenthesized: bool,
+    has_arguments: bool,
+    name: &[u8],
+) -> bool {
     if parenthesized || !has_arguments {
         return false;
     }
@@ -252,7 +257,8 @@ fn value_used(chain: &[Node<'_>], child: Span) -> bool {
             }
         }
         NodeKind::ForNode => {
-            let body = parent.as_for_node().and_then(|n| n.statements()).map(|s| s.location().span());
+            let body =
+                parent.as_for_node().and_then(|n| n.statements()).map(|s| s.location().span());
             if body == Some(child) {
                 value_used(rest, pspan)
             } else {

@@ -53,7 +53,7 @@ Hash(key: :value).size
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
@@ -81,7 +81,10 @@ Hash(key: :value).size
             &Self::META,
             span,
             MSG,
-            Fix { applicability: Applicability::Safe, edits: vec![Edit::replace(span, b"size".to_vec())] },
+            Fix {
+                applicability: Applicability::Safe,
+                edits: vec![Edit::replace(span, b"size".to_vec())],
+            },
         );
     }
 }

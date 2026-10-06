@@ -1,10 +1,10 @@
 //! `Performance` department.
 
-pub mod caller;
 pub mod ancestors_include;
 pub mod big_decimal_with_numeric_argument;
 pub mod bind_call;
 pub mod block_given_with_explicit_block;
+pub mod caller;
 pub mod case_when_splat;
 pub mod compare_with_block;
 pub mod concurrent_monotonic_time;

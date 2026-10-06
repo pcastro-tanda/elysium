@@ -8,7 +8,8 @@ use linter::{
 use ruby_ast::ext::call_span_excluding_block;
 use ruby_ast::{Node, NodeExt as _, NodeKind};
 
-const MSG_FROM_FLOAT_TO_STRING: &str = "Convert float literal to string and pass it to `BigDecimal`.";
+const MSG_FROM_FLOAT_TO_STRING: &str =
+    "Convert float literal to string and pass it to `BigDecimal`.";
 const MSG_FROM_INTEGER_TO_STRING: &str =
     "Convert string literal to integer and pass it to `BigDecimal`.";
 
@@ -35,7 +36,7 @@ impl Rule for BigDecimalWithNumericArgument {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",

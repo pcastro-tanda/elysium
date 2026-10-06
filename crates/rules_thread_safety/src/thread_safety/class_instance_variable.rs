@@ -64,20 +64,18 @@ fn send_without_block<'pr>(node: &Node<'pr>) -> FirstChild<'pr> {
 fn first_stmt(body: Option<Node<'_>>) -> FirstChild<'_> {
     let Some(body) = body else { return FirstChild::None };
     match body.as_statements_node() {
-        Some(stmts) => stmts
-            .body()
-            .iter()
-            .next()
-            .map_or(FirstChild::None, |first| send_without_block(&first)),
+        Some(stmts) => {
+            stmts.body().iter().next().map_or(FirstChild::None, |first| send_without_block(&first))
+        }
         None => send_without_block(&body),
     }
 }
 
 fn first_child<'pr>(anc: &Anc<'pr>) -> FirstChild<'pr> {
     match anc {
-        Anc::Send(call) => call
-            .receiver()
-            .map_or(FirstChild::None, |recv| send_without_block(&recv)),
+        Anc::Send(call) => {
+            call.receiver().map_or(FirstChild::None, |recv| send_without_block(&recv))
+        }
         Anc::Block { call, .. } => FirstChild::Send(*call),
         Anc::Lambda { .. } => FirstChild::Lambda,
         Anc::Other(node) => {
@@ -226,10 +224,7 @@ impl<'pr> Collector<'pr> {
                 });
             } else if let Some(stmts) = node.as_statements_node() {
                 let elided = stmts.body().iter().nth(1).is_none()
-                    || matches!(
-                        parent_kind,
-                        Some(NodeKind::ParenthesesNode | NodeKind::BeginNode)
-                    );
+                    || matches!(parent_kind, Some(NodeKind::ParenthesesNode | NodeKind::BeginNode));
                 if !elided {
                     out.push(Entry { anc: Anc::Other(node), index: i });
                 }
@@ -489,7 +484,7 @@ impl Rule for ClassInstanceVariable {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[],
         config: &[],
         blind_spots: "",

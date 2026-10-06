@@ -26,7 +26,7 @@ impl Rule for ZipWithoutBlock {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
@@ -72,7 +72,10 @@ fn map_with_array(block: &ruby_ast::node::BlockNode<'_>) -> bool {
                 bp.locals().is_empty()
                     && bp.parameters().is_some_and(|ps| {
                         ps.requireds().len() == 1
-                            && ps.requireds().first().is_some_and(|r| r.as_required_parameter_node().is_some())
+                            && ps
+                                .requireds()
+                                .first()
+                                .is_some_and(|r| r.as_required_parameter_node().is_some())
                             && ps.optionals().is_empty()
                             && ps.rest().is_none()
                             && ps.posts().is_empty()
@@ -101,6 +104,7 @@ fn map_with_array(block: &ruby_ast::node::BlockNode<'_>) -> bool {
     };
     array.elements().len() == 1
         && array.elements().first().is_some_and(|e| {
-            e.as_local_variable_read_node().is_some() || e.as_it_local_variable_read_node().is_some()
+            e.as_local_variable_read_node().is_some()
+                || e.as_it_local_variable_read_node().is_some()
         })
 }

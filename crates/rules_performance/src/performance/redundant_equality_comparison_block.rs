@@ -6,7 +6,7 @@ use linter::{
     OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::node::{BlockNode, CallNode};
-use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind, each_descendant};
+use ruby_ast::{each_descendant, LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 const TARGET_METHODS: &[&[u8]] = &[b"all?", b"any?", b"one?", b"none?"];
@@ -36,7 +36,11 @@ fn sole_parameter<'pr>(block: &BlockNode<'pr>) -> Option<Node<'pr>> {
         all.extend(p.block().map(|b| b.as_node()));
     }
     all.extend(params.locals().iter());
-    if all.len() == 1 { all.pop() } else { None }
+    if all.len() == 1 {
+        all.pop()
+    } else {
+        None
+    }
 }
 
 /// rubocop-ast's `Node#receiver` for an arbitrary node:
@@ -92,7 +96,7 @@ impl Rule for RedundantEqualityComparisonBlock {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[ConfigOption {
             name: "AllowRegexpMatch",
@@ -163,14 +167,20 @@ impl Rule for RedundantEqualityComparisonBlock {
 
         // new_argument
         let new_argument = if block_argument == receiver_src {
-            if Self::use_block_argument_in_method_argument_of_operand(block_argument, &first_arg, ctx)
-            {
+            if Self::use_block_argument_in_method_argument_of_operand(
+                block_argument,
+                &first_arg,
+                ctx,
+            ) {
                 return;
             }
             first_arg_src
         } else if block_argument == first_arg_src {
-            if Self::use_block_argument_in_method_argument_of_operand(block_argument, &receiver, ctx)
-            {
+            if Self::use_block_argument_in_method_argument_of_operand(
+                block_argument,
+                &receiver,
+                ctx,
+            ) {
                 return;
             }
             receiver_src

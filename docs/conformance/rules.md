@@ -186,6 +186,170 @@ pin those releases. For payaus, copy `ci/corpus/payaus.rubocop.Gemfile` to
 | Naming/MethodParameterName | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Naming/VariableName | discourse | 1.91.0 | 94 | 94 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
 | Naming/VariableName | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-28 |
+| Performance/AncestorsInclude | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/AncestorsInclude | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/AncestorsInclude | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/AncestorsInclude | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/BigDecimalWithNumericArgument | discourse (defaults) | 1.91.0 | 2 | 2 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/BigDecimalWithNumericArgument | discourse | 1.91.0 | 2 | 2 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/BigDecimalWithNumericArgument | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/BigDecimalWithNumericArgument | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/BindCall | discourse (defaults) | 1.91.0 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/BindCall | discourse | 1.91.0 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/BindCall | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/BindCall | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/BlockGivenWithExplicitBlock | discourse (defaults) | 1.91.0 | 21 | 21 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/BlockGivenWithExplicitBlock | discourse | 1.91.0 | 21 | 21 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/BlockGivenWithExplicitBlock | mastodon (defaults) | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/BlockGivenWithExplicitBlock | mastodon | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Caller | discourse (defaults) | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Caller | discourse | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Caller | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Caller | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/CaseWhenSplat | discourse (defaults) | 1.91.0 | 6 | 6 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/CaseWhenSplat | discourse | 1.91.0 | 6 | 6 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/CaseWhenSplat | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/CaseWhenSplat | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/CompareWithBlock | discourse (defaults) | 1.91.0 | 10 | 10 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/CompareWithBlock | discourse | 1.91.0 | 9 | 9 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/CompareWithBlock | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/CompareWithBlock | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ConcurrentMonotonicTime | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ConcurrentMonotonicTime | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ConcurrentMonotonicTime | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ConcurrentMonotonicTime | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ConstantRegexp | discourse (defaults) | 1.91.0 | 22 | 22 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ConstantRegexp | discourse | 1.91.0 | 20 | 20 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ConstantRegexp | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ConstantRegexp | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/DeletePrefix | discourse (defaults) | 1.91.0 | 17 | 17 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/DeletePrefix | discourse | 1.91.0 | 17 | 17 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/DeletePrefix | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/DeletePrefix | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/DeleteSuffix | discourse (defaults) | 1.91.0 | 18 | 18 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/DeleteSuffix | discourse | 1.91.0 | 18 | 18 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/DeleteSuffix | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/DeleteSuffix | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/DoubleStartEndWith | discourse (defaults) | 1.91.0 | 8 | 8 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/DoubleStartEndWith | discourse | 1.91.0 | 8 | 8 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/DoubleStartEndWith | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/DoubleStartEndWith | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/EndWith | discourse (defaults) | 1.91.0 | 5 | 5 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/EndWith | discourse | 1.91.0 | 5 | 5 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/EndWith | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/EndWith | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/FixedSize | discourse (defaults) | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/FixedSize | discourse | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/FixedSize | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/FixedSize | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/FlatMap | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/FlatMap | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/FlatMap | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/FlatMap | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/InefficientHashSearch | discourse (defaults) | 1.91.0 | 26 | 26 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/InefficientHashSearch | discourse | 1.91.0 | 26 | 26 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/InefficientHashSearch | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/InefficientHashSearch | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/MapCompact | discourse (defaults) | 1.91.0 | 107 | 107 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/MapCompact | discourse | 1.91.0 | 107 | 107 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/MapCompact | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/MapCompact | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/MapMethodChain | discourse (defaults) | 1.91.0 | 19 | 19 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/MapMethodChain | discourse | 1.91.0 | 19 | 19 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/MapMethodChain | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/MapMethodChain | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/MethodObjectAsBlock | discourse (defaults) | 1.91.0 | 22 | 22 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/MethodObjectAsBlock | discourse | 1.91.0 | 22 | 22 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/MethodObjectAsBlock | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/MethodObjectAsBlock | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RangeInclude | discourse (defaults) | 1.91.0 | 77 | 77 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RangeInclude | discourse | 1.91.0 | 77 | 77 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RangeInclude | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RangeInclude | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantEqualityComparisonBlock | discourse (defaults) | 1.91.0 | 25 | 25 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantEqualityComparisonBlock | discourse | 1.91.0 | 21 | 21 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantEqualityComparisonBlock | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantEqualityComparisonBlock | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantMatch | discourse (defaults) | 1.91.0 | 26 | 26 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantMatch | discourse | 1.91.0 | 26 | 26 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantMatch | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantMatch | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantMerge | discourse (defaults) | 1.91.0 | 60 | 60 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantMerge | discourse | 1.91.0 | 60 | 60 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantMerge | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantMerge | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantSortBlock | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantSortBlock | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantSortBlock | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantSortBlock | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantSplitRegexpArgument | discourse (defaults) | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantSplitRegexpArgument | discourse | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantSplitRegexpArgument | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantSplitRegexpArgument | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantStringChars | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantStringChars | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantStringChars | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RedundantStringChars | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RegexpMatch | discourse (defaults) | 1.91.0 | 153 | 153 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RegexpMatch | discourse | 1.91.0 | 150 | 150 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RegexpMatch | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/RegexpMatch | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ReverseEach | discourse (defaults) | 1.91.0 | 10 | 10 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ReverseEach | discourse | 1.91.0 | 10 | 10 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ReverseEach | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ReverseEach | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ReverseFirst | discourse (defaults) | 1.91.0 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ReverseFirst | discourse | 1.91.0 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ReverseFirst | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ReverseFirst | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Size | discourse (defaults) | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Size | discourse | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Size | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Size | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/SortReverse | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/SortReverse | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/SortReverse | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/SortReverse | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Squeeze | discourse (defaults) | 1.91.0 | 9 | 9 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Squeeze | discourse | 1.91.0 | 9 | 9 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Squeeze | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Squeeze | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StartWith | discourse (defaults) | 1.91.0 | 12 | 12 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StartWith | discourse | 1.91.0 | 12 | 12 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StartWith | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StartWith | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringBytesize | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringBytesize | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringBytesize | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringBytesize | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringIdentifierArgument | discourse (defaults) | 1.91.0 | 79 | 79 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringIdentifierArgument | discourse | 1.91.0 | 75 | 75 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringIdentifierArgument | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringIdentifierArgument | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringInclude | discourse (defaults) | 1.91.0 | 72 | 72 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringInclude | discourse | 1.91.0 | 71 | 71 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringInclude | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringInclude | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringReplacement | discourse (defaults) | 1.91.0 | 114 | 114 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringReplacement | discourse | 1.91.0 | 114 | 114 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringReplacement | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/StringReplacement | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Sum | discourse (defaults) | 1.91.0 | 7 | 7 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Sum | discourse | 1.91.0 | 8 | 8 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Sum | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/Sum | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/TimesMap | discourse (defaults) | 1.91.0 | 103 | 103 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/TimesMap | discourse | 1.91.0 | 103 | 103 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/TimesMap | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/TimesMap | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/UriDefaultParser | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/UriDefaultParser | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/UriDefaultParser | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/UriDefaultParser | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ZipWithoutBlock | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ZipWithoutBlock | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ZipWithoutBlock | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| Performance/ZipWithoutBlock | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
 | Rails/ActionControllerFlashBeforeRender | discourse (defaults) | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
 | Rails/ActionControllerFlashBeforeRender | discourse | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
 | Rails/ActionControllerFlashBeforeRender | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
@@ -752,3 +916,39 @@ pin those releases. For payaus, copy `ci/corpus/payaus.rubocop.Gemfile` to
 | Style/WordArray | discourse | 1.91.0 | 9 | 9 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/WordArray | forem | 1.63.4 | 27 | 27 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
 | Style/WordArray | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-09-24 |  |
+| ThreadSafety/ActiveSupportCallbacks | discourse (defaults) | 1.91.0 | 9 | 9 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/ActiveSupportCallbacks | discourse | 1.91.0 | 9 | 9 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/ActiveSupportCallbacks | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/ActiveSupportCallbacks | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/ClassAndModuleAttributes | discourse (defaults) | 1.91.0 | 48 | 48 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/ClassAndModuleAttributes | discourse | 1.91.0 | 48 | 48 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/ClassAndModuleAttributes | mastodon (defaults) | 1.91.0 | 19 | 19 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/ClassAndModuleAttributes | mastodon | 1.91.0 | 19 | 19 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/ClassInstanceVariable | discourse (defaults) | 1.91.0 | 1009 | 1009 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/ClassInstanceVariable | discourse | 1.91.0 | 1001 | 1001 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/ClassInstanceVariable | mastodon (defaults) | 1.91.0 | 39 | 39 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/ClassInstanceVariable | mastodon | 1.91.0 | 39 | 39 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/DirChdir | discourse (defaults) | 1.91.0 | 63 | 63 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/DirChdir | discourse | 1.91.0 | 62 | 62 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/DirChdir | mastodon (defaults) | 1.91.0 | 2 | 2 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/DirChdir | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/LazySynchronizationPrimitive | discourse (defaults) | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/LazySynchronizationPrimitive | discourse | 1.91.0 | 3 | 3 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/LazySynchronizationPrimitive | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/LazySynchronizationPrimitive | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/MethodRedefinition | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/MethodRedefinition | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/MethodRedefinition | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/MethodRedefinition | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/MutableClassInstanceVariable | discourse (defaults) | 1.91.0 | 10 | 10 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/MutableClassInstanceVariable | discourse | 1.91.0 | 10 | 10 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/MutableClassInstanceVariable | mastodon (defaults) | 1.91.0 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/MutableClassInstanceVariable | mastodon | 1.91.0 | 1 | 1 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/NewThread | discourse (defaults) | 1.91.0 | 124 | 124 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/NewThread | discourse | 1.91.0 | 123 | 123 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/NewThread | mastodon (defaults) | 1.91.0 | 5 | 5 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/NewThread | mastodon | 1.91.0 | 5 | 5 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/RackMiddlewareInstanceVariable | discourse (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/RackMiddlewareInstanceVariable | discourse | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/RackMiddlewareInstanceVariable | mastodon (defaults) | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |
+| ThreadSafety/RackMiddlewareInstanceVariable | mastodon | 1.91.0 | 0 | 0 | 0 | 0 | 0 | 100.0% | 2026-10-06 |

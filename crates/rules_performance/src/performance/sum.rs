@@ -40,7 +40,7 @@ impl Rule for Sum {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[
             ConfigOption {
@@ -111,7 +111,8 @@ impl Sum {
             return;
         }
 
-        let selector_start = node.message_loc().map_or(node.as_node().span().start, |l| l.span().start);
+        let selector_start =
+            node.message_loc().map_or(node.as_node().span().start, |l| l.span().start);
         let range = Span::new(selector_start, call_span_excluding_block(node).end);
         let good_method = build_good_method(init, None, ctx);
         let mut bad_method = format!("{method}(");
@@ -188,9 +189,8 @@ impl Sum {
         );
         let message = format!("Use `{good_method}` instead of `{bad_method}`.");
 
-        let map_selector = receiver
-            .message_loc()
-            .map_or(receiver.as_node().span().start, |l| l.span().start);
+        let map_selector =
+            receiver.message_loc().map_or(receiver.as_node().span().start, |l| l.span().start);
         let range = Span::new(map_selector, node.as_node().span().end);
 
         let sum_range = method_call_with_args_range(node.receiver(), node.as_node().span());
@@ -259,10 +259,8 @@ impl Sum {
             return;
         }
         let Some(lhs) = body_call.receiver().and_then(|r| lvar_name(&r)) else { return };
-        let body_args: Vec<Node<'_>> = body_call
-            .arguments()
-            .map(|args| args.arguments().iter().collect())
-            .unwrap_or_default();
+        let body_args: Vec<Node<'_>> =
+            body_call.arguments().map(|args| args.arguments().iter().collect()).unwrap_or_default();
         let [rhs] = body_args.as_slice() else { return };
         let Some(rhs) = lvar_name(rhs) else { return };
         let acc = acc.as_slice();
@@ -361,12 +359,20 @@ fn is_zero_int(node: &Node<'_>) -> bool {
     })
 }
 
-fn build_good_method(init: Option<&Node<'_>>, block_pass: Option<&Node<'_>>, ctx: &Context<'_>) -> String {
+fn build_good_method(
+    init: Option<&Node<'_>>,
+    block_pass: Option<&Node<'_>>,
+    ctx: &Context<'_>,
+) -> String {
     let pass = block_pass.map(|node| source(ctx, node));
     build_good_method_src(init, pass.as_deref(), ctx)
 }
 
-fn build_good_method_src(init: Option<&Node<'_>>, block_pass: Option<&str>, ctx: &Context<'_>) -> String {
+fn build_good_method_src(
+    init: Option<&Node<'_>>,
+    block_pass: Option<&str>,
+    ctx: &Context<'_>,
+) -> String {
     let mut args: Vec<String> = Vec::new();
     if let Some(init) = init {
         if !is_zero_int(init) {

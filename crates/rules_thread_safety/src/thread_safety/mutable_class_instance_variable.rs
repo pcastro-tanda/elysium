@@ -26,7 +26,10 @@ enum Frame {
     Def,
     /// A `block` (call with a literal block, or lambda): method name and
     /// whether its send has a nil receiver.
-    Block { name: Vec<u8>, nil_receiver: bool },
+    Block {
+        name: Vec<u8>,
+        nil_receiver: bool,
+    },
 }
 
 #[derive(Debug, Clone, Copy, PartialEq, Eq)]
@@ -115,7 +118,10 @@ fn first_argument<'pr>(call: &CallNode<'pr>) -> Option<Node<'pr>> {
 /// `ENV[_]` (`(send (const {nil? cbase} :ENV) :[] _)`).
 fn is_env_index(node: &Node<'_>, target_ruby: f32) -> bool {
     view(node, target_ruby).is_some_and(|v| {
-        !v.has_block && v.call.name().as_slice() == b"[]" && v.nargs == 1 && receiver_is(&v.call, b"ENV")
+        !v.has_block
+            && v.call.name().as_slice() == b"[]"
+            && v.nargs == 1
+            && receiver_is(&v.call, b"ENV")
     })
 }
 
@@ -193,7 +199,9 @@ fn produces_threadsafe_object(node: &Node<'_>, target_ruby: f32) -> bool {
     let Some((root, segments)) = const_chain(&receiver) else { return false };
     match root.as_slice() {
         b"Queue" => !v.has_block && segments.is_empty(),
-        b"ThreadSafe" => segments.len() == 1 && matches!(segments[0].as_slice(), b"Hash" | b"Array"),
+        b"ThreadSafe" => {
+            segments.len() == 1 && matches!(segments[0].as_slice(), b"Hash" | b"Array")
+        }
         b"Concurrent" => (1..=3).contains(&segments.len()),
         _ => false,
     }
@@ -278,9 +286,7 @@ impl MutableClassInstanceVariable {
         } else {
             matches!(
                 node.kind(),
-                NodeKind::StringNode
-                    | NodeKind::SourceFileNode
-                    | NodeKind::InterpolatedStringNode
+                NodeKind::StringNode | NodeKind::SourceFileNode | NodeKind::InterpolatedStringNode
             )
         };
         literal && ctx.parsed().frozen_string_literals()
@@ -305,8 +311,7 @@ impl MutableClassInstanceVariable {
 
     /// `within_dsl_with_threadsafe_semantics?` (the value is never nil here).
     fn within_dsl_with_threadsafe_semantics(&self) -> bool {
-        let Some(index) = self.frames.iter().rposition(|f| matches!(f, Frame::Block { .. }))
-        else {
+        let Some(index) = self.frames.iter().rposition(|f| matches!(f, Frame::Block { .. })) else {
             return false;
         };
         let Frame::Block { name, .. } = &self.frames[index] else { return false };
@@ -314,7 +319,9 @@ impl MutableClassInstanceVariable {
             return false;
         }
         self.frames[..index].iter().rev().find_map(|f| match f {
-            Frame::Class(superclass) => Some(superclass.as_deref() == Some("ActiveSupport::TestCase")),
+            Frame::Class(superclass) => {
+                Some(superclass.as_deref() == Some("ActiveSupport::TestCase"))
+            }
             _ => None,
         }) == Some(true)
     }
@@ -440,7 +447,7 @@ end
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[
             NodeKind::ClassNode,
             NodeKind::ModuleNode,
@@ -481,7 +488,8 @@ end
         match node.kind() {
             NodeKind::InstanceVariableWriteNode => {
                 if self.in_class() {
-                    let value = node.as_instance_variable_write_node().expect("kind matched").value();
+                    let value =
+                        node.as_instance_variable_write_node().expect("kind matched").value();
                     self.on_assignment(&value, ctx);
                 }
             }

@@ -25,7 +25,7 @@ impl Rule for ReverseFirst {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
@@ -72,10 +72,8 @@ impl Rule for ReverseFirst {
             }
             None => "last".to_string(),
         };
-        let message = format!(
-            "Use `{good}` instead of `{}`.",
-            String::from_utf8_lossy(ctx.text(range))
-        );
+        let message =
+            format!("Use `{good}` instead of `{}`.", String::from_utf8_lossy(ctx.text(range)));
         ctx.report_with_fix(
             &Self::META,
             range,

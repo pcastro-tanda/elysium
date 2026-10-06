@@ -29,7 +29,7 @@ impl Rule for StringInclude {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
@@ -71,16 +71,15 @@ impl Rule for StringInclude {
 
         let negation = !call.is_safe_navigation() && name == b"!~";
         let neg = if negation { "!" } else { "" };
-        let message =
-            format!("Use `{neg}String#include?` instead of a regex match with literal-only pattern.");
+        let message = format!(
+            "Use `{neg}String#include?` instead of a regex match with literal-only pattern."
+        );
 
         let span = call_span_excluding_block(&call);
         let literal = to_string_literal(&interpret_string_escapes(&regex_source));
         let dot = call.call_operator_loc().map_or(&b"."[..], |l| ctx.text(l.span()));
-        let new_source = format!(
-            "{neg}{other_source}{}include?({literal})",
-            String::from_utf8_lossy(dot)
-        );
+        let new_source =
+            format!("{neg}{other_source}{}include?({literal})", String::from_utf8_lossy(dot));
         ctx.report_with_fix(
             &Self::META,
             span,

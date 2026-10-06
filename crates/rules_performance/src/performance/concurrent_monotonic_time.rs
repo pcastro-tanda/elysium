@@ -64,7 +64,7 @@ impl Rule for ConcurrentMonotonicTime {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[
             NodeKind::CallNode,
             NodeKind::CallOrWriteNode,
@@ -123,11 +123,10 @@ impl Rule for ConcurrentMonotonicTime {
         let optional_unit_parameter = first_argument
             .map(|span| format!(", {}", String::from_utf8_lossy(ctx.text(span))))
             .unwrap_or_default();
-        let prefer = format!("Process.clock_gettime(Process::CLOCK_MONOTONIC{optional_unit_parameter})");
-        let message = format!(
-            "Use `{prefer}` instead of `{}`.",
-            String::from_utf8_lossy(ctx.text(span))
-        );
+        let prefer =
+            format!("Process.clock_gettime(Process::CLOCK_MONOTONIC{optional_unit_parameter})");
+        let message =
+            format!("Use `{prefer}` instead of `{}`.", String::from_utf8_lossy(ctx.text(span)));
         ctx.report_with_fix(
             &Self::META,
             span,

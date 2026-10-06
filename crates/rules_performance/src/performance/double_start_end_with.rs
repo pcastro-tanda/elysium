@@ -88,7 +88,11 @@ struct Matched<'pr> {
 
 impl DoubleStartEndWith {
     fn methods(&self) -> &'static [&'static [u8]] {
-        if self.include_active_support_aliases { &METHODS_WITH_ACTIVE_SUPPORT } else { &METHODS }
+        if self.include_active_support_aliases {
+            &METHODS_WITH_ACTIVE_SUPPORT
+        } else {
+            &METHODS
+        }
     }
 
     /// `(call $_recv [%methods_to_check $_method] $...)` and `(call _recv _method $...)`.
@@ -105,7 +109,8 @@ impl DoubleStartEndWith {
             return None;
         }
         let method = first.name();
-        if !self.methods().contains(&method.as_slice()) || second.name().as_slice() != method.as_slice()
+        if !self.methods().contains(&method.as_slice())
+            || second.name().as_slice() != method.as_slice()
         {
             return None;
         }
@@ -204,7 +209,7 @@ impl Rule for DoubleStartEndWith {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::OrNode, NodeKind::AndNode],
         config: &[ConfigOption {
             name: "IncludeActiveSupportAliases",

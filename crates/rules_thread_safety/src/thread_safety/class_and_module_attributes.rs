@@ -6,8 +6,8 @@
 //! ancestor stack because the engine's ancestor info does not distinguish them.
 
 use linter::{
-    ConfigDefault, ConfigOption, Context, Department, FixAvailability, OptionError, Rule,
-    RuleMeta, RuleOptions, Severity, Stability,
+    ConfigDefault, ConfigOption, Context, Department, FixAvailability, OptionError, Rule, RuleMeta,
+    RuleOptions, Severity, Stability,
 };
 use ruby_ast::ext::call_span_excluding_block;
 use ruby_ast::{walk, Node, NodeExt as _, NodeKind, Visitor};
@@ -56,10 +56,12 @@ impl<'pr> Visitor<'pr> for Collector {
                         true
                     }
                     b"class_attribute" => !self.class_attribute_allowed,
-                    b"attr" | b"attr_accessor" | b"attr_writer" | b"attr_internal"
-                    | b"attr_internal_accessor" | b"attr_internal_writer" => {
-                        self.defined_in_singleton_class()
-                    }
+                    b"attr"
+                    | b"attr_accessor"
+                    | b"attr_writer"
+                    | b"attr_internal"
+                    | b"attr_internal_accessor"
+                    | b"attr_internal_writer" => self.defined_in_singleton_class(),
                     _ => false,
                 };
                 if hit {
@@ -92,7 +94,7 @@ impl Rule for ClassAndModuleAttributes {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[],
         config: &[ConfigOption {
             name: "ActiveSupportClassAttributeAllowed",

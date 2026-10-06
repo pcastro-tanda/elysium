@@ -164,9 +164,7 @@ fn is_pure(node: &Node<'_>) -> bool {
         | NodeKind::EnsureNode => all(node),
         NodeKind::BeginNode => {
             let begin = node.as_begin_node().expect("kind matched");
-            begin.rescue_clause().is_none()
-                && begin.else_clause().is_none()
-                && all(node)
+            begin.rescue_clause().is_none() && begin.else_clause().is_none() && all(node)
         }
         _ => false,
     }
@@ -276,11 +274,7 @@ fn value_source(ctx: &Context<'_>, key: &Node<'_>, value: &Node<'_>) -> Vec<u8> 
 
 fn leading_spaces(ctx: &Context<'_>, offset: u32) -> Vec<u8> {
     let line = ctx.line_col(offset).line;
-    ctx.line_text(line)
-        .iter()
-        .take_while(|b| b.is_ascii_whitespace())
-        .copied()
-        .collect()
+    ctx.line_text(line).iter().take_while(|b| b.is_ascii_whitespace()).copied().collect()
 }
 
 fn gsub_newlines(source: &[u8], padding: &[u8]) -> Vec<u8> {
@@ -310,7 +304,7 @@ receiver of `merge!` is actually a hash or not.",
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[ConfigOption {
             name: "MaxKeyValuePairs",
@@ -396,9 +390,8 @@ receiver of `merge!` is actually a hash or not.",
         // whitequark's `node.parent` is nil only for a lone top-level statement.
         let parent_idx = idx - 1;
         let wq_parent_idx = if path[parent_idx].kind() == NodeKind::StatementsNode {
-            let single = path[parent_idx]
-                .as_statements_node()
-                .is_some_and(|s| s.body().iter().count() == 1);
+            let single =
+                path[parent_idx].as_statements_node().is_some_and(|s| s.body().iter().count() == 1);
             if single {
                 parent_idx.checked_sub(1).filter(|&i| path[i].kind() != NodeKind::ProgramNode)
             } else {

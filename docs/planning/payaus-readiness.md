@@ -101,7 +101,17 @@ treat a block as an ancestor of its call's receiver and arguments (whitequark
 `block` wraps the call), `Rails/RedundantReceiverInWithOptions` must count
 op-assign and multiple-assignment call targets as `send`s, and
 `Rails/WhereEquals` must render a shorthand pair's (`id:`) value without the
-colon. Performance, Minitest, Sorbet, and ThreadSafety remain.
+colon.
+
+Performance and ThreadSafety — done (2026-10-06): all 41 + 9 ported and
+`stable`, 100% agreement with rubocop-performance 1.27.0 and
+rubocop-thread_safety 0.8.0 on discourse and mastodon (own config and
+defaults, messages included; 4,732 truth offenses). Spec examples
+`port_spec.rb` cannot capture (autocorrect assertions outside
+`expect_offense`, ten cops) were rebuilt as throwaway inputs and compared with
+real RuboCop, offenses and autocorrected output; this caught
+`Performance/RedundantMerge` flagging a `merge!` with a literal block.
+Minitest and Sorbet remain.
 
 ### 4. Tanda custom cops (1-2 waves)
 59 cops, ~3,800 lines of Ruby in `payaus/rubocop/custom_cops`, ported into a

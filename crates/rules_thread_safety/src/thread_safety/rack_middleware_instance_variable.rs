@@ -4,8 +4,8 @@
 use std::collections::HashSet;
 
 use linter::{
-    ConfigDefault, ConfigOption, Context, Department, FixAvailability, OptionError, Rule,
-    RuleMeta, RuleOptions, Severity, Stability,
+    ConfigDefault, ConfigOption, Context, Department, FixAvailability, OptionError, Rule, RuleMeta,
+    RuleOptions, Severity, Stability,
 };
 use ruby_ast::ext::call_span_excluding_block;
 use ruby_ast::node::{CallNode, DefNode, ParametersNode};
@@ -33,7 +33,7 @@ impl Rule for RackMiddlewareInstanceVariable {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::ClassNode, NodeKind::CallNode],
         config: &[ConfigOption {
             name: "AllowedIdentifiers",
@@ -125,7 +125,8 @@ impl RackMiddlewareInstanceVariable {
     fn on_send(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
         let Some(call) = node.as_call_node() else { return };
         let name = call.name();
-        if name.as_slice() != b"instance_variable_get" && name.as_slice() != b"instance_variable_set"
+        if name.as_slice() != b"instance_variable_get"
+            && name.as_slice() != b"instance_variable_set"
         {
             return;
         }

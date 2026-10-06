@@ -25,8 +25,21 @@ fn is_literal_char(c: char) -> bool {
         || matches!(c, ' ' | '\t' | '\n' | '\x0b' | '\x0c' | '\r')
         || matches!(
             c,
-            '-' | ',' | '"' | '\'' | '!' | '#' | '%' | '&' | '<' | '>' | '=' | ';' | ':' | '`'
-                | '~' | '/'
+            '-' | ','
+                | '"'
+                | '\''
+                | '!'
+                | '#'
+                | '%'
+                | '&'
+                | '<'
+                | '>'
+                | '='
+                | ';'
+                | ':'
+                | '`'
+                | '~'
+                | '/'
         )
 }
 
@@ -83,7 +96,9 @@ fn literal_at_start(regexp: &str, safe_multiline: bool) -> bool {
 
 /// `drop_start_metacharacter`
 fn drop_start_metacharacter(regexp: &str) -> &str {
-    regexp.strip_prefix("\\A").unwrap_or_else(|| &regexp[regexp.chars().next().map_or(0, char::len_utf8)..])
+    regexp
+        .strip_prefix("\\A")
+        .unwrap_or_else(|| &regexp[regexp.chars().next().map_or(0, char::len_utf8)..])
 }
 
 /// `StringInterpreter.interpret`: convert escapes as a double-quoted literal.
@@ -133,7 +148,8 @@ fn interpret_string_escapes(input: &str) -> String {
                 out.push(char::from_u32(value).unwrap_or('\0'));
             }
             'u' if chars.get(i) == Some(&'{') => {
-                let end = chars[i..].iter().position(|&ch| ch == '}').map_or(chars.len(), |p| i + p);
+                let end =
+                    chars[i..].iter().position(|&ch| ch == '}').map_or(chars.len(), |p| i + p);
                 let body: String = chars[i + 1..end].iter().collect();
                 for hex in body.split_whitespace() {
                     if let Some(ch) = u32::from_str_radix(hex, 16).ok().and_then(char::from_u32) {
@@ -246,7 +262,7 @@ This cop is unsafe because `Pathname` has `sub` but not `delete_prefix`.",
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[ConfigOption {
             name: "SafeMultiline",
@@ -292,7 +308,8 @@ This cop is unsafe because `Pathname` has `sub` but not `delete_prefix`.",
         if !replacement.unescaped().is_empty() {
             return;
         }
-        let regexp_str = String::from_utf8_lossy(ctx.text(regexp.content_loc().span())).into_owned();
+        let regexp_str =
+            String::from_utf8_lossy(ctx.text(regexp.content_loc().span())).into_owned();
         if !literal_at_start(&regexp_str, self.safe_multiline) {
             return;
         }

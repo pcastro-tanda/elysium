@@ -15,7 +15,8 @@ const MSG: &str =
     "Use `String#end_with?` instead of a regex match anchored to the end of the string.";
 
 /// `Util::LITERAL_REGEX` with Ruby's ASCII-only `\w` and `\s`.
-const LITERAL: &str = r#"(?:[A-Za-z0-9_ \t\n\x0B\x0C\r\-,"'!#%&<>=;:`~/]|\\[^AbBdDgGhHkpPRwWXsSzZ0-9])"#;
+const LITERAL: &str =
+    r#"(?:[A-Za-z0-9_ \t\n\x0B\x0C\r\-,"'!#%&<>=;:`~/]|\\[^AbBdDgGhHkpPRwWXsSzZ0-9])"#;
 
 static AT_END_BACKSLASH_Z: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(&format!(r"\A{LITERAL}+\\z\z")).expect("static regex"));
@@ -43,7 +44,7 @@ impl Rule for EndWith {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[ConfigOption {
             name: "SafeMultiline",
@@ -66,7 +67,8 @@ impl Rule for EndWith {
             return;
         }
         let Some(arguments) = call.arguments() else { return };
-        if arguments.arguments().len() != 1 || call.block().is_some_and(|b| b.as_block_node().is_none())
+        if arguments.arguments().len() != 1
+            || call.block().is_some_and(|b| b.as_block_node().is_none())
         {
             return;
         }
@@ -94,9 +96,8 @@ impl Rule for EndWith {
             s.pop();
         }
         let interpreted = interpret_string_escapes(s.as_bytes());
-        let dot = call
-            .call_operator_loc()
-            .map_or_else(|| b".".to_vec(), |l| ctx.text(l.span()).to_vec());
+        let dot =
+            call.call_operator_loc().map_or_else(|| b".".to_vec(), |l| ctx.text(l.span()).to_vec());
         let mut new_source = ctx.text(receiver_node.span()).to_vec();
         new_source.extend_from_slice(&dot);
         new_source.extend_from_slice(b"end_with?(");
@@ -106,7 +107,10 @@ impl Rule for EndWith {
             &Self::META,
             span,
             MSG,
-            Fix { applicability: Applicability::Unsafe, edits: vec![Edit::replace(span, new_source)] },
+            Fix {
+                applicability: Applicability::Unsafe,
+                edits: vec![Edit::replace(span, new_source)],
+            },
         );
     }
 }

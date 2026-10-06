@@ -23,7 +23,7 @@ impl Rule for TimesMap {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
@@ -80,11 +80,8 @@ impl Rule for TimesMap {
         } else {
             format!("Array.new({count_src})")
         };
-        let replace_span = if block_pass {
-            call.as_node().span()
-        } else {
-            call_span_excluding_block(&call)
-        };
+        let replace_span =
+            if block_pass { call.as_node().span() } else { call_span_excluding_block(&call) };
         ctx.report_with_fix(
             &Self::META,
             call.as_node().span(),

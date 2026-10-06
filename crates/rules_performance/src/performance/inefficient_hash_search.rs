@@ -2,8 +2,8 @@
 //! `lib/rubocop/cop/performance/inefficient_hash_search.rb`.
 
 use linter::{
-    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, OptionValue,
-    Rule, RuleMeta, RuleOptions, Severity, Stability,
+    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, OptionValue, Rule,
+    RuleMeta, RuleOptions, Severity, Stability,
 };
 use ruby_ast::ext::call_span_excluding_block;
 use ruby_ast::node::CallNode;
@@ -25,7 +25,7 @@ impl Rule for InefficientHashSearch {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",

@@ -26,8 +26,12 @@ impl Rule for LazySynchronizationPrimitive {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
-        kinds: &[NodeKind::InstanceVariableOrWriteNode, NodeKind::ClassVariableOrWriteNode, NodeKind::CallNode],
+        stability: Stability::Stable,
+        kinds: &[
+            NodeKind::InstanceVariableOrWriteNode,
+            NodeKind::ClassVariableOrWriteNode,
+            NodeKind::CallNode,
+        ],
         config: &[],
         blind_spots: "",
     };

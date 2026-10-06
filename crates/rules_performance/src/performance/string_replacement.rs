@@ -13,7 +13,8 @@ use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
 /// `Util::LITERAL_REGEX` with Ruby's ASCII-only `\w` and `\s`.
-const LITERAL: &str = r#"(?:[A-Za-z0-9_ \t\n\x0B\x0C\r\-,"'!#%&<>=;:`~/]|\\[^AbBdDgGhHkpPRwWXsSzZ0-9])"#;
+const LITERAL: &str =
+    r#"(?:[A-Za-z0-9_ \t\n\x0B\x0C\r\-,"'!#%&<>=;:`~/]|\\[^AbBdDgGhHkpPRwWXsSzZ0-9])"#;
 
 static DETERMINISTIC_REGEX: LazyLock<Regex> =
     LazyLock::new(|| Regex::new(&format!(r"\A{LITERAL}+\z")).expect("static regex"));
@@ -44,7 +45,7 @@ impl Rule for StringReplacement {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
@@ -114,9 +115,7 @@ impl Rule for StringReplacement {
         }
         if delete {
             let end_range = Span::new(first_param.span().end, node_span.end);
-            let suffix = call
-                .closing_loc()
-                .map_or_else(Vec::new, |l| ctx.text(l.span()).to_vec());
+            let suffix = call.closing_loc().map_or_else(Vec::new, |l| ctx.text(l.span()).to_vec());
             edits.push(Edit::replace(end_range, suffix));
         }
         ctx.report_with_fix(
@@ -137,7 +136,9 @@ fn first_source(node: &Node<'_>, ctx: &Context<'_>) -> Option<First> {
     if let Some(s) = node.as_string_node() {
         return Some(First { source: Some(s.unescaped().to_vec()), options: false, is_str: true });
     }
-    if node.as_regular_expression_node().is_some() || node.as_interpolated_regular_expression_node().is_some() {
+    if node.as_regular_expression_node().is_some()
+        || node.as_interpolated_regular_expression_node().is_some()
+    {
         return Some(regex_literal(node, ctx));
     }
     let call = node.as_call_node()?;

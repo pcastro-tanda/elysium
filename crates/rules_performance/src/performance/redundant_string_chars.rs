@@ -26,7 +26,7 @@ impl Rule for RedundantStringChars {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
@@ -71,7 +71,8 @@ impl Rule for RedundantStringChars {
         let end = send_span(&call).end;
         let range = Span::new(selector.span().start, end);
         let sources: Vec<&[u8]> = args.iter().map(|a| ctx.text(a.span())).collect();
-        let call_args = sources.iter().map(|s| String::from_utf8_lossy(s)).collect::<Vec<_>>().join(", ");
+        let call_args =
+            sources.iter().map(|s| String::from_utf8_lossy(s)).collect::<Vec<_>>().join(", ");
         let good = build_good_method(method, &args, &call_args, ctx);
         let bad = if method == "[]" {
             format!("chars[{call_args}]")
@@ -101,7 +102,12 @@ fn send_span(call: &CallNode<'_>) -> Span {
     }
 }
 
-fn build_good_method(method: &str, args: &[Node<'_>], call_args: &str, ctx: &Context<'_>) -> String {
+fn build_good_method(
+    method: &str,
+    args: &[Node<'_>],
+    call_args: &str,
+    ctx: &Context<'_>,
+) -> String {
     let first_source = |a: &Node<'_>| String::from_utf8_lossy(ctx.text(a.span())).into_owned();
     match method {
         "slice" => format!("[{call_args}].chars"),

@@ -28,7 +28,7 @@ impl Rule for StringBytesize {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
@@ -44,8 +44,7 @@ impl Rule for StringBytesize {
             return;
         }
         // The outer call takes no arguments (a `&blk` argument would be one).
-        if call.arguments().is_some() || call.block().is_some_and(|b| b.as_block_node().is_none())
-        {
+        if call.arguments().is_some() || call.block().is_some_and(|b| b.as_block_node().is_none()) {
             return;
         }
         let Some(bytes) = call.receiver().and_then(|r| r.as_call_node()) else { return };

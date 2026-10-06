@@ -88,7 +88,7 @@ impl Rule for StringIdentifierArgument {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
@@ -197,12 +197,11 @@ fn is_simple_symbol(text: &str) -> bool {
         if !rest.is_empty() && rest.bytes().all(|b| b.is_ascii_digit()) {
             return true;
         }
-        return rest.strip_prefix('-').is_some_and(|r| r.chars().count() == 1 && r.chars().all(is_ident_char));
+        return rest
+            .strip_prefix('-')
+            .is_some_and(|r| r.chars().count() == 1 && r.chars().all(is_ident_char));
     }
-    let base = text
-        .strip_suffix(['?', '!', '='])
-        .filter(|b| !b.is_empty())
-        .unwrap_or(text);
+    let base = text.strip_suffix(['?', '!', '=']).filter(|b| !b.is_empty()).unwrap_or(text);
     is_identifier(base)
 }
 

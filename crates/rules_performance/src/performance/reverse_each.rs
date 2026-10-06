@@ -80,7 +80,8 @@ impl<'pr> Visitor<'pr> for Collector {
                         if let (Some(rev_sel), Some(each_sel)) =
                             (reverse.message_loc(), each.message_loc())
                         {
-                            self.offenses.push(Span::new(rev_sel.span().start, each_sel.span().end));
+                            self.offenses
+                                .push(Span::new(rev_sel.span().start, each_sel.span().end));
                         }
                     }
                 }
@@ -105,7 +106,7 @@ impl Rule for ReverseEach {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[],
         config: &[],
         blind_spots: "",

@@ -27,7 +27,7 @@ impl Rule for DeleteSuffix {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[ConfigOption {
             name: "SafeMultiline",
@@ -85,10 +85,8 @@ impl Rule for DeleteSuffix {
             return;
         }
 
-        let message = format!(
-            "Use `{good_method}` instead of `{}`.",
-            String::from_utf8_lossy(bad_method)
-        );
+        let message =
+            format!("Use `{good_method}` instead of `{}`.", String::from_utf8_lossy(bad_method));
         let Some(selector) = call.message_loc() else { return };
 
         let regexp_str = drop_end_metacharacter(&content);
@@ -125,8 +123,7 @@ impl DeleteSuffix {
                 return true;
             }
         }
-        !self.safe_multiline
-            && regexp.strip_suffix('$').is_some_and(all_literal)
+        !self.safe_multiline && regexp.strip_suffix('$').is_some_and(all_literal)
     }
 }
 
@@ -169,8 +166,21 @@ fn all_literal(s: &str) -> bool {
             || matches!(c, ' ' | '\t' | '\n' | '\r' | '\x0C' | '\x0B')
             || matches!(
                 c,
-                '-' | ',' | '"' | '\'' | '!' | '#' | '%' | '&' | '<' | '>' | '=' | ';' | ':'
-                    | '`' | '~' | '/'
+                '-' | ','
+                    | '"'
+                    | '\''
+                    | '!'
+                    | '#'
+                    | '%'
+                    | '&'
+                    | '<'
+                    | '>'
+                    | '='
+                    | ';'
+                    | ':'
+                    | '`'
+                    | '~'
+                    | '/'
             ))
         {
             return false;
@@ -220,19 +230,25 @@ fn interpret_string_escapes(s: &str) -> Vec<u8> {
             'v' => out.push(0x0B),
             '\n' => {}
             '0'..='9' => {
-                let digits: Vec<char> =
-                    chars[i + 1..].iter().take(3).take_while(|d| d.is_ascii_digit()).copied().collect();
-                let octal: u32 = digits
+                let digits: Vec<char> = chars[i + 1..]
                     .iter()
-                    .map_while(|d| d.to_digit(8))
-                    .fold(0, |acc, d| acc * 8 + d);
+                    .take(3)
+                    .take_while(|d| d.is_ascii_digit())
+                    .copied()
+                    .collect();
+                let octal: u32 =
+                    digits.iter().map_while(|d| d.to_digit(8)).fold(0, |acc, d| acc * 8 + d);
                 out.push(u8::try_from(octal % 256).unwrap_or(0));
                 i += 1 + digits.len();
                 continue;
             }
             'x' if chars.get(i + 2).is_some_and(char::is_ascii_hexdigit) => {
-                let digits: Vec<char> =
-                    chars[i + 2..].iter().take(2).take_while(|d| d.is_ascii_hexdigit()).copied().collect();
+                let digits: Vec<char> = chars[i + 2..]
+                    .iter()
+                    .take(2)
+                    .take_while(|d| d.is_ascii_hexdigit())
+                    .copied()
+                    .collect();
                 let value =
                     digits.iter().filter_map(|d| d.to_digit(16)).fold(0, |acc, d| acc * 16 + d);
                 out.push(u8::try_from(value).unwrap_or(0));
@@ -250,7 +266,9 @@ fn interpret_string_escapes(s: &str) -> Vec<u8> {
                 i = end + 1;
                 continue;
             }
-            'u' if chars.len() >= i + 6 && chars[i + 2..i + 6].iter().all(char::is_ascii_hexdigit) => {
+            'u' if chars.len() >= i + 6
+                && chars[i + 2..i + 6].iter().all(char::is_ascii_hexdigit) =>
+            {
                 let hex: String = chars[i + 2..i + 6].iter().collect();
                 if let Some(ch) = u32::from_str_radix(&hex, 16).ok().and_then(char::from_u32) {
                     push_char(&mut out, ch);

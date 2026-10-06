@@ -22,7 +22,7 @@ impl Rule for MethodObjectAsBlock {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
@@ -41,7 +41,9 @@ impl Rule for MethodObjectAsBlock {
         let Some(block) = call.block() else { return };
         let Some(block_pass) = block.as_block_argument_node() else { return };
         let Some(inner) = block_pass.expression().and_then(|e| e.as_call_node()) else { return };
-        if inner.is_safe_navigation() || inner.name().as_slice() != b"method" || inner.block().is_some()
+        if inner.is_safe_navigation()
+            || inner.name().as_slice() != b"method"
+            || inner.block().is_some()
         {
             return;
         }

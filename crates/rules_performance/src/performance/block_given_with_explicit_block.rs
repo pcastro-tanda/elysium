@@ -6,7 +6,7 @@ use linter::{
     RuleOptions, Severity, Stability,
 };
 use ruby_ast::ext::call_span_excluding_block;
-use ruby_ast::{Node, NodeKind, each_descendant};
+use ruby_ast::{each_descendant, Node, NodeKind};
 
 const MSG: &str = "Check block argument explicitly instead of using `block_given?`.";
 
@@ -77,7 +77,7 @@ impl Rule for BlockGivenWithExplicitBlock {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::DefNode, NodeKind::CallNode],
         config: &[],
         blind_spots: "",
