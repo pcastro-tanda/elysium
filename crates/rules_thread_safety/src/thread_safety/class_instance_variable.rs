@@ -487,7 +487,11 @@ impl Rule for ClassInstanceVariable {
         stability: Stability::Stable,
         kinds: &[],
         config: &[],
-        blind_spots: "",
+        blind_spots: "Upstream's `ancestor.children.first` test for a `define_method`/\
+                      `define_singleton_method` call is reproduced for the common parent \
+                      shapes (call receivers, blocks, lambdas, conditions, `and`/`or`, \
+                      statements, parentheses, `begin`, arrays, `return`), not every node \
+                      type.",
     };
 
     fn configure(_options: &RuleOptions) -> Result<Self, OptionError> {

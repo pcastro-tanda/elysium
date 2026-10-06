@@ -217,7 +217,9 @@ impl Rule for DoubleStartEndWith {
             allowed: &[],
             doc: "Also check `starts_with?` and `ends_with?` (Active Support).",
         }],
-        blind_spots: "",
+        blind_spots: "The two calls' receivers are compared by source text rather than \
+                      RuboCop's structural `Node#==`, so equal receivers written with \
+                      different formatting (`'a'` vs `\"a\"`) are treated as different.",
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {

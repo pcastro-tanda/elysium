@@ -36,4 +36,4 @@ str.end_with?(var1, var2)
 
 ## Blind spots
 
-None recorded.
+The two calls' receivers are compared by source text rather than RuboCop's structural `Node#==`, so equal receivers written with different formatting (`'a'` vs `"a"`) are treated as different.

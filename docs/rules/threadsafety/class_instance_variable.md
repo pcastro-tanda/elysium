@@ -18,4 +18,4 @@ This rule has no options.
 
 ## Blind spots
 
-None recorded.
+Upstream's `ancestor.children.first` test for a `define_method`/`define_singleton_method` call is reproduced for the common parent shapes (call receivers, blocks, lambdas, conditions, `and`/`or`, statements, parentheses, `begin`, arrays, `return`), not every node type.
