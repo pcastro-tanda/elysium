@@ -32,7 +32,7 @@ impl Rule for DuplicateScope {
         enabled_by_default: false,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::ClassNode],
         config: &[],
         blind_spots: "Scope expressions are compared by a structural fingerprint (node kinds, \

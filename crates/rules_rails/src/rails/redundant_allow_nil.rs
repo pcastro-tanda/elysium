@@ -34,7 +34,7 @@ impl Rule for RedundantAllowNil {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "Whether the two values have the same type is judged on Prism node kinds \

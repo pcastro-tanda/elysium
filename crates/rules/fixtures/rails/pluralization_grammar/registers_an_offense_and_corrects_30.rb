@@ -1,2 +1,2 @@
--871.day.from_now
-^^^^^^^^ Prefer `-871.days`.
+-316.day.from_now
+^^^^^^^^ Prefer `-316.days`.

@@ -205,6 +205,13 @@ begin
   helper_path = File.join(work, 'capture_helper.rb')
   helper = +<<~RUBY
     ENV['PARSER_ENGINE'] = 'parser_prism'
+    # Specs that draw sample values with `rand` at load time
+    # (Rails/PluralizationGrammar) must regenerate identically, but suites reseed
+    # `Kernel.rand` from RSpec's random seed (rubocop-rails' spec_helper calls
+    # `Kernel.srand config.seed`). Pin the RNG seed without touching RSpec's own
+    # `--seed`, which would also reorder examples and so renumber shared cases.
+    Kernel.singleton_class.prepend(Module.new { def srand(*) = super(0) })
+    Kernel.srand
   RUBY
   if extension
     # The suite's own spec_helper/test_helper: it loads the gem (from
@@ -560,8 +567,7 @@ begin
             'source' => source,
             'cop_config' => raw,
             'other_cops' => port_other_cops,
-            'ruby_version' => ruby_version,
-            'schema' => port_schema
+            'ruby_version' => ruby_version
           }
           result = super
           entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))

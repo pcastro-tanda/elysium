@@ -32,7 +32,7 @@ impl Rule for DuplicateAssociation {
         enabled_by_default: false,
         severity: Severity::Warning,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::ClassNode],
         config: &[],
         blind_spots: "",

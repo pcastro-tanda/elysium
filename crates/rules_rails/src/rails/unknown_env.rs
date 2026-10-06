@@ -33,7 +33,7 @@ impl Rule for UnknownEnv {
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode, NodeKind::CaseNode],
         config: &[ConfigOption {
             name: "Environments",

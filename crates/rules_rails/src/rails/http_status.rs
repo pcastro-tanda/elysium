@@ -99,7 +99,7 @@ impl Rule for HttpStatus {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[ConfigOption {
             name: "EnforcedStyle",

@@ -1,2 +1,2 @@
--397.fortnight.from_now
-^^^^^^^^^^^^^^ Prefer `-397.fortnights`.
+-779.fortnight.from_now
+^^^^^^^^^^^^^^ Prefer `-779.fortnights`.

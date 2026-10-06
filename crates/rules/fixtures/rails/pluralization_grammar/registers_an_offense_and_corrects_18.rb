@@ -1,2 +1,2 @@
-788.minute.from_now
-^^^^^^^^^^ Prefer `788.minutes`.
+756.minute.from_now
+^^^^^^^^^^ Prefer `756.minutes`.

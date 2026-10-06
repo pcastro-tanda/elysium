@@ -37,7 +37,7 @@ impl Rule for RedundantForeignKey {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: parent_module::KINDS,
         config: &[],
         blind_spots: "",

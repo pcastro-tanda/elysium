@@ -49,11 +49,10 @@ impl Rule for RedundantReceiverInWithOptions {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
-        blind_spots: "Receivers of op-assign and multiple-assignment call targets \
-                      (`a.b += 1`, `a.b, c = 1, 2`) are not seen as `send` nodes.",
+        blind_spots: "",
     };
 
     fn configure(_options: &RuleOptions) -> Result<Self, OptionError> {
@@ -69,10 +68,23 @@ impl Rule for RedundantReceiverInWithOptions {
         let Some(block) = block_node.as_block_node() else { return };
         let Some(body) = block.body() else { return };
 
-        // `all_block_nodes_in(body).none?`
+        // `all_block_nodes_in(body).none?`, and `all_send_nodes_in(body)`:
+        // whitequark's `send` also wraps the call of an op-assign
+        // (`a.b ||= 1`, `a[i] += 1`) and of a multiple-assignment target, but
+        // not the `=~` of a `match_with_lvasgn`.
         let mut has_block = false;
         let mut sends: Vec<SendInfo> = Vec::new();
+        let mut match_write_call: Option<Span> = None;
         let mut visit = |n: &Node<'_>| {
+            let mut push = |safe_navigation: bool,
+                            receiver: Option<Node<'_>>,
+                            dot: Option<Span>| {
+                if !safe_navigation {
+                    sends
+                        .push(SendInfo { receiver: receiver.map(|r| receiver_info(ctx, &r)), dot });
+                }
+            };
+            let dot = |loc: Option<ruby_ast::Location<'_>>| loc.map(|l| l.span());
             if let Some(b) = n.as_block_node() {
                 if block_kind(b.parameters().as_ref()) == BlockKind::Block {
                     has_block = true;
@@ -81,13 +93,32 @@ impl Rule for RedundantReceiverInWithOptions {
                 if block_kind(l.parameters().as_ref()) == BlockKind::Block {
                     has_block = true;
                 }
+            } else if let Some(m) = n.as_match_write_node() {
+                match_write_call = Some(m.call().as_node().span());
             } else if let Some(c) = n.as_call_node() {
-                if !c.is_safe_navigation() {
-                    sends.push(SendInfo {
-                        receiver: c.receiver().map(|r| receiver_info(ctx, &r)),
-                        dot: c.call_operator_loc().map(|l| l.span()),
-                    });
+                if match_write_call != Some(c.as_node().span()) {
+                    push(c.is_safe_navigation(), c.receiver(), dot(c.call_operator_loc()));
                 }
+            } else if let Some(c) = n.as_call_or_write_node() {
+                push(c.is_safe_navigation(), c.receiver(), dot(c.call_operator_loc()));
+            } else if let Some(c) = n.as_call_and_write_node() {
+                push(c.is_safe_navigation(), c.receiver(), dot(c.call_operator_loc()));
+            } else if let Some(c) = n.as_call_operator_write_node() {
+                push(c.is_safe_navigation(), c.receiver(), dot(c.call_operator_loc()));
+            } else if let Some(c) = n.as_index_or_write_node() {
+                push(c.is_safe_navigation(), c.receiver(), dot(c.call_operator_loc()));
+            } else if let Some(c) = n.as_index_and_write_node() {
+                push(c.is_safe_navigation(), c.receiver(), dot(c.call_operator_loc()));
+            } else if let Some(c) = n.as_index_operator_write_node() {
+                push(c.is_safe_navigation(), c.receiver(), dot(c.call_operator_loc()));
+            } else if let Some(c) = n.as_call_target_node() {
+                push(
+                    c.is_safe_navigation(),
+                    Some(c.receiver()),
+                    Some(c.call_operator_loc().span()),
+                );
+            } else if let Some(c) = n.as_index_target_node() {
+                push(c.is_safe_navigation(), Some(c.receiver()), None);
             }
         };
         visit(&body);

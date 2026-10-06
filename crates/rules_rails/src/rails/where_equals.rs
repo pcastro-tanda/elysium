@@ -39,7 +39,7 @@ impl Rule for WhereEquals {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
@@ -163,7 +163,16 @@ fn extract_column_and_value(
                 key.as_string_node().is_some_and(|string| string.unescaped() == wanted)
             }
         })?;
-        (captures[1].to_owned(), source(&pair.value()))
+        // A shorthand pair's (`id:`) value is whitequark's `send`/`lvar`
+        // named by the key, whose source omits the colon.
+        let value = pair.value();
+        let value = if value.as_implicit_node().is_some() {
+            let key = ctx.text(pair.key().span());
+            String::from_utf8_lossy(key.strip_suffix(b":").unwrap_or(key)).into_owned()
+        } else {
+            source(&value)
+        };
+        (captures[1].to_owned(), value)
     } else {
         let captures = patterns.is_null.captures(template)?;
         (captures[1].to_owned(), "nil".to_owned())

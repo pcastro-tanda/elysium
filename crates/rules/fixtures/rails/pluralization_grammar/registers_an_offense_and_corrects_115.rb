@@ -1,2 +1,2 @@
-817.terabyte.from_now
-^^^^^^^^^^^^ Prefer `817.terabytes`.
+619.terabyte.from_now
+^^^^^^^^^^^^ Prefer `619.terabytes`.

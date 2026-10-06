@@ -52,7 +52,7 @@ impl Rule for Blank {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode, NodeKind::OrNode, NodeKind::UnlessNode, NodeKind::DefNode],
         config: &[
             ConfigOption {

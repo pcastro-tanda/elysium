@@ -30,7 +30,7 @@ impl Rule for TopLevelHashWithIndifferentAccess {
         enabled_by_default: true,
         severity: Severity::Warning,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::ConstantReadNode, NodeKind::ConstantPathNode],
         config: &[],
         blind_spots: "Without `AllCops/TargetRailsVersion` the Rails version is taken to be \

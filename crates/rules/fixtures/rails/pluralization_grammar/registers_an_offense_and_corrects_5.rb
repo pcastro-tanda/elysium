@@ -1,2 +1,2 @@
--842.second.from_now
-^^^^^^^^^^^ Prefer `-842.seconds`.
+-686.second.from_now
+^^^^^^^^^^^ Prefer `-686.seconds`.

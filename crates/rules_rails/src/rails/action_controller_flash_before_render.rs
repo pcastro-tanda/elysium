@@ -36,7 +36,7 @@ impl Rule for ActionControllerFlashBeforeRender {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[],
         config: &[],
         blind_spots: "A file consisting of a single top-level `flash[...] = ...` statement is \

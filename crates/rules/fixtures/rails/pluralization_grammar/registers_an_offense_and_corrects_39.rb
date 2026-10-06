@@ -1,2 +1,2 @@
--895.week.from_now
-^^^^^^^^^ Prefer `-895.weeks`.
+-602.week.from_now
+^^^^^^^^^ Prefer `-602.weeks`.

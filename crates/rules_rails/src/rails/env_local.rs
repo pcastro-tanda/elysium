@@ -48,7 +48,7 @@ impl Rule for EnvLocal {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::OrNode, NodeKind::AndNode],
         config: &[],
         blind_spots: "Without `AllCops/TargetRailsVersion` the Rails version is taken to be \

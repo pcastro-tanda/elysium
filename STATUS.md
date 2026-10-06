@@ -1,7 +1,8 @@
 # Status
 
-Last updated: 2026-10-02. Payaus step 2 landed: the 158 remaining core cops
-payaus enables (556 rules total; `docs/planning/payaus-readiness.md`).
+Last updated: 2026-10-06. Payaus step 3, Rails: all 115 rubocop-rails 2.38.0
+cops payaus enables are ported and `stable` (671 rules with the 556 core cops;
+`docs/planning/payaus-readiness.md`).
 
 ## What works
 
@@ -11,10 +12,12 @@ payaus enables (556 rules total; `docs/planning/payaus-readiness.md`).
   with RuboCop-identical message text, line, and column (verified against
   `rubocop --format json` with `ParserEngine: parser_prism`, including
   multi-byte columns and same-range deduplication).
-- Rules: 556 core cops (see `docs/rules/`) in the `rules` crate, each
-  registered through `rules_support::rule_set!` (composed with future
-  extension-gem crates by `registry`) with a compile-time node-kind
-  subscription table and
+- Rules: 556 core cops (see `docs/rules/`) in the `rules` crate and 115
+  rubocop-rails cops in `rules_rails` (plus one smoke cop each in
+  `rules_performance`, `rules_minitest`, `rules_sorbet`,
+  `rules_thread_safety`), each crate registering its rules through
+  `rules_support::rule_set!` (composed by `registry`) with a compile-time
+  node-kind subscription table and
   configured from RuboCop option names (`RuleOptions`, incl. peer-cop and
   `AllCops` reads). `elysium fix [--unsafe] [--diff]` applies byte-range
   fixes and reparses to convergence; `check --only/--except` mirror RuboCop
@@ -142,8 +145,9 @@ payaus enables (556 rules total; `docs/planning/payaus-readiness.md`).
 - Remote `inherit_from: https://...` is rejected instead of fetched.
 - No `ConfigValidator`: a config with a wrong-typed value or an unknown cop
   name does not produce an error the way RuboCop's own validator does.
-- Extension-gem cops (`Rails/*`, `RSpec/*`, ...) load their defaults from the
-  installed gem but have no implementations yet (Phase 6).
+- Extension-gem cops: `Rails/*` is ported (the 115 payaus enables); for
+  `Performance/*`, `Minitest/*`, `Sorbet/*`, and `ThreadSafety/*` only one
+  smoke cop each exists (`nursery`), and `RSpec/*` is not started.
 - `TargetRubyVersion` is not inferred from a gemspec's `required_ruby_version`
   when the config doesn't set it explicitly.
 - Syntax error message text matches RuboCop only under
@@ -159,17 +163,22 @@ payaus enables (556 rules total; `docs/planning/payaus-readiness.md`).
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 550 | 0 | 6 |
+| 665 | 0 | 10 |
 
 Promotion to `stable` requires >99% corpus conformance on `discourse` and
-`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 550 of 556 rules meet
-it. At `nursery`:
+`mastodon` (RuboCop 1.91 truth; extension cops against the pinned gems) with
+no unexplained diff; 665 of 675 rules meet it. All 115 Rails cops are at 100%
+on both apps under both passes, message text included; 54 of them have zero
+offenses on both apps, so their fixtures are the only positive evidence.
+At `nursery`:
 
 - `Lint/RedundantCopDisableDirective` — held back per policy regardless of
   measured agreement (see above).
 - `Lint/CopDirectiveSyntax` — added at `nursery` in payaus step 1 (payaus
   disables it).
 - The four project-index no-ops listed above.
+- The four extension smoke cops (`Performance/Caller`, `Minitest/AssertNil`,
+  `Sorbet/ForbidSuperclassConstLiteral`, `ThreadSafety/NewThread`).
 Known sub-100% residue among `stable` rules (all above the 99% bar):
 `Layout/HeredocIndentation` misses 1 of 1,266 on discourse's own config.
 The corpus workflow (`ci/corpus/run.sh`) compares every stable cop in two
@@ -321,10 +330,10 @@ syntax errors itself. Inventory: `docs/planning/default-parity.md`.
    `inherit_from` fetching,
    `TargetRubyVersion` inference from a gemspec's `required_ruby_version`,
    and non-UTF-8 `# encoding:` column handling.
-4. Phase 7: extension-gem cop implementations (`Rails/*`, `RSpec/*`,
-   `Performance/*`, ...) — their `config/default.yml` layering and
-   conformance skip-list (`EXTENSION_DEPARTMENTS`) already exist; only the
-   cops themselves are unported.
+4. Phase 7: extension-gem cop implementations. Rails is done (payaus step
+   3); Performance (41), Minitest (49), Sorbet (36), and ThreadSafety (9)
+   follow the same pipeline (`docs/porting/KIT.md`); `RSpec/*` is outside
+   payaus's scope.
 
 ## Debt to clear before 1.0
 

@@ -1,2 +1,2 @@
-891.year.from_now
-^^^^^^^^ Prefer `891.years`.
+912.year.from_now
+^^^^^^^^ Prefer `912.years`.

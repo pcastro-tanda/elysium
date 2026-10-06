@@ -160,7 +160,7 @@ impl Rule for RedundantActiveRecordAllMethod {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode, NodeKind::ClassNode],
         config: &[ConfigOption {
             name: "AllowedReceivers",

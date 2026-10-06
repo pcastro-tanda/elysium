@@ -40,7 +40,7 @@ impl Rule for NotNullColumn {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[
             ConfigOption {

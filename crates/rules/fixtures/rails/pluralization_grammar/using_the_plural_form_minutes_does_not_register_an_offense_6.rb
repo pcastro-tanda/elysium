@@ -1,1 +1,1 @@
-788.minutes
+756.minutes

@@ -1,2 +1,2 @@
-936.zettabyte.from_now
-^^^^^^^^^^^^^ Prefer `936.zettabytes`.
+613.zettabyte.from_now
+^^^^^^^^^^^^^ Prefer `613.zettabytes`.

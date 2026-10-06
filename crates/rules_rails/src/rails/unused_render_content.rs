@@ -58,7 +58,7 @@ impl Rule for UnusedRenderContent {
         enabled_by_default: false,
         severity: Severity::Warning,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "The non-content status symbols are those of Rack 2.2 and later.",

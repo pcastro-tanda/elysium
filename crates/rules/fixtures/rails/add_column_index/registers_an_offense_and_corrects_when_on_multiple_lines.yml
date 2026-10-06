@@ -1,3 +1,5 @@
 # file: 20250101010101_add_column_to_table.rb
+AllCops:
+  MigratedSchemaVersion: '20240101010101'
 Rails/AddColumnIndex:
   Include: ~

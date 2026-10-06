@@ -1,1 +1,1 @@
--767.megabytes
+-512.megabytes

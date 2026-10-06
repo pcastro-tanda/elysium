@@ -1,8 +1,6 @@
 //! `Rails/Pluck`, ported from rubocop-rails's
 //! `lib/rubocop/cop/rails/pluck.rb`.
 
-use std::collections::HashMap;
-
 use linter::{
     Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule, RuleMeta,
     RuleOptions, Severity, Stability,
@@ -17,9 +15,9 @@ const MINIMUM_TARGET_RAILS_VERSION: f64 = 5.0;
 #[derive(Debug, Clone)]
 pub struct Pluck {
     supported: bool,
-    /// Block start offset -> whether the block's call has a receiver.
-    block_receivers: HashMap<u32, bool>,
-    /// For each enclosing block/lambda: does its call have a receiver?
+    /// For each enclosing whitequark `any_block` (a call, `super`, or lambda
+    /// carrying a literal block; the block node spans the whole call, receiver
+    /// and arguments included): does its call have a receiver?
     stack: Vec<bool>,
 }
 
@@ -40,8 +38,13 @@ impl Rule for Pluck {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
-        kinds: &[NodeKind::CallNode, NodeKind::BlockNode, NodeKind::LambdaNode],
+        stability: Stability::Stable,
+        kinds: &[
+            NodeKind::CallNode,
+            NodeKind::SuperNode,
+            NodeKind::ForwardingSuperNode,
+            NodeKind::LambdaNode,
+        ],
         config: &[],
         blind_spots: "Without `AllCops/TargetRailsVersion` the Rails version is taken to be \
                       5.0; RuboCop reads `railties` from the project's `Gemfile.lock` first.",
@@ -50,7 +53,6 @@ impl Rule for Pluck {
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
         Ok(Self {
             supported: options.target_rails_version() >= MINIMUM_TARGET_RAILS_VERSION,
-            block_receivers: HashMap::new(),
             stack: Vec::new(),
         })
     }
@@ -59,22 +61,18 @@ impl Rule for Pluck {
         if !self.supported {
             return;
         }
-        if node.as_lambda_node().is_some() {
-            self.stack.push(false);
+        let Some(call) = node.as_call_node() else {
+            if let Some(frame) = Self::block_frame(node) {
+                self.stack.push(frame);
+            }
             return;
-        }
-        if node.as_block_node().is_some() {
-            let has_receiver = self.block_receivers.remove(&node.span().start).unwrap_or(false);
-            self.stack.push(has_receiver);
-            return;
-        }
-        let Some(call) = node.as_call_node() else { return };
-        let Some(block_node) = call.block() else { return };
-        let Some(block) = block_node.as_block_node() else { return };
-        self.block_receivers.insert(block_node.span().start, call.receiver().is_some());
-
-        // `node.each_ancestor(:any_block).first&.receiver`
-        if self.stack.last().copied().unwrap_or(false) {
+        };
+        let Some(block) = call.block().and_then(|b| b.as_block_node()) else { return };
+        // `node.each_ancestor(:any_block).first&.receiver`, read before this
+        // call's own block joins the stack.
+        let skip = self.stack.last().copied().unwrap_or(false);
+        self.stack.push(call.receiver().is_some());
+        if skip {
             return;
         }
         let name = call.name();
@@ -119,13 +117,31 @@ impl Rule for Pluck {
     }
 
     fn leave(&mut self, node: &Node<'_>, _ctx: &mut Context<'_>) {
-        if self.supported && (node.as_block_node().is_some() || node.as_lambda_node().is_some()) {
+        if self.supported && Self::block_frame(node).is_some() {
             self.stack.pop();
         }
     }
 }
 
 impl Pluck {
+    /// The stack frame `node` opens when it is a whitequark `any_block`: a
+    /// lambda, or a call/`super` with a literal block (not `&blk`).
+    fn block_frame(node: &Node<'_>) -> Option<bool> {
+        let has_block =
+            |block: Option<Node<'_>>| block.is_some_and(|b| b.as_block_node().is_some());
+        if node.as_lambda_node().is_some() {
+            Some(false)
+        } else if let Some(call) = node.as_call_node() {
+            has_block(call.block()).then(|| call.receiver().is_some())
+        } else if let Some(sup) = node.as_super_node() {
+            has_block(sup.block()).then_some(false)
+        } else if let Some(sup) = node.as_forwarding_super_node() {
+            sup.block().is_some().then_some(false)
+        } else {
+            None
+        }
+    }
+
     /// `(any_block (call _ {:map :collect}) $_argument (send lvar :[] $_key))`
     /// plus `use_one_block_argument?`; returns the block argument's source and
     /// the key node.

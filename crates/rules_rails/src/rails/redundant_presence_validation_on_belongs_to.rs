@@ -43,7 +43,7 @@ impl Rule for RedundantPresenceValidationOnBelongsTo {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::StatementsNode, NodeKind::BeginNode],
         config: &[],
         blind_spots: "Without `AllCops/TargetRailsVersion` the Rails version is taken to be \

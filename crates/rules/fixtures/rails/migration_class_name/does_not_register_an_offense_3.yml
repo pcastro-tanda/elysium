@@ -1,3 +1,5 @@
 # file: db/migrate/20250101010101_remove_unused_oauth_scope_grants.rb
+AllCops:
+  MigratedSchemaVersion: '20240101010101'
 Rails/MigrationClassName:
   Include: ~

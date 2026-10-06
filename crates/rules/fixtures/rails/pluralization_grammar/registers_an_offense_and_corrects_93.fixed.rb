@@ -1,1 +1,1 @@
--767.megabytes.from_now
+-512.megabytes.from_now

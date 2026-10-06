@@ -1,2 +1,2 @@
-81.exabyte.from_now
-^^^^^^^^^^ Prefer `81.exabytes`.
+781.exabyte.from_now
+^^^^^^^^^^^ Prefer `781.exabytes`.

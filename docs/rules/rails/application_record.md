@@ -8,7 +8,7 @@ Check that models subclass ApplicationRecord.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | unsafe |
-| Stability | nursery |
+| Stability | stable |
 
 Checks that models subclass `ApplicationRecord` with Rails 5.0.
 
@@ -34,4 +34,4 @@ This rule has no options.
 
 ## Blind spots
 
-Without `AllCops/TargetRailsVersion` the Rails version is taken to be 5.0; RuboCop reads `railties` from the project's `Gemfile.lock` first.
+None recorded.

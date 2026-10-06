@@ -1,1 +1,1 @@
-417.weeks.from_now
+74.weeks.from_now

@@ -1,3 +1,5 @@
 # file: db/migrate/20250101010101_create_users.rb
+AllCops:
+  MigratedSchemaVersion: '20240101010101'
 Rails/MigrationClassName:
   Include: ~

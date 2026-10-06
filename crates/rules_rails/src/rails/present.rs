@@ -51,7 +51,7 @@ impl Rule for Present {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode, NodeKind::AndNode, NodeKind::UnlessNode],
         config: &[
             ConfigOption {

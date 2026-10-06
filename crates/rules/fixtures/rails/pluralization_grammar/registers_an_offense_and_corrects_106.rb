@@ -1,2 +1,2 @@
-516.gigabyte.from_now
-^^^^^^^^^^^^ Prefer `516.gigabytes`.
+552.gigabyte.from_now
+^^^^^^^^^^^^ Prefer `552.gigabytes`.

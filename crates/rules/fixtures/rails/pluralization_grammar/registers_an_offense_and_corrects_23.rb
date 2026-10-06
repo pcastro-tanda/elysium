@@ -1,2 +1,2 @@
--961.hour.from_now
-^^^^^^^^^ Prefer `-961.hours`.
+-806.hour.from_now
+^^^^^^^^^ Prefer `-806.hours`.

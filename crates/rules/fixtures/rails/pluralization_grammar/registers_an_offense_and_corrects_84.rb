@@ -1,2 +1,2 @@
--95.kilobyte.from_now
-^^^^^^^^^^^^ Prefer `-95.kilobytes`.
+-546.kilobyte.from_now
+^^^^^^^^^^^^^ Prefer `-546.kilobytes`.

@@ -1,2 +1,2 @@
--15.month.from_now
-^^^^^^^^^ Prefer `-15.months`.
+-849.month.from_now
+^^^^^^^^^^ Prefer `-849.months`.

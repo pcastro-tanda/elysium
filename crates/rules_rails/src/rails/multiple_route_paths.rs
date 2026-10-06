@@ -36,7 +36,7 @@ impl Rule for MultipleRoutePaths {
         enabled_by_default: false,
         severity: Severity::Warning,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
