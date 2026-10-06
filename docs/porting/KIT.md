@@ -102,6 +102,12 @@ What differs from core cops:
 - A sorbet case whose `.yml` has `AllCops: DisplayCopNames: true` expects
   `Sorbet/Foo: ` before each message; the harness adds that prefix. Report
   the plain upstream `MSG`.
+- `Sorbet::TargetSorbetVersion` cops (`RedundantTLet`, the memoization
+  cops) read `sorbet-static` from `Bundler.locked_gems`; the elysium
+  equivalent is the target lockfile, `options.gem_version("sorbet-static")`
+  (`None`: no lockfile or no `sorbet-static`, so `sorbet_enabled?` is
+  false). A test's `stub_sorbet_static_version` is recorded in the case
+  `.yml` as `# gem_versions: sorbet-static=0.6.13304`.
 
 The integrator creates the skeleton and fixtures exactly as for core:
 
