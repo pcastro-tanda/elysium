@@ -88,7 +88,13 @@ impl Rule for FlatMap {
             return;
         }
         // `(block (call _ map) ...)` or `(call _ map (block_pass _))`.
-        if map_call.block().is_none() {
+        let Some(map_block) = map_call.block() else { return };
+        // whitequark `numblock`/`itblock` do not match `(block ...)`.
+        if map_block.as_block_node().is_some_and(|block| {
+            block.parameters().is_some_and(|p| {
+                p.as_numbered_parameters_node().is_some() || p.as_it_parameters_node().is_some()
+            })
+        }) {
             return;
         }
         let map_node = call.receiver().expect("receiver checked above");
