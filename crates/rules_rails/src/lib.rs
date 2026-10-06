@@ -10,6 +10,7 @@
 
 pub mod active_record_helper;
 pub mod inflector;
+pub mod parent_module;
 pub mod rails;
 pub mod schema;
 
@@ -30,6 +31,11 @@ rules_support::rule_set! {
     rails::duplicate_association::DuplicateAssociation,
     rails::pluralization_grammar::PluralizationGrammar,
     rails::present::Present,
+    rails::safe_navigation::SafeNavigation,
+    rails::pluck::Pluck,
+    rails::environment_comparison::EnvironmentComparison,
+    rails::find_by_or_assignment_memoization::FindByOrAssignmentMemoization,
+    rails::i18n_lazy_lookup::I18nLazyLookup,
     rails::select_map::SelectMap,
     rails::attribute_default_block_value::AttributeDefaultBlockValue,
     rails::redundant_allow_nil::RedundantAllowNil,
