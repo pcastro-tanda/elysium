@@ -50,5 +50,6 @@ rules_support::rule_set! {
     sorbet::block_method_definition::BlockMethodDefinition,
     sorbet::binding_constant_without_type_alias::BindingConstantWithoutTypeAlias,
     sorbet::allow_incompatible_override::AllowIncompatibleOverride,
+    sorbet::void_checked_tests::VoidCheckedTests,
     sorbet::forbid_superclass_const_literal::ForbidSuperclassConstLiteral,
 }
