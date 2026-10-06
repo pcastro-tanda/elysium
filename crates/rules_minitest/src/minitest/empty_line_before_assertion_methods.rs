@@ -87,12 +87,21 @@ impl Rule for EmptyLineBeforeAssertionMethods {
     }
 }
 
+/// The whitequark `left_sibling` of a node: a node of the tree, or one that
+/// Prism has no node for (an `ivasgn` target, an `mlhs`, a `rescue` chain, ..)
+/// of which only the extent matters.
+#[derive(Clone, Copy)]
+enum Prev<'pr> {
+    Node(Node<'pr>),
+    Span(Span),
+}
+
 /// Visits `node`; `prev` is its whitequark `left_sibling` when that sibling
 /// is a node the cop can act on. Everything else upstream returns on is
-/// `None`: no sibling, a non-node sibling (a method name, a missing
-/// superclass), an `args` sibling, a parent that is `if`/`while`/`until`
-/// (`basic_conditional?`) or a `resbody`.
-fn walk<'pr>(node: &Node<'pr>, prev: Option<Node<'pr>>, ctx: &mut Context<'_>) {
+/// `None`: no sibling, a non-node sibling (a method name, an operator
+/// symbol, a missing superclass), an `args` sibling, a parent that is
+/// `if`/`while`/`until` (`basic_conditional?`) or a `resbody`.
+fn walk<'pr>(node: &Node<'pr>, prev: Option<Prev<'pr>>, ctx: &mut Context<'_>) {
     check(node, prev, ctx);
 
     if let Some(statements) = node.as_statements_node() {
@@ -100,9 +109,20 @@ fn walk<'pr>(node: &Node<'pr>, prev: Option<Node<'pr>>, ctx: &mut Context<'_>) {
         // sibling its parent gives the whole body.
         let body: Vec<Node<'pr>> = statements.body().iter().collect();
         for (i, statement) in body.iter().enumerate() {
-            let sibling = if body.len() >= 2 { i.checked_sub(1).map(|j| body[j]) } else { prev };
+            let sibling =
+                if body.len() >= 2 { i.checked_sub(1).map(|j| Prev::Node(body[j])) } else { prev };
             walk(statement, sibling, ctx);
         }
+    } else if let Some(else_node) = node.as_else_node() {
+        if let Some(statements) = else_node.statements() {
+            walk(&statements.as_node(), prev, ctx);
+        }
+    } else if let Some(ensure) = node.as_ensure_node() {
+        if let Some(statements) = ensure.statements() {
+            walk(&statements.as_node(), prev, ctx);
+        }
+    } else if let Some(begin) = node.as_begin_node() {
+        walk_begin(&begin, ctx);
     } else if let Some(class) = node.as_class_node() {
         walk(&class.constant_path(), None, ctx);
         let superclass = class.superclass();
@@ -110,35 +130,35 @@ fn walk<'pr>(node: &Node<'pr>, prev: Option<Node<'pr>>, ctx: &mut Context<'_>) {
             walk(superclass, None, ctx);
         }
         if let Some(body) = class.body() {
-            walk(&body, superclass, ctx);
+            walk(&body, superclass.map(Prev::Node), ctx);
         }
     } else if let Some(module) = node.as_module_node() {
         let name = module.constant_path();
         walk(&name, None, ctx);
         if let Some(body) = module.body() {
-            walk(&body, Some(name), ctx);
+            walk(&body, Some(Prev::Node(name)), ctx);
         }
     } else if let Some(sclass) = node.as_singleton_class_node() {
         let expression = sclass.expression();
         walk(&expression, None, ctx);
         if let Some(body) = sclass.body() {
-            walk(&body, Some(expression), ctx);
+            walk(&body, Some(Prev::Node(expression)), ctx);
         }
     } else if let Some(for_node) = node.as_for_node() {
         let collection = for_node.collection();
         walk(&for_node.index(), None, ctx);
         walk(&collection, None, ctx);
         if let Some(statements) = for_node.statements() {
-            walk(&statements.as_node(), Some(collection), ctx);
+            walk(&statements.as_node(), Some(Prev::Node(collection)), ctx);
         }
     } else if let Some(when) = node.as_when_node() {
         let mut last = None;
         for condition in &when.conditions() {
-            walk(&condition, None, ctx);
+            walk(&condition, last.map(Prev::Node), ctx);
             last = Some(condition);
         }
         if let Some(statements) = when.statements() {
-            walk(&statements.as_node(), last, ctx);
+            walk(&statements.as_node(), last.map(Prev::Node), ctx);
         }
     } else if let Some(in_node) = node.as_in_node() {
         // `(in_pattern pattern guard body)`: only a guard (an `if`/`unless`
@@ -147,9 +167,25 @@ fn walk<'pr>(node: &Node<'pr>, prev: Option<Node<'pr>>, ctx: &mut Context<'_>) {
         walk(&pattern, None, ctx);
         if let Some(statements) = in_node.statements() {
             let guard = (pattern.as_if_node().is_some() || pattern.as_unless_node().is_some())
-                .then_some(pattern);
+                .then_some(Prev::Node(pattern));
             walk(&statements.as_node(), guard, ctx);
         }
+    } else if let Some(case) = node.as_case_node() {
+        let conditions: Vec<Node<'pr>> = case.conditions().iter().collect();
+        walk_case(case.predicate(), &conditions, case.else_clause(), ctx);
+    } else if let Some(case) = node.as_case_match_node() {
+        let conditions: Vec<Node<'pr>> = case.conditions().iter().collect();
+        walk_case(case.predicate(), &conditions, case.else_clause(), ctx);
+    } else if let Some(range) = node.as_range_node() {
+        let left = range.left();
+        if let Some(left) = &left {
+            walk(left, None, ctx);
+        }
+        if let Some(right) = range.right() {
+            walk(&right, left.map(Prev::Node), ctx);
+        }
+    } else if walk_writes(node, ctx) {
+        // Handled.
     } else if node.as_arguments_node().is_some()
         || node.as_array_node().is_some()
         || node.as_and_node().is_some()
@@ -159,7 +195,7 @@ fn walk<'pr>(node: &Node<'pr>, prev: Option<Node<'pr>>, ctx: &mut Context<'_>) {
         // The children are siblings in source order.
         let mut last: Option<Node<'pr>> = None;
         for_each_child(node, |child| {
-            walk(child, last, ctx);
+            walk(child, last.map(Prev::Node), ctx);
             last = Some(*child);
         });
     } else {
@@ -167,36 +203,236 @@ fn walk<'pr>(node: &Node<'pr>, prev: Option<Node<'pr>>, ctx: &mut Context<'_>) {
     }
 }
 
+/// `or_asgn`/`and_asgn`/`masgn`: the value's left sibling is the target.
+/// False when `node` is none of those.
+fn walk_writes(node: &Node<'_>, ctx: &mut Context<'_>) -> bool {
+    if let Some((target, value)) = or_and_write(node) {
+        // `(or_asgn target value)`: the target is a node.
+        let value = value.span();
+        for_each_child(node, |child| {
+            let sibling = (child.span() == value).then_some(Prev::Span(target));
+            walk(child, sibling, ctx);
+        });
+    } else if let Some(multi) = node.as_multi_write_node() {
+        // `(masgn mlhs value)`
+        let target = multi_target_span(&multi);
+        let value = multi.value().span();
+        for_each_child(node, |child| {
+            let sibling = (child.span() == value).then_some(Prev::Span(target));
+            walk(child, sibling, ctx);
+        });
+    } else {
+        return false;
+    }
+    true
+}
+
+/// `case`/`case_match`: the `else` body's left sibling is the last
+/// `when`/`in`.
+fn walk_case<'pr>(
+    predicate: Option<Node<'pr>>,
+    conditions: &[Node<'pr>],
+    else_clause: Option<ruby_ast::node::ElseNode<'pr>>,
+    ctx: &mut Context<'_>,
+) {
+    if let Some(predicate) = &predicate {
+        walk(predicate, None, ctx);
+    }
+    for condition in conditions {
+        walk(condition, None, ctx);
+    }
+    if let Some(else_clause) = else_clause {
+        let last = conditions.last().map(|c| Prev::Span(c.span()));
+        walk(&else_clause.as_node(), last, ctx);
+    }
+}
+
+/// `(kwbegin (ensure (rescue body resbody else) ensure_body))`: the `else`
+/// body follows the last `resbody`, the `ensure` body follows the rescue
+/// chain (or the body when there is none).
+fn walk_begin<'pr>(begin: &ruby_ast::node::BeginNode<'pr>, ctx: &mut Context<'_>) {
+    let statements = begin.statements();
+    if let Some(statements) = &statements {
+        walk(&statements.as_node(), None, ctx);
+    }
+    let rescue = begin.rescue_clause();
+    let mut last_resbody = None;
+    let mut chain_end = None;
+    if let Some(rescue) = &rescue {
+        walk(&rescue.as_node(), None, ctx);
+        let mut current = *rescue;
+        loop {
+            last_resbody = Some(rescue_extent(&current));
+            match current.subsequent() {
+                Some(next) => current = next,
+                None => break,
+            }
+        }
+        chain_end = last_resbody.map(|span: Span| span.end);
+    }
+    let else_clause = begin.else_clause();
+    if let Some(else_clause) = &else_clause {
+        walk(&else_clause.as_node(), last_resbody.map(Prev::Span), ctx);
+        let end = else_clause
+            .statements()
+            .map_or(else_clause.else_keyword_loc().span().end, |s| s.location().span().end);
+        chain_end = Some(chain_end.map_or(end, |e| e.max(end)));
+    }
+    if let Some(ensure) = begin.ensure_clause() {
+        let body_prev = if let Some(rescue) = &rescue {
+            let start = statements
+                .as_ref()
+                .map_or(rescue.keyword_loc().span().start, |s| s.location().span().start);
+            chain_end.map(|end| Prev::Span(Span::new(start, end)))
+        } else if let Some(statements) = &statements {
+            let body: Vec<Node<'pr>> = statements.body().iter().collect();
+            match body.as_slice() {
+                [] => None,
+                [only] => Some(Prev::Node(*only)),
+                _ => Some(Prev::Span(statements.location().span())),
+            }
+        } else {
+            None
+        };
+        walk(&ensure.as_node(), body_prev, ctx);
+    }
+}
+
+/// The extent of one `resbody`.
+fn rescue_extent(rescue: &ruby_ast::node::RescueNode<'_>) -> Span {
+    let start = rescue.keyword_loc().span().start;
+    let mut end = rescue.keyword_loc().span().end;
+    for exception in &rescue.exceptions() {
+        end = end.max(exception.span().end);
+    }
+    if let Some(reference) = rescue.reference() {
+        end = end.max(reference.span().end);
+    }
+    if let Some(statements) = rescue.statements() {
+        end = end.max(statements.location().span().end);
+    }
+    Span::new(start, end)
+}
+
+macro_rules! target_and_value {
+    ($node:expr, name: [$($name_accessor:ident),+ $(,)?], path: [$($path_accessor:ident),+ $(,)?]) => {
+        $(
+            if let Some(n) = $node.$name_accessor() {
+                return Some((n.name_loc().span(), n.value()));
+            }
+        )+
+        $(
+            if let Some(n) = $node.$path_accessor() {
+                return Some((n.target().location().span(), n.value()));
+            }
+        )+
+    };
+}
+
+/// `(or_asgn target value)` / `(and_asgn target value)`: the target's extent
+/// and the value.
+fn or_and_write<'pr>(node: &Node<'pr>) -> Option<(Span, Node<'pr>)> {
+    target_and_value!(
+        node,
+        name: [
+            as_local_variable_or_write_node,
+            as_instance_variable_or_write_node,
+            as_class_variable_or_write_node,
+            as_global_variable_or_write_node,
+            as_constant_or_write_node,
+            as_local_variable_and_write_node,
+            as_instance_variable_and_write_node,
+            as_class_variable_and_write_node,
+            as_global_variable_and_write_node,
+            as_constant_and_write_node,
+        ],
+        path: [as_constant_path_or_write_node, as_constant_path_and_write_node]
+    );
+    // `recv.name ||= value`: the `send` target ends at the method name.
+    let call =
+        node.as_call_or_write_node().map(|n| (n.receiver(), n.message_loc(), n.value())).or_else(
+            || node.as_call_and_write_node().map(|n| (n.receiver(), n.message_loc(), n.value())),
+        );
+    if let Some((receiver, message, value)) = call {
+        let message = message?.span();
+        let start = receiver.map_or(message.start, |r| r.span().start);
+        return Some((Span::new(start, message.end), value));
+    }
+    // `recv[args] ||= value`: the `send` target ends at `]`.
+    let index = node
+        .as_index_or_write_node()
+        .map(|n| (n.receiver(), n.opening_loc().span(), n.closing_loc().span(), n.value()))
+        .or_else(|| {
+            node.as_index_and_write_node()
+                .map(|n| (n.receiver(), n.opening_loc().span(), n.closing_loc().span(), n.value()))
+        });
+    let (receiver, opening, closing, value) = index?;
+    let start = receiver.map_or(opening.start, |r| r.span().start);
+    Some((Span::new(start, closing.end), value))
+}
+
+/// The `mlhs` of a `masgn`.
+fn multi_target_span(multi: &ruby_ast::node::MultiWriteNode<'_>) -> Span {
+    let mut start = u32::MAX;
+    let mut end = 0;
+    let mut extend = |span: Span| {
+        start = start.min(span.start);
+        end = end.max(span.end);
+    };
+    for target in &multi.lefts() {
+        extend(target.span());
+    }
+    if let Some(rest) = multi.rest() {
+        extend(rest.span());
+    }
+    for target in &multi.rights() {
+        extend(target.span());
+    }
+    if let Some(lparen) = multi.lparen_loc() {
+        extend(lparen.span());
+    }
+    if let Some(rparen) = multi.rparen_loc() {
+        extend(rparen.span());
+    }
+    Span::new(start, end)
+}
+
 /// `on_send`.
-fn check<'pr>(node: &Node<'pr>, prev: Option<Node<'pr>>, ctx: &mut Context<'_>) {
-    let Some(previous_line_node) = prev else { return };
+fn check<'pr>(node: &Node<'pr>, prev: Option<Prev<'pr>>, ctx: &mut Context<'_>) {
+    let Some(prev) = prev else { return };
     if !is_assertion_candidate(node) {
         return;
     }
-    // `accept_previous_line?`
-    if assertion_method_p(&previous_line_node) {
-        return;
-    }
-    let previous_line_node =
-        heredoc_last_argument(&previous_line_node).unwrap_or(previous_line_node);
-    if use_assertion_method_at_last_of_block(&previous_line_node) {
-        return;
-    }
+    let (previous_line, offset) = match prev {
+        // A sibling Prism has no node for: never an assertion, a heredoc or
+        // a block.
+        Prev::Span(span) => (ctx.last_line(span), None),
+        Prev::Node(previous_line_node) => {
+            // `accept_previous_line?`
+            if assertion_method_p(&previous_line_node) {
+                return;
+            }
+            let previous_line_node =
+                heredoc_last_argument(&previous_line_node).unwrap_or(previous_line_node);
+            if use_assertion_method_at_last_of_block(&previous_line_node) {
+                return;
+            }
+            match heredoc_end_offset(&previous_line_node) {
+                Some(offset) => (ctx.line_col(offset).line, Some(offset)),
+                None => (ctx.last_line(previous_line_node.span()), None),
+            }
+        }
+    };
 
     // `no_empty_line?`
-    let heredoc_end = heredoc_end_offset(&previous_line_node);
-    let previous_line = match heredoc_end {
-        Some(offset) => ctx.line_col(offset).line,
-        None => ctx.last_line(previous_line_node.span()),
-    };
     if previous_line + 1 != ctx.line_col(node.span().start).line {
         return;
     }
 
     // `register_offense`
-    let offset = heredoc_end.unwrap_or_else(|| {
+    let offset = offset.unwrap_or_else(|| {
         // `range_by_whole_lines(.., include_final_newline: true)`.
-        let line = ctx.line_span(ctx.last_line(previous_line_node.span())).end;
+        let line = ctx.line_span(previous_line).end;
         if ctx.source().bytes().get(line as usize) == Some(&b'\n') {
             line + 1
         } else {
