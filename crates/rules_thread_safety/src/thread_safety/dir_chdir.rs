@@ -10,6 +10,37 @@ use linter::{
 use ruby_ast::ext::{call_span_excluding_block, is_bare_or_toplevel_const};
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 
+/// A call target of an op-assign (`a.b ||= 1`): whitequark's inner `send`.
+/// Returns receiver, method name, `.` span, and the send's span.
+#[allow(clippy::type_complexity)]
+fn op_assign_send<'pr>(
+    node: &Node<'pr>,
+    allow_safe_navigation: bool,
+) -> Option<(Node<'pr>, Vec<u8>, Option<ruby_source::Span>, ruby_source::Span)> {
+    macro_rules! parts {
+        ($n:expr) => {{
+            let n = $n;
+            if n.is_safe_navigation() && !allow_safe_navigation {
+                return None;
+            }
+            (
+                n.receiver()?,
+                n.read_name().as_slice().to_vec(),
+                n.call_operator_loc().map(|l| l.span()),
+                n.message_loc()?,
+            )
+        }};
+    }
+    let (receiver, name, dot, message) = match node.kind() {
+        NodeKind::CallOrWriteNode => parts!(node.as_call_or_write_node()?),
+        NodeKind::CallAndWriteNode => parts!(node.as_call_and_write_node()?),
+        NodeKind::CallOperatorWriteNode => parts!(node.as_call_operator_write_node()?),
+        _ => return None,
+    };
+    let span = ruby_source::Span::new(receiver.span().start, message.span().end);
+    Some((receiver, name, dot, span))
+}
+
 /// Avoid using `Dir.chdir` due to its process-wide effect.
 #[derive(Debug, Clone)]
 pub struct DirChdir {
@@ -29,7 +60,14 @@ impl Rule for DirChdir {
         severity: Severity::Convention,
         fix: FixAvailability::None,
         stability: Stability::Nursery,
-        kinds: &[NodeKind::CallNode, NodeKind::BlockNode, NodeKind::LambdaNode],
+        kinds: &[
+            NodeKind::CallNode,
+            NodeKind::CallOrWriteNode,
+            NodeKind::CallAndWriteNode,
+            NodeKind::CallOperatorWriteNode,
+            NodeKind::BlockNode,
+            NodeKind::LambdaNode,
+        ],
         config: &[ConfigOption {
             name: "AllowCallWithBlock",
             default: ConfigDefault::Bool(false),
@@ -58,7 +96,10 @@ impl Rule for DirChdir {
                     self.note_block_body(lambda.parameters(), lambda.body());
                 }
             }
-            NodeKind::CallNode => self.on_send(node, ctx),
+            NodeKind::CallNode
+            | NodeKind::CallOrWriteNode
+            | NodeKind::CallAndWriteNode
+            | NodeKind::CallOperatorWriteNode => self.on_send(node, ctx),
             _ => {}
         }
     }
@@ -93,13 +134,24 @@ impl DirChdir {
     }
 
     fn on_send(&self, node: &Node<'_>, ctx: &mut Context<'_>) {
-        let Some(call) = node.as_call_node() else { return };
-        let name = call.name();
+        let call = node.as_call_node();
+        let (receiver, name, dot_span, span) = if let Some(call) = &call {
+            let Some(receiver) = call.receiver() else { return };
+            (
+                receiver,
+                call.name().as_slice().to_vec(),
+                call.call_operator_loc().map(|l| l.span()),
+                send_span(call),
+            )
+        } else if let Some(parts) = op_assign_send(node, true) {
+            (parts.0, parts.1, parts.2, parts.3)
+        } else {
+            return;
+        };
         let name = name.as_slice();
         if name != b"chdir" && name != b"cd" {
             return;
         }
-        let Some(receiver) = call.receiver() else { return };
         if !is_bare_or_toplevel_const(&receiver) {
             return;
         }
@@ -119,7 +171,7 @@ impl DirChdir {
             return;
         }
 
-        if self.allow_call_with_block {
+        if let (true, Some(call)) = (self.allow_call_with_block, &call) {
             let block_argument = call
                 .block()
                 .as_ref()
@@ -134,23 +186,23 @@ impl DirChdir {
                     })
                 })
             });
-            let span = node.span();
+            let node_span = node.span();
             if block_argument
                 || own_block
-                || self.block_body_calls.contains(&(span.start, span.end))
+                || self.block_body_calls.contains(&(node_span.start, node_span.end))
             {
                 return;
             }
         }
 
-        let dot = call.call_operator_loc().map_or_else(String::new, |loc| {
-            String::from_utf8_lossy(ctx.text(loc.span())).into_owned()
+        let dot = dot_span.map_or_else(String::new, |loc| {
+            String::from_utf8_lossy(ctx.text(loc)).into_owned()
         });
         let message = format!(
             "Avoid using `{}{dot}{}` due to its process-wide effect.",
             String::from_utf8_lossy(module),
             String::from_utf8_lossy(name),
         );
-        ctx.report(&Self::META, send_span(&call), message);
+        ctx.report(&Self::META, span, message);
     }
 }
