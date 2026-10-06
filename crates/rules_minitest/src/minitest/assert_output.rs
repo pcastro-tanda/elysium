@@ -293,55 +293,140 @@ fn is_send(call: &CallNode<'_>) -> bool {
     !call.is_safe_navigation() && call.block().is_none_or(|b| b.as_block_node().is_none())
 }
 
-/// `assertions(def_node)`'s `send_nodes`, before the `assertion_method?` filter.
+/// `assertions(def_node)`'s `send_nodes`, before the `assertion_method?` filter:
+/// `method_def.send_type? ? [method_def] : method_def.each_child_node(:send)`
+/// on the whitequark shape of `body`.
 fn assertions(body: Option<Node<'_>>) -> Vec<CallNode<'_>> {
     let Some(body) = body else { return Vec::new() };
     if let Some(statements) = body.as_statements_node() {
-        let list = statements.body();
-        return if list.len() == 1 {
-            list.first().map(|only| single_statement(&only)).unwrap_or_default()
-        } else {
-            list.iter().filter_map(|s| s.as_call_node()).filter(is_send).collect()
+        let list: Vec<Node<'_>> = statements.body().iter().collect();
+        return match list.as_slice() {
+            [only] => single_statement(only),
+            // `begin` node: its `send` children.
+            _ => list.iter().filter_map(Node::as_call_node).filter(is_send).collect(),
         };
     }
     if let Some(begin) = body.as_begin_node() {
-        // `rescue`/`ensure` bodies: the wrapped statement when it is single.
-        let only = begin.statements().and_then(|s| {
-            let list = s.body();
-            (list.len() == 1).then(|| list.first()).flatten()
-        });
-        return only.and_then(|n| n.as_call_node()).filter(is_send).into_iter().collect();
+        // A body with `rescue`/`ensure` (no `begin` keyword).
+        return rescue_ensure_sends(&begin);
     }
     single_statement(&body)
 }
 
-/// `method_def.send_type? ? [method_def] : method_def.each_child_node(:send)`
-/// for a single statement.
-fn single_statement<'pr>(statement: &Node<'pr>) -> Vec<CallNode<'pr>> {
-    if let Some(call) = statement.as_call_node() {
-        let mut found = Vec::new();
-        if !call.is_safe_navigation() {
-            // A plain `send`, or the `send` child of a `block`.
-            found.push(call);
-        }
-        if let Some(block) = call.block().and_then(|b| b.as_block_node()) {
-            if let Some(only) = block.body().and_then(|b| {
-                let list = b.as_statements_node()?.body();
-                (list.len() == 1).then(|| list.first()).flatten()
-            }) {
-                found.extend(only.as_call_node().filter(is_send));
-            }
-        }
-        return found;
+/// The single statement of `statements`, elided to itself the way whitequark
+/// elides a one-statement `begin`.
+fn only_statement<'pr>(
+    statements: Option<ruby_ast::node::StatementsNode<'pr>>,
+) -> Option<Node<'pr>> {
+    let list: Vec<Node<'pr>> = statements?.body().iter().collect();
+    match list.as_slice() {
+        [only] => Some(*only),
+        _ => None,
     }
+}
+
+/// `send` children of the `(ensure ...)`/`(rescue ...)` node of a body with
+/// `rescue`/`ensure`.
+fn rescue_ensure_sends<'pr>(begin: &ruby_ast::node::BeginNode<'pr>) -> Vec<CallNode<'pr>> {
+    let as_send = |node: Option<Node<'pr>>| node.and_then(|n| n.as_call_node()).filter(is_send);
     let mut found = Vec::new();
-    for_each_child(statement, |child| {
-        if let Some(call) = child.as_call_node() {
-            if is_send(&call) {
+    if let Some(ensure) = begin.ensure_clause() {
+        // (ensure <rescue or body> <ensure body>)
+        if begin.rescue_clause().is_none() && begin.else_clause().is_none() {
+            found.extend(as_send(only_statement(begin.statements())));
+        }
+        found.extend(as_send(only_statement(ensure.statements())));
+    } else {
+        // (rescue <body> (resbody ...)... <else body>)
+        found.extend(as_send(only_statement(begin.statements())));
+        if let Some(else_clause) = begin.else_clause() {
+            found.extend(as_send(only_statement(else_clause.statements())));
+        }
+    }
+    found
+}
+
+/// `method_def.send_type? ? [method_def] : method_def.each_child_node(:send)`
+/// for a body that is a single statement.
+fn single_statement<'pr>(statement: &Node<'pr>) -> Vec<CallNode<'pr>> {
+    let mut found = Vec::new();
+    match statement {
+        Node::CallNode { .. } => {
+            let Some(call) = statement.as_call_node() else { return found };
+            if let Some(block) = call.block().and_then(|b| b.as_block_node()) {
+                // (block (send ...) args body): the `send`, the single-statement body.
+                if !call.is_safe_navigation() {
+                    found.push(call);
+                }
+                found.extend(
+                    only_statement(block.body().and_then(|b| b.as_statements_node()))
+                        .and_then(|n| n.as_call_node())
+                        .filter(is_send),
+                );
+            } else if call.is_safe_navigation() {
+                // `csend`: receiver and arguments are its children.
+                found.extend(call.receiver().and_then(|r| r.as_call_node()).filter(is_send));
+                if let Some(arguments) = call.arguments() {
+                    found.extend(
+                        arguments
+                            .arguments()
+                            .iter()
+                            .filter_map(|a| Node::as_call_node(&a))
+                            .filter(is_send),
+                    );
+                }
+            } else {
                 found.push(call);
             }
         }
-    });
+        Node::ParenthesesNode { .. } => {
+            // (begin ...): every statement is a child.
+            let parens = statement.as_parentheses_node();
+            let statements = parens.and_then(|p| p.body()).and_then(|b| b.as_statements_node());
+            if let Some(statements) = statements {
+                found.extend(
+                    statements.body().iter().filter_map(|s| Node::as_call_node(&s)).filter(is_send),
+                );
+            }
+        }
+        Node::BeginNode { .. } => {
+            // `kwbegin`: its statements are children, unless it has `rescue`/`ensure`.
+            if let Some(begin) = statement.as_begin_node() {
+                if begin.rescue_clause().is_none() && begin.ensure_clause().is_none() {
+                    if let Some(statements) = begin.statements() {
+                        found.extend(
+                            statements
+                                .body()
+                                .iter()
+                                .filter_map(|s| Node::as_call_node(&s))
+                                .filter(is_send),
+                        );
+                    }
+                }
+            }
+        }
+        _ => {
+            let mut push = |child: &Node<'pr>| {
+                if let Some(call) = child.as_call_node().filter(is_send) {
+                    found.push(call);
+                }
+            };
+            for_each_child(statement, |child| match child {
+                // A single-statement body is elided to the statement.
+                Node::StatementsNode { .. } => {
+                    if let Some(only) = only_statement(child.as_statements_node()) {
+                        push(&only);
+                    }
+                }
+                Node::ArgumentsNode { .. } => {
+                    if let Some(arguments) = child.as_arguments_node() {
+                        arguments.arguments().iter().for_each(|a| push(&a));
+                    }
+                }
+                _ => push(child),
+            });
+        }
+    }
     found
 }
 
