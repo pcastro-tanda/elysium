@@ -8,7 +8,7 @@ use linter::{
 use ruby_ast::{Node, NodeKind};
 
 /// Enforces the order of parts in a signature.
-The order is first inheritance related builders, then params, then return and finally the modifier such as: `abstract.params(...).returns(...).soft`.'
+/// The order is first inheritance related builders, then params, then return and finally the modifier such as: `abstract.params(...).returns(...).soft`.'
 #[derive(Debug, Clone)]
 pub struct SignatureBuildOrder;
 

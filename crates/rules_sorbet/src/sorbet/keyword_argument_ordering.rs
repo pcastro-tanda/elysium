@@ -8,7 +8,7 @@ use linter::{
 use ruby_ast::{Node, NodeKind};
 
 /// Enforces a compatible keyword arguments with Sorbet.
-All keyword arguments must be at the end of the parameters list, and all keyword arguments with a default value must be after those without default values.
+/// All keyword arguments must be at the end of the parameters list, and all keyword arguments with a default value must be after those without default values.
 #[derive(Debug, Clone)]
 pub struct KeywordArgumentOrdering;
 
