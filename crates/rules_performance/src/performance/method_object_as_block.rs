@@ -5,7 +5,9 @@ use linter::{
     Context, Department, FixAvailability, OptionError, Rule, RuleMeta, RuleOptions, Severity,
     Stability,
 };
-use ruby_ast::{Node, NodeKind};
+use ruby_ast::{Node, NodeExt as _, NodeKind};
+
+const MSG: &str = "Use block explicitly instead of block-passing a method object.";
 
 /// Use block explicitly instead of block-passing a method object.
 #[derive(Debug, Clone)]
@@ -21,7 +23,7 @@ impl Rule for MethodObjectAsBlock {
         severity: Severity::Convention,
         fix: FixAvailability::None,
         stability: Stability::Nursery,
-        kinds: &[],
+        kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",
     };
@@ -31,6 +33,23 @@ impl Rule for MethodObjectAsBlock {
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
-        let _ = (node, ctx, NodeKind::CallNode);
+        let Some(call) = node.as_call_node() else { return };
+        // `(^send (send _ :method sym))`: the parent must be a plain `send`.
+        if call.is_safe_navigation() {
+            return;
+        }
+        let Some(block) = call.block() else { return };
+        let Some(block_pass) = block.as_block_argument_node() else { return };
+        let Some(inner) = block_pass.expression().and_then(|e| e.as_call_node()) else { return };
+        if inner.is_safe_navigation() || inner.name().as_slice() != b"method" || inner.block().is_some()
+        {
+            return;
+        }
+        let Some(arguments) = inner.arguments() else { return };
+        let mut it = arguments.arguments().iter();
+        let (Some(arg), None) = (it.next(), it.next()) else { return };
+        if arg.as_symbol_node().is_some() {
+            ctx.report(&Self::META, block.span(), MSG);
+        }
     }
 }
