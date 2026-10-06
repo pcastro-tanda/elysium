@@ -116,7 +116,7 @@ fn receiver_of<'a>(node: &Node<'a>) -> Option<Node<'a>> {
     }
 }
 
-fn send_leaf<'a>(mut node: Node<'a>) -> Node<'a> {
+fn send_leaf(mut node: Node<'_>) -> Node<'_> {
     while let Some(receiver) = receiver_of(&node) {
         if as_send(&receiver).is_none() {
             break;
