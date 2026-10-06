@@ -612,8 +612,15 @@ begin
       module CaptureOffense
         include CaptureConfig
 
+        # An unnamed example's description is RSpec's `example at <spec path>:<line>`, and
+        # the path is however the spec was passed in: relative for RuboCop's own suite,
+        # absolute (machine-specific) for an extension gem's. Keep only the file name so
+        # case names are the same on every machine.
         def current_path
-          self.class.parent_groups.reverse.map(&:description) + [RSpec.current_example.description]
+          description = RSpec.current_example.description.sub(/example at (.+):([0-9]+)/) do
+            "example at " + File.basename($1) + ":" + $2
+          end
+          self.class.parent_groups.reverse.map(&:description) + [description]
         end
 
         # Specs that build their own `subject(:cop)` without the shared `config`
