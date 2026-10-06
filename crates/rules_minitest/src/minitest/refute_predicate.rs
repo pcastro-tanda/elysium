@@ -48,23 +48,31 @@ impl Rule for RefutePredicate {
         let arguments = argument_list(&call);
         let Some(first) = arguments.first() else { return };
         // `return if node.first_argument&.any_block_type?`, then `predicate_method?`.
-        let Some(predicate) = first.as_call_node() else { return };
-        if predicate.block().is_some_and(|block| block.as_block_argument_node().is_none()) {
+        // `predicate_method?` is also defined on `def`/`defs` nodes, whose
+        // `arguments` are their parameters and `receiver` the `defs` target.
+        let (name, receiver, has_arguments) = if let Some(predicate) = first.as_call_node() {
+            if predicate.block().is_some_and(|block| block.as_block_argument_node().is_none()) {
+                return;
+            }
+            (
+                predicate.name().as_slice().to_vec(),
+                predicate.receiver(),
+                !argument_list(&predicate).is_empty(),
+            )
+        } else if let Some(def) = first.as_def_node() {
+            (def.name().as_slice().to_vec(), def.receiver(), def.parameters().is_some())
+        } else {
             return;
-        }
-        if !predicate.name().as_slice().ends_with(b"?") {
-            return;
-        }
-        if !argument_list(&predicate).is_empty() {
+        };
+        if !name.ends_with(b"?") || has_arguments {
             return;
         }
 
-        let receiver = match predicate.receiver() {
+        let receiver = match receiver {
             Some(receiver) => String::from_utf8_lossy(ctx.text(receiver.span())).into_owned(),
             None => "self".to_owned(),
         };
-        let new_arguments =
-            format!("{receiver}, :{}", String::from_utf8_lossy(predicate.name().as_slice()));
+        let new_arguments = format!("{receiver}, :{}", String::from_utf8_lossy(&name));
         let message_argument = if arguments.len() > 1 { arguments.last() } else { None };
         let full = match message_argument {
             Some(message_argument) => format!(
