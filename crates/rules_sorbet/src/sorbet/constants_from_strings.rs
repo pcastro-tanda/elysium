@@ -8,7 +8,7 @@ use linter::{
 use ruby_ast::{Node, NodeKind};
 
 /// Forbids constant access through meta-programming.
-For example, things like `constantize` or `const_get` are forbidden.
+/// For example, things like `constantize` or `const_get` are forbidden.
 #[derive(Debug, Clone)]
 pub struct ConstantsFromStrings;
 
