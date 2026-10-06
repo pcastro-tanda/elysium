@@ -553,16 +553,23 @@ begin
           # `super` passed, so its offenses render exactly the expected annotations.
           parsed = ::RuboCop::RSpec::ExpectOffense::AnnotatedSource.parse(format_offense(source, **replacements))
           entry['annotated'] = parsed.with_offense_annotations(@offenses).to_s
+          entry['plain'] = parsed.plain_source
           CAPTURES << entry
           @__last_entry = entry
           result
         end
 
+        # Unlike RSpec's `expect_correction`, the Minitest helper accepts a "correction" equal
+        # to the source (`Sorbet/HasSigil` on an invalid sigil): that asserts no change.
         def assert_correction(correction, loop: true)
           result = super
           if @__last_entry
-            @__last_entry['correction'] = correction
-            @__last_entry['singlepass'] = true unless loop
+            if correction == @__last_entry['plain']
+              @__last_entry['no_corrections'] = true
+            else
+              @__last_entry['correction'] = correction
+              @__last_entry['singlepass'] = true unless loop
+            end
           end
           result
         end
