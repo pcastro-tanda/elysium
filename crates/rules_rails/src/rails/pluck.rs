@@ -178,7 +178,7 @@ impl Pluck {
         }
         let stmt = list.iter().next()?;
         let call = stmt.as_call_node()?;
-        if call.is_safe_navigation() || call.name().as_slice() != b"[]" || call.block().is_some() {
+        if call.is_safe_navigation() || call.name().as_slice() != b"[]" {
             return None;
         }
         let receiver = call.receiver()?;
@@ -187,11 +187,23 @@ impl Pluck {
         {
             return None;
         }
-        let arguments = call.arguments()?;
-        let args = arguments.arguments();
-        if args.len() != 1 {
-            return None;
+        // A `&blk` is the key argument in whitequark (`block_pass`); Prism keeps it
+        // in `block()`.
+        let block_pass = match call.block() {
+            Some(b) if b.as_block_argument_node().is_some() => Some(b),
+            Some(_) => return None,
+            None => None,
+        };
+        match (call.arguments(), block_pass) {
+            (None, Some(bp)) => Some((argument, bp)),
+            (Some(arguments), None) => {
+                let args = arguments.arguments();
+                if args.len() != 1 {
+                    return None;
+                }
+                Some((argument, args.iter().next()?))
+            }
+            _ => None,
         }
-        Some((argument, args.iter().next()?))
     }
 }
