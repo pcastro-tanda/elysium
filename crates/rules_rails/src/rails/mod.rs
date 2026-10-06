@@ -1,5 +1,12 @@
 //! `Rails` department.
 
+pub mod action_controller_flash_before_render;
+pub mod application_record;
+pub mod http_positional_arguments;
+pub mod match_route;
+pub mod relative_date_constant;
+pub mod response_parsed_body;
+pub mod util;
 pub mod action_controller_test_case;
 pub mod active_record_aliases;
 pub mod active_record_override;
@@ -10,7 +17,6 @@ pub mod after_commit_override;
 pub mod application_controller;
 pub mod application_job;
 pub mod application_mailer;
-pub mod application_record;
 pub mod arel_star;
 pub mod assert_not;
 pub mod attribute_default_block_value;

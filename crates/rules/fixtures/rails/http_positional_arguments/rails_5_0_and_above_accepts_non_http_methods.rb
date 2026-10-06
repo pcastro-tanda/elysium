@@ -1,0 +1,1 @@
+puts :create, user_id: @user.id

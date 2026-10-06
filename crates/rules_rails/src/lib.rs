@@ -20,6 +20,11 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::action_controller_flash_before_render::ActionControllerFlashBeforeRender,
+    rails::relative_date_constant::RelativeDateConstant,
+    rails::match_route::MatchRoute,
+    rails::response_parsed_body::ResponseParsedBody,
+    rails::http_positional_arguments::HttpPositionalArguments,
     rails::select_map::SelectMap,
     rails::attribute_default_block_value::AttributeDefaultBlockValue,
     rails::redundant_allow_nil::RedundantAllowNil,
