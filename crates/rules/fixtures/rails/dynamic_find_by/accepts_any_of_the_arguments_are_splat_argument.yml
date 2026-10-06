@@ -1,0 +1,2 @@
+Rails/DynamicFindBy:
+  AllowedMethods: [find_by_sql]

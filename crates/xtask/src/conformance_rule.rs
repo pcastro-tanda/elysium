@@ -12,12 +12,19 @@
 //! JSON report is cached per rule next to the corpus checkout
 //! (`<app>.rule.<Dept>__<Cop>.json`) and only re-run for rules without a
 //! cache file, or for every rule with `--refresh`.
+//!
+//! Extension cops (`Rails/`, `Performance/`, `Minitest/`, `Sorbet/`,
+//! `ThreadSafety/`) are judged against the pinned gem releases in
+//! [`EXTENSION_GEMS`]: RuboCop runs with `--plugin <gem>` for every extension
+//! department in the wave (in both passes), only through a Gemfile whose
+//! lockfile pins those releases, and elysium gets the same gem defaults via a
+//! throwaway plugins config (see [`run_elysium`]).
 
 use std::collections::{BTreeMap, BTreeSet};
 use std::fmt::Write as _;
 use std::fs;
 use std::path::{Path, PathBuf};
-use std::process::{Command, ExitCode};
+use std::process::{self, Command, ExitCode};
 use std::time::{SystemTime, UNIX_EPOCH};
 
 use anyhow::{bail, Context as _, Result};
@@ -33,6 +40,69 @@ const TABLE_PATH: &str = "docs/conformance/rules.md";
 /// The rbenv Ruby version under which every `<app>.rubocop.Gemfile` side
 /// bundle is installed (see [`side_gemfile`]).
 const SIDE_GEMFILE_RUBY_VERSION: &str = "3.4.2";
+
+/// Extension gems whose cops can be judged, by RuboCop department, with the
+/// exact release elysium ports (decision A pins current releases, not whatever
+/// an app's own `Gemfile.lock` says).
+const EXTENSION_GEMS: &[(&str, &str, &str)] = &[
+    ("Rails", "rubocop-rails", "2.38.0"),
+    ("Performance", "rubocop-performance", "1.27.0"),
+    ("Minitest", "rubocop-minitest", "0.40.0"),
+    ("Sorbet", "rubocop-sorbet", "0.16.0"),
+    ("ThreadSafety", "rubocop-thread_safety", "0.8.0"),
+];
+
+/// The extension gems (`rubocop-rails`, ...) the departments of `rules` come
+/// from, deduplicated, in [`EXTENSION_GEMS`] order. Core departments need none.
+fn plugins_for<S: AsRef<str>>(rules: &[S]) -> Vec<&'static str> {
+    EXTENSION_GEMS
+        .iter()
+        .filter(|(department, _, _)| {
+            rules.iter().any(|rule| {
+                rule.as_ref().split_once('/').is_some_and(|(dept, _)| dept == *department)
+            })
+        })
+        .map(|(_, gem, _)| *gem)
+        .collect()
+}
+
+/// Fails unless `lock` (a `Gemfile.lock`) resolves every gem in `plugins` to
+/// its pinned release in [`EXTENSION_GEMS`].
+fn check_pinned(lock: &str, plugins: &[&str]) -> Result<()> {
+    for gem in plugins {
+        let want = EXTENSION_GEMS
+            .iter()
+            .find(|(_, name, _)| name == gem)
+            .map(|(_, _, version)| *version)
+            .with_context(|| format!("{gem} is not a known extension gem"))?;
+        let prefix = format!("    {gem} (");
+        let locked = lock
+            .lines()
+            .find_map(|line| line.strip_prefix(prefix.as_str())?.strip_suffix(')'))
+            .with_context(|| format!("{gem} is not in the lockfile (want {want})"))?;
+        if locked != want {
+            bail!("lockfile pins {gem} {locked}, want {want}");
+        }
+    }
+    Ok(())
+}
+
+/// Bundler's lockfile for `gemfile`: `<gemfile>.lock`.
+fn lockfile_of(gemfile: &Path) -> PathBuf {
+    let mut name = gemfile.as_os_str().to_os_string();
+    name.push(".lock");
+    PathBuf::from(name)
+}
+
+/// [`check_pinned`] against the lockfile of `gemfile`.
+fn check_pinned_in(gemfile: &Path, plugins: &[&str]) -> Result<()> {
+    if plugins.is_empty() {
+        return Ok(());
+    }
+    let lock = lockfile_of(gemfile);
+    let text = fs::read_to_string(&lock).with_context(|| format!("reading {}", lock.display()))?;
+    check_pinned(&text, plugins).with_context(|| lock.display().to_string())
+}
 
 /// `cargo xtask conformance` arguments.
 // Flags are independent CLI switches, not a state machine.
@@ -481,10 +551,15 @@ fn uses_bundler(app: &Path) -> bool {
 /// `.ruby-version` pin unavailable via rbenv, or a native extension that
 /// fails to build) but a scratch bundle for RuboCop alone still can be.
 fn side_gemfile(app: &Path) -> Option<PathBuf> {
-    let name = app.file_name()?.to_string_lossy().into_owned();
-    let parent = app.parent().unwrap_or_else(|| Path::new("."));
-    let candidate = parent.join(format!("{name}.rubocop.Gemfile"));
+    let candidate = side_gemfile_path(app);
     candidate.is_file().then_some(candidate)
+}
+
+/// Where [`side_gemfile`] looks for `app`'s side Gemfile.
+fn side_gemfile_path(app: &Path) -> PathBuf {
+    let name = app.file_name().unwrap_or_default().to_string_lossy().into_owned();
+    let parent = app.parent().unwrap_or_else(|| Path::new("."));
+    parent.join(format!("{name}.rubocop.Gemfile"))
 }
 
 /// Runs RuboCop once for every rule in `rules` (`--only A,B,C`) and returns
@@ -497,24 +572,42 @@ fn side_gemfile(app: &Path) -> Option<PathBuf> {
 /// commonly can't install their full bundle on this machine.
 fn run_rubocop(app: &Path, rules: &[String], defaults: bool) -> Result<String> {
     let only = rules.join(",");
+    let plugins = plugins_for(rules);
     if let Some(gemfile) = side_gemfile(app) {
-        match rubocop_once(app, &only, defaults, true, Some(&gemfile)) {
+        let attempt = check_pinned_in(&gemfile, &plugins)
+            .and_then(|()| rubocop_once(app, &only, defaults, true, Some(&gemfile), &plugins));
+        match attempt {
             Ok(json) => return Ok(json),
             Err(err) => eprintln!(
-                "note: `BUNDLE_GEMFILE={} bundle exec rubocop` failed ({err}); falling back",
+                "note: `BUNDLE_GEMFILE={} bundle exec rubocop` failed ({err:#}); falling back",
                 gemfile.display()
             ),
         }
     }
     if uses_bundler(app) {
-        match rubocop_once(app, &only, defaults, true, None) {
+        let attempt = check_pinned_in(&app.join("Gemfile"), &plugins)
+            .and_then(|()| rubocop_once(app, &only, defaults, true, None, &plugins));
+        match attempt {
             Ok(json) => return Ok(json),
             Err(err) => eprintln!(
-                "note: `bundle exec rubocop` failed ({err}); falling back to the `rubocop` on PATH"
+                "note: `bundle exec rubocop` failed ({err:#}); falling back to the `rubocop` on PATH"
             ),
         }
     }
-    rubocop_once(app, &only, defaults, false, None)
+    if !plugins.is_empty() {
+        bail!(
+            "cannot judge {} without a Gemfile pinning {}: create {} (see `ci/corpus/` Gemfiles) and `bundle lock --local` it",
+            plugins.join(", "),
+            EXTENSION_GEMS
+                .iter()
+                .filter(|(_, gem, _)| plugins.contains(gem))
+                .map(|(_, gem, version)| format!("{gem} {version}"))
+                .collect::<Vec<_>>()
+                .join(", "),
+            side_gemfile_path(app).display()
+        );
+    }
+    rubocop_once(app, &only, defaults, false, None, &plugins)
 }
 
 fn rubocop_once(
@@ -523,6 +616,7 @@ fn rubocop_once(
     defaults: bool,
     bundler: bool,
     gemfile: Option<&Path>,
+    plugins: &[&str],
 ) -> Result<String> {
     let mut command = if bundler {
         let mut command = Command::new("bundle");
@@ -546,11 +640,18 @@ fn rubocop_once(
     if defaults {
         command.arg("--force-default-config");
     }
+    // `--plugin` makes the department's gem (and its `config/default.yml`)
+    // load whether or not the app's config names it, and, with
+    // `--force-default-config`, yields RuboCop's defaults plus the gem's.
+    for plugin in plugins {
+        command.args(["--plugin", plugin]);
+    }
     eprintln!(
-        "running {}{}rubocop --only {only}{} in {} ...",
+        "running {}{}rubocop --only {only}{}{} in {} ...",
         gemfile.map(|g| format!("BUNDLE_GEMFILE={} ", g.display())).unwrap_or_default(),
         if bundler { "bundle exec " } else { "" },
         if defaults { " --force-default-config" } else { "" },
+        plugins.iter().map(|p| [" --plugin ", p].concat()).collect::<String>(),
         app.display()
     );
     let output = command.output().context("failed to execute rubocop")?;
@@ -588,11 +689,41 @@ fn run_elysium(workspace: &Path, app: &Path, rules: &[String], defaults: bool) -
     if let Some(gemfile) = side_gemfile(app) {
         command.env("BUNDLE_GEMFILE", gemfile);
     }
-    if defaults {
-        command.arg("--no-config");
-    }
+    // elysium has no `--plugin`: `--no-config` loads only the bundled RuboCop
+    // defaults, and gem defaults are only layered in for a config file's
+    // `plugins:`/`require:`. So a run over an extension department hands
+    // elysium a throwaway config (not named `.rubocop*`, so paths still
+    // resolve against the working directory) that lists the plugins and, for
+    // the app-config pass, inherits the app's own `.rubocop.yml`: the
+    // equivalent of RuboCop's `--plugin` (with `--force-default-config`).
+    let plugins = plugins_for(rules);
+    let plugin_config = if plugins.is_empty() {
+        if defaults {
+            command.arg("--no-config");
+        }
+        None
+    } else {
+        let path =
+            std::env::temp_dir().join(format!("xtask-elysium-plugins-{}.yml", process::id()));
+        let own_config = app.join(".rubocop.yml");
+        let mut body = String::new();
+        if !defaults && own_config.is_file() {
+            let _ = writeln!(body, "inherit_from: {}", own_config.display());
+        }
+        body.push_str("plugins:\n");
+        for plugin in &plugins {
+            let _ = writeln!(body, "  - {plugin}");
+        }
+        fs::write(&path, body).with_context(|| format!("writing {}", path.display()))?;
+        command.arg("--config").arg(&path);
+        Some(path)
+    };
     command.arg(".");
-    let output = command.output().context("failed to execute elysium")?;
+    let output = command.output();
+    if let Some(path) = &plugin_config {
+        let _ = fs::remove_file(path);
+    }
+    let output = output.context("failed to execute elysium")?;
     match output.status.code() {
         Some(0 | 1) => {}
         other => {
@@ -650,6 +781,14 @@ Generated by `cargo xtask conformance --app DIR --rule Cop/Name` (`--rule` is
 repeatable and comma-separated; `--rules-file FILE` takes one cop per line).
 Offenses are keyed by (path, line, column); `message mismatch` counts matched
 offenses whose text differs (RuboCop versions word some messages differently).
+
+Extension cops (`Rails/`, `Performance/`, `Minitest/`, `Sorbet/`,
+`ThreadSafety/`) are judged against rubocop-rails 2.38.0, rubocop-performance
+1.27.0, rubocop-minitest 0.40.0, rubocop-sorbet 0.16.0 and
+rubocop-thread_safety 0.8.0: RuboCop runs with `--plugin <gem>` (own-config and
+`--defaults` passes alike) through `<app>.rubocop.Gemfile`, whose lockfile must
+pin those releases. For payaus, copy `ci/corpus/payaus.rubocop.Gemfile` to
+`/tmp/payaus-target.rubocop.Gemfile` first; truth caches land next to the app.
 
 | rule | app | rubocop | truth | ours | missing | extra | message mismatch | agreement | date |
 | --- | --- | --- | --- | --- | --- | --- | --- | --- | --- |
@@ -714,7 +853,7 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use super::{resolve_rules, split_by_rule, ConformanceArgs};
+    use super::{check_pinned, plugins_for, resolve_rules, split_by_rule, ConformanceArgs};
 
     /// An offense as RuboCop serializes it, with its exact key order.
     fn offense(cop: &str, line: u32) -> String {
@@ -806,5 +945,31 @@ mod tests {
     #[test]
     fn an_empty_selection_is_rejected() {
         assert!(resolve_rules(&args(&[], None)).is_err());
+    }
+
+    #[test]
+    fn plugins_follow_departments_in_pinned_order() {
+        assert_eq!(
+            plugins_for(&rules(&[
+                "Style/Alias",
+                "ThreadSafety/MutableClassInstanceVariable",
+                "Rails/Pick",
+                "Rails/Date"
+            ])),
+            ["rubocop-rails", "rubocop-thread_safety"]
+        );
+        assert_eq!(plugins_for(&rules(&["Style/Alias", "Lint/Syntax"])), [] as [&str; 0]);
+        // A core department that merely starts like an extension one.
+        assert_eq!(plugins_for(&rules(&["Railsish/Cop"])), [] as [&str; 0]);
+    }
+
+    #[test]
+    fn lockfile_must_pin_the_ported_release() {
+        let lock = "GEM\n  specs:\n    rubocop-rails (2.37.0)\n      rack\n    rubocop-performance (1.27.0)\n";
+        check_pinned(lock, &["rubocop-performance"]).unwrap();
+        let stale = check_pinned(lock, &["rubocop-rails"]).unwrap_err().to_string();
+        assert!(stale.contains("2.37.0") && stale.contains("2.38.0"), "{stale}");
+        let missing = check_pinned(lock, &["rubocop-sorbet"]).unwrap_err().to_string();
+        assert!(missing.contains("not in the lockfile"), "{missing}");
     }
 }

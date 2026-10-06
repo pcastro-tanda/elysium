@@ -1,0 +1,1 @@
+abort("message", "another message")

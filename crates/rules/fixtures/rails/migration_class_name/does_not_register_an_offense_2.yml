@@ -1,0 +1,5 @@
+# file: db/migrate/20220101050505_add_blobs.active_storage.rb
+AllCops:
+  MigratedSchemaVersion: '20240101010101'
+Rails/MigrationClassName:
+  Include: ~

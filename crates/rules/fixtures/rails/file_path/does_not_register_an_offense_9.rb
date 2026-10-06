@@ -1,0 +1,1 @@
+"#{Rails.root}:/foo/bar"

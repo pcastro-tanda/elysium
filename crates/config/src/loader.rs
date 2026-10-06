@@ -11,6 +11,7 @@ use std::path::{Path, PathBuf};
 use crate::defaults::{DEFAULT_CONFIG, DEPARTMENTS};
 use crate::error::ConfigError;
 use crate::gems::{self, GemSearch};
+use crate::lockfile::{self, GemVersions};
 use crate::merge::{
     inherit_mode_for, merge, override_department_setting_for_cops,
     override_enabled_for_disabled_departments, preview_enabled, with_preview_exclude_merge,
@@ -38,6 +39,11 @@ pub struct ConfigLoader {
     gem_search: GemSearch,
     allow_gem_lookup: bool,
     ignore_parent_exclusion: bool,
+    /// `(gem, config/default.yml text)` merged into the defaults as though
+    /// that gem were a loaded plugin; see [`Self::with_extension_defaults`].
+    extension_defaults: Vec<(&'static str, &'static str)>,
+    /// Stands in for the lockfile's gem versions; see [`Self::with_gem_versions`].
+    gem_versions: Option<GemVersions>,
 }
 
 impl Default for ConfigLoader {
@@ -76,7 +82,17 @@ impl ConfigLoader {
             gem_search: GemSearch { extra_roots: Vec::new(), use_environment: true },
             allow_gem_lookup: true,
             ignore_parent_exclusion: false,
+            extension_defaults: Vec::new(),
+            gem_versions: None,
         }
+    }
+
+    /// Uses `versions` as the target's locked gems instead of reading a
+    /// lockfile, as RuboCop's specs stub `Config#gem_versions_in_target`.
+    #[must_use]
+    pub fn with_gem_versions(mut self, versions: GemVersions) -> Self {
+        self.gem_versions = Some(versions);
+        self
     }
 
     /// Overrides the working directory, which is where paths in config files
@@ -129,6 +145,20 @@ impl ConfigLoader {
     #[must_use]
     pub fn ignore_parent_exclusion(mut self, ignore: bool) -> Self {
         self.ignore_parent_exclusion = ignore;
+        self
+    }
+
+    /// Merges `default_yml`, the text of extension gem `gem`'s own
+    /// `config/default.yml`, into the defaults below the user's
+    /// configuration exactly as a `plugins:` entry found on disk is, but
+    /// without looking the gem up and whether or not the configuration
+    /// names it. This is how an extension's own specs see RuboCop's default
+    /// configuration (its `CopHelper`/`AssertOffense` integrates the
+    /// installed `lint_roller` plugin), so the fixture harness resolves a
+    /// ported case with it.
+    #[must_use]
+    pub fn with_extension_defaults(mut self, gem: &'static str, default_yml: &'static str) -> Self {
+        self.extension_defaults.push((gem, default_yml));
         self
     }
 
@@ -209,6 +239,11 @@ impl ConfigLoader {
         };
         let mut resolved = resolved;
         infer_target_ruby_version(&mut resolved, &root);
+        // `Config#bundler_lock_file_path` needs a loaded configuration file.
+        let gem_versions = self.gem_versions.clone().or_else(|| {
+            loaded_path.as_ref()?;
+            lockfile::find_bundler_lockfile(&root).map(|path| lockfile::read_gem_versions(&path))
+        });
         Ok(LoadedConfig::new(
             resolved,
             loaded_path,
@@ -216,7 +251,8 @@ impl ConfigLoader {
             state.extensions,
             resolved_extensions,
             state.warnings,
-        ))
+        )
+        .with_gem_versions(gem_versions))
     }
 
     /// RuboCop's `ConfigLoader.load_file`: read, resolve `inherit_gem`,
@@ -265,7 +301,12 @@ impl ConfigLoader {
         add_missing_namespaces(&mut hash)?;
 
         let target_ruby = target_ruby_version(&hash, path, &self.cwd, self.home.as_deref());
-        let extensions: HashSet<String> = state.extensions.iter().cloned().collect();
+        let extensions: HashSet<String> = state
+            .extensions
+            .iter()
+            .cloned()
+            .chain(self.extension_defaults.iter().map(|&(gem, _)| gem.to_owned()))
+            .collect();
         let obsoletions = RULES.check(&hash, path, target_ruby, &extensions);
         if !obsoletions.errors.is_empty() {
             return Err(ConfigError::ObsoleteCop(obsoletions.errors.join("\n")));
@@ -424,9 +465,18 @@ impl ConfigLoader {
         make_excludes_absolute(&mut default, &self.cwd);
 
         let mut resolved_extensions = Vec::new();
+        for &(gem, yml) in &self.extension_defaults {
+            let mut extension_default =
+                parse_yaml_configuration(yml, &Path::new(gem).join("config/default.yml"))?;
+            make_excludes_absolute(&mut extension_default, &self.cwd);
+            default = merge_extension_defaults(&default, &extension_default);
+            if extensions.iter().any(|name| name == gem) {
+                resolved_extensions.push(gem.to_string());
+            }
+        }
         if self.allow_gem_lookup {
             for gem in extensions {
-                if gem == "rubocop" {
+                if gem == "rubocop" || self.extension_defaults.iter().any(|(name, _)| name == gem) {
                     continue;
                 }
                 match self.gem_search.extension_defaults(gem_search_start, gem) {
@@ -574,10 +624,16 @@ fn read_yaml_configuration(path: &Path) -> Result<Mapping, ConfigError> {
         }
         Err(source) => return Err(ConfigError::Io { path: path.to_path_buf(), source }),
     };
+    parse_yaml_configuration(&contents, path)
+}
+
+/// [`read_yaml_configuration`] of already-read `contents`; `path` names
+/// the document in errors.
+fn parse_yaml_configuration(contents: &str, path: &Path) -> Result<Mapping, ConfigError> {
     if contents.contains("<%") {
         return Err(ConfigError::ErbUnsupported(path.to_path_buf()));
     }
-    match parse_document(&contents) {
+    match parse_document(contents) {
         Ok(None) => Ok(Mapping::new()),
         Ok(Some(YamlValue::Mapping(hash))) => Ok(hash),
         Ok(Some(_)) => Err(ConfigError::Malformed(path.to_path_buf())),

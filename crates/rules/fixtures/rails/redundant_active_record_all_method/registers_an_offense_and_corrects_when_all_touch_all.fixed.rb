@@ -1,0 +1,1 @@
+User.touch_all

@@ -1,0 +1,1 @@
+has_many :foo, -> { group 'x' }, dependent: :destroy, inverse_of: :baz

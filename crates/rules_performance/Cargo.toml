@@ -1,0 +1,20 @@
+[package]
+name = "rules_performance"
+version.workspace = true
+edition.workspace = true
+rust-version.workspace = true
+publish.workspace = true
+description = "Every rubocop-performance rule, grouped by department"
+
+[dependencies]
+linter.workspace = true
+config.workspace = true
+ruby_ast.workspace = true
+ruby_source.workspace = true
+ruby_semantic.workspace = true
+ruby_directives.workspace = true
+regex.workspace = true
+rules_support.workspace = true
+
+[lints]
+workspace = true

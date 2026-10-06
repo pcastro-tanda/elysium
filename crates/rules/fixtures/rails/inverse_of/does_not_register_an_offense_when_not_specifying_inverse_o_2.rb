@@ -1,0 +1,1 @@
+has_many :pictures, as: :imageable

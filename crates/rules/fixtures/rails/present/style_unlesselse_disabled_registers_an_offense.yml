@@ -1,0 +1,5 @@
+Rails/Present:
+  NotNilAndNotEmpty: false
+  NotBlank: false
+Style/UnlessElse:
+  Enabled: false

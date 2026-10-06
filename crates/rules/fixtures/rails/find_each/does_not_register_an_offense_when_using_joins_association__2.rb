@@ -1,0 +1,1 @@
+User.joins(:association_name).limit(10).each { |u| u.something }

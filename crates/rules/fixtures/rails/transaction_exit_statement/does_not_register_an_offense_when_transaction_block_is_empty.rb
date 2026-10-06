@@ -1,0 +1,2 @@
+ApplicationRecord.transaction do
+end

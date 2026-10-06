@@ -1,0 +1,1 @@
+Other.new { do_work }

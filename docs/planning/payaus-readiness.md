@@ -94,6 +94,15 @@ to each gem's spec suite, pinned to the current releases (decision A: rails
 RuboCop 1.91 at cutover. Rails first (largest, and discourse/mastodon give
 corpus truth for it); Sorbet and Minitest have no corpus besides payaus.
 
+Rails — done (2026-10-06): all 115 ported and `stable`, 100% agreement with
+rubocop-rails 2.38.0 on discourse and mastodon (own config and defaults,
+messages included). Conformance caught three port bugs: `Rails/Pluck` must
+treat a block as an ancestor of its call's receiver and arguments (whitequark
+`block` wraps the call), `Rails/RedundantReceiverInWithOptions` must count
+op-assign and multiple-assignment call targets as `send`s, and
+`Rails/WhereEquals` must render a shorthand pair's (`id:`) value without the
+colon. Performance, Minitest, Sorbet, and ThreadSafety remain.
+
 ### 4. Tanda custom cops (1-2 waves)
 59 cops, ~3,800 lines of Ruby in `payaus/rubocop/custom_cops`, ported into a
 new Tanda department in `crates/rules` (decision B).

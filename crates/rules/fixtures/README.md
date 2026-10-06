@@ -29,6 +29,52 @@ bespoke `RuboCop::Config` leaves unset is nil there, while the harness merges
 `default.yml`, so the `.yml` states such keys as `~` (a peer the spec never
 mentions included).
 
+## Extension gem departments
+
+`rails/`, `performance/`, `thread_safety/`, `minitest/` and `sorbet/` are the
+cops of the gems pinned in `tools/extension_gems.rb` (rubocop-rails 2.38.0,
+rubocop-performance 1.27.0, rubocop-thread_safety 0.8.0, rubocop-minitest
+0.40.0, rubocop-sorbet 0.16.0), generated the same way from each gem's own
+suite at that tag:
+
+    ruby tools/scaffold_cop.rb Rails/ApplicationRecord
+    ruby tools/port_spec.rb --cop Rails/ApplicationRecord \
+        --rubocop-src /path/to/rubocop-1.91.0 \
+        --gem-src rails=/path/to/rubocop-rails-2.38.0 --out crates/rules/fixtures
+
+`--gem-src` (comma-separated `key=PATH`) defaults to the `<gem>-<version>`
+checkout next to `--rubocop-src`; `check_fixtures.rb` takes it too and fails
+on an extension department whose source it cannot find. The RSpec suites
+(rails, performance, thread_safety) are recorded through `expect_offense` &
+co. as for core; the Minitest suites (minitest, sorbet) through
+rubocop-minitest's `assert_offense`, `assert_no_offenses`, `assert_correction`
+and `assert_no_corrections`, into the same format. rubocop-sorbet's suite runs
+on rubocop-minitest 0.38.1, its Gemfile.lock pin (0.40's `AssertOffense`
+breaks its `cop_config` helper).
+
+The harness resolves such a case with the gem's vendored `config/default.yml`
+(`crates/rules_<key>/<gem>/default.yml`, `ConfigLoader::with_extension_defaults`)
+merged into RuboCop's, as the suite's spec_helper/test_helper does (plugin
+integration; rubocop-sorbet's `inject_defaults!` comes to the same merge for
+every key its `default.yml` sets). Per suite:
+
+- an unstated `TargetRubyVersion` is 3.4 for minitest and sorbet
+  (rubocop-minitest's `AssertOffense` under `PARSER_ENGINE=parser_prism`),
+  3.3 elsewhere;
+- `AllCops: TargetRailsVersion` is written when a Rails example sets one
+  (`:rails42`, ...); unset, the specs' stubbed `railties` gives 5.0;
+- `AllCops` keys are written only where the spec's config sets them or the
+  cop reads them, so rubocop-rails' `ActiveSupportExtensionsEnabled: true`
+  default, which its bespoke spec config omits, is not stamped on every case;
+- `AllCops: DisplayCopNames: true` marks a case whose messages carry the
+  `Cop/Name: ` prefix (rubocop-sorbet tests that build the cop straight from
+  the merged defaults, `@cop = Foo.new`). Every other case runs with it off,
+  like a spec's bespoke config, and the harness adds the prefix when it is on.
+
+Examples asserting through CopHelper's `autocorrect_source` (10
+rubocop-performance specs, 5 rubocop-rails specs) are reported as not
+captured, like direct `inspect_source` access in core specs.
+
 ## Deliberately removed cases
 
 Cases that depend on Ruby process state elysium does not model are deleted
@@ -219,3 +265,10 @@ per line, which the check honours) and explained here:
   the expected message embeds the basename of a random `Tempfile` created
   during the one-time upstream RSpec run; no deterministic port can
   reproduce it. The remaining cases cover the same logic.
+- `rails/bulk_change_table`: 18 `registers_an_offense_when_including_combinable_*`
+  cases (alter methods `_5`..`_13` / `_10`..`_13`, transformations
+  `_5`..`_13`) from the spec's `database.yml` / `DATABASE_URL` contexts. The
+  spec stubs `File.exist?`, `YAML.load_file` and `ENV` to pick the adapter;
+  those stubs are Ruby process state the fixture harness cannot express (the
+  case ymls carry no `Database:`), so the cop sees no database and rightly
+  reports nothing. The resolution itself is exercised through the CLI.

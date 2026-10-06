@@ -1,0 +1,1 @@
+enum status: { active: 0, pending: 1 }, default: :active, prefix: true

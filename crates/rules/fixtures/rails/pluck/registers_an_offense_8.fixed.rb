@@ -1,0 +1,1 @@
+x.pluck('foo')

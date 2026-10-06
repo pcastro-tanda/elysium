@@ -4,16 +4,35 @@
 //! this crate chains their slot lists into [`Slots`] and their metadata
 //! into [`ALL_RULES`]. Adding a rule crate is one entry in each.
 
+use std::sync::Arc;
+
 use config::LoadedConfig;
 use linter::{Context, Diagnostic, Dispatch, OptionError, RuleMeta};
 use ruby_ast::{Node, NodeKind};
 use rules_support::{Builder, SlotList};
 
-/// Every rule crate's slot list, chained.
-type Slots = rules::Slots;
+/// Every rule crate's slot list, chained: core RuboCop, then one crate per
+/// extension gem.
+type Slots = (
+    rules::Slots,
+    (
+        rules_rails::Slots,
+        (
+            rules_performance::Slots,
+            (rules_minitest::Slots, (rules_sorbet::Slots, rules_thread_safety::Slots)),
+        ),
+    ),
+);
 
 /// Every crate's `ALL_RULES`, in [`Slots`] order.
-const CRATE_RULES: &[&[&RuleMeta]] = &[rules::ALL_RULES];
+const CRATE_RULES: &[&[&RuleMeta]] = &[
+    rules::ALL_RULES,
+    rules_rails::ALL_RULES,
+    rules_performance::ALL_RULES,
+    rules_minitest::ALL_RULES,
+    rules_sorbet::ALL_RULES,
+    rules_thread_safety::ALL_RULES,
+];
 
 const RULE_COUNT: usize = {
     let mut count = 0;
@@ -79,17 +98,26 @@ impl RuleSet {
     }
 
     /// Only `names`, configured from `cfg`, enabled regardless of what
-    /// `cfg` says about them (RuboCop's `--only`).
-    pub fn only(names: &[&str], cfg: &LoadedConfig) -> Result<Self, OptionError> {
-        Self::from_builder(&Builder::restricted(names, cfg, true))
+    /// `cfg` says about them (RuboCop's `--only`). `db_schema` is the source
+    /// of the project's `db/schema.rb`, if the run found one.
+    pub fn only(
+        names: &[&str],
+        cfg: &LoadedConfig,
+        db_schema: Option<Arc<str>>,
+    ) -> Result<Self, OptionError> {
+        Self::from_builder(&Builder::restricted(names, cfg, true, db_schema))
     }
 
     /// Only `names`, configured from `cfg` and enabled regardless of it, the
     /// way RuboCop's `CopHelper` runs a cop in its specs: unlike
     /// [`RuleSet::only`], the run is not an `--only` run, so rules that read
     /// the registry see every configured cop.
-    pub fn isolated(names: &[&str], cfg: &LoadedConfig) -> Result<Self, OptionError> {
-        Self::from_builder(&Builder::restricted(names, cfg, false))
+    pub fn isolated(
+        names: &[&str],
+        cfg: &LoadedConfig,
+        db_schema: Option<Arc<str>>,
+    ) -> Result<Self, OptionError> {
+        Self::from_builder(&Builder::restricted(names, cfg, false, db_schema))
     }
 }
 

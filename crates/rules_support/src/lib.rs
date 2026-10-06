@@ -12,8 +12,8 @@ use std::sync::Arc;
 use config::{CopConfig, LoadedConfig, YamlValue};
 pub use linter::RuleMeta;
 use linter::{
-    subscription_table, Context, Diagnostic, OptionError, OptionValue, PeerOptions, Rule,
-    RuleOptions,
+    subscription_table, Context, Diagnostic, GemVersions, OptionError, OptionValue, PeerOptions,
+    Rule, RuleOptions,
 };
 use ruby_ast::{Node, NodeKind};
 
@@ -32,9 +32,17 @@ use ruby_ast::{Node, NodeKind};
 /// link's tail is boxed: `build` and `clone` recurse once per link and
 /// return their subtree by value, so an unboxed chain needs stack quadratic
 /// in the rule count in unoptimized builds (past ~500 rules it overflowed
-/// the test threads' 2 MiB).
+/// the test threads' 2 MiB). A crate with no rules yet registers an empty
+/// list: `ALL_RULES` is empty and `Slots` is `()`.
 #[macro_export]
 macro_rules! rule_set {
+    () => {
+        /// Every rule this crate registers, in registration order.
+        pub const ALL_RULES: &[&'static $crate::RuleMeta] = &[];
+
+        /// The configured rules of this crate, as one slot list.
+        pub type Slots = ();
+    };
     ($($rule:path),+ $(,)?) => {
         /// Every rule this crate registers, in registration order.
         pub const ALL_RULES: &[&'static $crate::RuleMeta] =
@@ -154,43 +162,76 @@ pub struct Builder<'a> {
     /// when `only` did not come from the CLI's `--only`.
     only_run: Option<Arc<[String]>>,
     peers: Arc<PeerOptions>,
+    /// The target's locked gem versions (`Config#gem_versions_in_target`).
+    gem_versions: Option<Arc<GemVersions>>,
+    /// The source of the project's `db/schema.rb`, handed to every rule
+    /// (see [`RuleOptions::db_schema`]).
+    db_schema: Option<Arc<str>>,
 }
 
 impl<'a> Builder<'a> {
     /// Every rule enabled by default, with RuboCop's default options.
     pub fn defaults() -> Self {
-        Self { cfg: None, only: None, only_run: None, peers: Arc::new(PeerOptions::new()) }
+        Self {
+            cfg: None,
+            only: None,
+            only_run: None,
+            peers: Arc::new(PeerOptions::new()),
+            gem_versions: None,
+            db_schema: None,
+        }
     }
 
     /// The rules `cfg` enables, configured from it.
     pub fn from_config(cfg: &'a LoadedConfig) -> Self {
-        Self { cfg: Some(cfg), only: None, only_run: None, peers: Arc::new(peer_options(cfg)) }
+        Self {
+            cfg: Some(cfg),
+            only: None,
+            only_run: None,
+            peers: Arc::new(peer_options(cfg)),
+            gem_versions: cfg.gem_versions().cloned(),
+            db_schema: None,
+        }
     }
 
     /// Only `names`, configured from `cfg` and enabled regardless of it;
-    /// `only_run` says whether the rules see the run as an `--only` run.
-    pub fn restricted(names: &'a [&'a str], cfg: &'a LoadedConfig, only_run: bool) -> Self {
+    /// `only_run` says whether the rules see the run as an `--only` run, and
+    /// `db_schema` is the source of the project's `db/schema.rb`, if any.
+    pub fn restricted(
+        names: &'a [&'a str],
+        cfg: &'a LoadedConfig,
+        only_run: bool,
+        db_schema: Option<Arc<str>>,
+    ) -> Self {
         Self {
             cfg: Some(cfg),
             only: Some(names),
             only_run: only_run.then(|| names.iter().map(|name| (*name).to_string()).collect()),
             peers: Arc::new(peer_options(cfg)),
+            gem_versions: cfg.gem_versions().cloned(),
+            db_schema,
         }
     }
 
     fn configure<R: Rule>(&self) -> Result<Option<R>, OptionError> {
         let meta = <R as RuleExt>::META_REF;
         let cop = self.cfg.and_then(|cfg| cfg.cop(meta.name));
-        let enabled = match self.only {
-            Some(names) => names.contains(&meta.name),
-            None => cop.map_or(meta.enabled_by_default, |cop| cop.enabled),
+        let enabled = match (self.only, self.cfg) {
+            (Some(names), _) => names.contains(&meta.name),
+            // A cop the configuration does not know belongs to an extension
+            // gem the project did not load (`plugins:`/`require:`), and
+            // RuboCop never registers such a cop.
+            (None, Some(_)) => cop.is_some_and(|cop| cop.enabled),
+            (None, None) => meta.enabled_by_default,
         };
         if !enabled {
             return Ok(None);
         }
         let own = cop.map(cop_options).unwrap_or_default();
-        let options =
-            RuleOptions::new(meta, own, Arc::clone(&self.peers)).with_only(self.only_run.clone());
+        let options = RuleOptions::new(meta, own, Arc::clone(&self.peers))
+            .with_only(self.only_run.clone())
+            .with_gem_versions(self.gem_versions.clone())
+            .with_db_schema(self.db_schema.clone());
         R::configure(&options).map(Some)
     }
 }
@@ -305,6 +346,30 @@ impl<A: SlotList, B: SlotList> SlotList for (A, B) {
         self.0.file_finish(ctx, reported);
         self.1.file_finish(ctx, reported);
     }
+}
+
+/// The slot list of a rule crate that registers no rules.
+impl SlotList for () {
+    fn build(_builder: &Builder<'_>) -> Result<Self, OptionError> {
+        Ok(())
+    }
+
+    fn add_interest(&self, _interest: &mut [bool; NodeKind::COUNT]) {}
+
+    #[inline]
+    fn file_start(&mut self, _ctx: &mut Context<'_>) {}
+
+    #[inline]
+    fn enter(&mut self, _kind: NodeKind, _node: &Node<'_>, _ctx: &mut Context<'_>) {}
+
+    #[inline]
+    fn leave(&mut self, _kind: NodeKind, _node: &Node<'_>, _ctx: &mut Context<'_>) {}
+
+    #[inline]
+    fn file_end(&mut self, _ctx: &mut Context<'_>) {}
+
+    #[inline]
+    fn file_finish(&mut self, _ctx: &mut Context<'_>, _reported: &[Diagnostic]) {}
 }
 
 impl<T: SlotList> SlotList for Box<T> {

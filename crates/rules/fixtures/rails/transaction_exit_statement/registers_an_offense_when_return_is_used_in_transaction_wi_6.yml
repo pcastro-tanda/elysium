@@ -1,0 +1,4 @@
+AllCops:
+  TargetRubyVersion: 3.4
+Rails/TransactionExitStatement:
+  TransactionMethods: [writable_transaction]

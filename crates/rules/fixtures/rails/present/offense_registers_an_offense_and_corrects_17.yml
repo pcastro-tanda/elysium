@@ -1,0 +1,3 @@
+Rails/Present:
+  NotNilAndNotEmpty: false
+  UnlessBlank: false

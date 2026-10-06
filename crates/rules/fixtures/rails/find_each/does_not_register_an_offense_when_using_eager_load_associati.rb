@@ -1,0 +1,1 @@
+User.eager_load(:association_name).order(:name).each { |u| u.something }

@@ -1,0 +1,1 @@
+Other.fork { do_work }
