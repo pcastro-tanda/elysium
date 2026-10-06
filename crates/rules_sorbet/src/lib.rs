@@ -18,6 +18,7 @@ pub const DEFAULT_YML: &str = include_str!("../rubocop-sorbet/default.yml");
 
 rules_support::rule_set! {
     sorbet::type_alias_name::TypeAliasName,
+    sorbet::valid_gem_version_annotations::ValidGemVersionAnnotations,
     sorbet::true_sigil::TrueSigil,
     sorbet::struct_prop_name::StructPropName,
     sorbet::strict_sigil::StrictSigil,
