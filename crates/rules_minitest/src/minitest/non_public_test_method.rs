@@ -412,19 +412,50 @@ fn assertion_method(call: &CallNode<'_>) -> bool {
         || BLOCK_MATCHERS.contains(&name)
 }
 
-/// `assertions`
+/// `assertions`: `method_def.each_child_node(:send)` (or the body itself when
+/// it is a `send`), filtered by `assertion_method?`.
 fn assertions<'pr>(body: Option<Node<'pr>>) -> Vec<CallNode<'pr>> {
     let Some(method_def) = body else { return Vec::new() };
-    let nodes: Vec<Node<'pr>> = match method_def.as_statements_node() {
+    let sends: Vec<CallNode<'pr>> = match method_def.as_statements_node() {
         Some(statements) => {
             let list: Vec<Node<'pr>> = statements.body().iter().collect();
             match list.as_slice() {
-                [only] if send_node(only).is_some() => list,
-                [only] => effective_children(only),
-                _ => list,
+                [only] => single_node_sends(only),
+                _ => list.iter().filter_map(send_node).collect(),
             }
         }
-        None => effective_children(&method_def),
+        None => single_node_sends(&method_def),
     };
-    nodes.iter().filter_map(send_node).filter(assertion_method).collect()
+    sends.into_iter().filter(assertion_method).collect()
+}
+
+/// The body is one node: itself when it is a `send`, else its `send` children.
+fn single_node_sends<'pr>(node: &Node<'pr>) -> Vec<CallNode<'pr>> {
+    if let Some(call) = send_node(node) {
+        return vec![call];
+    }
+    let mut sends = Vec::new();
+    let block_body = if let Some(call) = node.as_call_node() {
+        // `block`/`numblock`/`itblock`: children are the call itself (a
+        // `send` unless `csend`), the arguments and the body.
+        call.block().and_then(|block| block.as_block_node()).map(|block| (Some(call), block.body()))
+    } else {
+        node.as_lambda_node().map(|lambda| (None, lambda.body()))
+    };
+    if let Some((call, body)) = block_body {
+        if let Some(call) = call.filter(|call| !call.is_safe_navigation()) {
+            sends.push(call);
+        }
+        if let Some(body) = body {
+            let lone = match body.as_statements_node() {
+                Some(statements) if statements.body().len() == 1 => statements.body().iter().next(),
+                Some(_) => None,
+                None => Some(body),
+            };
+            sends.extend(lone.as_ref().and_then(send_node));
+        }
+        return sends;
+    }
+    sends.extend(effective_children(node).iter().filter_map(send_node));
+    sends
 }
