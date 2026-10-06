@@ -2,35 +2,99 @@
 //! `lib/rubocop/cop/performance/block_given_with_explicit_block.rb`.
 
 use linter::{
-    Context, Department, FixAvailability, OptionError, Rule, RuleMeta, RuleOptions, Severity,
-    Stability,
+    Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule, RuleMeta,
+    RuleOptions, Severity, Stability,
 };
-use ruby_ast::{Node, NodeKind};
+use ruby_ast::ext::call_span_excluding_block;
+use ruby_ast::{Node, NodeKind, each_descendant};
 
-/// Check block argument explicitly instead of using `block_given?`.
+const MSG: &str = "Check block argument explicitly instead of using `block_given?`.";
+
+/// What `enter` of a `def` learned about its block argument: `Some(name)` when
+/// the def has a named `&block` parameter that is never reassigned.
+type DefBlockArg = Option<Vec<u8>>;
+
+/// `` `(lvasgn %1 ...) ``: whether any descendant of `def_node` assigns the local `name`.
+fn reassigns_block_arg(def_node: &Node<'_>, name: &[u8]) -> bool {
+    let mut found = false;
+    each_descendant(def_node, &mut |d: &Node<'_>| {
+        let assigned = if let Some(n) = d.as_local_variable_write_node() {
+            n.name()
+        } else if let Some(n) = d.as_local_variable_or_write_node() {
+            n.name()
+        } else if let Some(n) = d.as_local_variable_and_write_node() {
+            n.name()
+        } else if let Some(n) = d.as_local_variable_operator_write_node() {
+            n.name()
+        } else if let Some(n) = d.as_local_variable_target_node() {
+            n.name()
+        } else {
+            return;
+        };
+        if assigned.as_slice() == name {
+            found = true;
+        }
+    });
+    found
+}
+
+/// Identifies unnecessary use of a `block_given?` where explicit check of
+/// block argument would suffice.
 #[derive(Debug, Clone)]
-pub struct BlockGivenWithExplicitBlock;
+pub struct BlockGivenWithExplicitBlock {
+    defs: Vec<DefBlockArg>,
+}
 
 impl Rule for BlockGivenWithExplicitBlock {
     const META: RuleMeta = RuleMeta {
         name: "Performance/BlockGivenWithExplicitBlock",
         department: Department::Performance,
         summary: "Check block argument explicitly instead of using `block_given?`.",
-        explanation: "",
+        explanation: "Identifies unnecessary use of a `block_given?` where explicit check of block argument would suffice.\n\nNOTE: This cop produces code with significantly worse performance when a block is being passed to the method and as such should not be enabled.",
         enabled_by_default: false,
         severity: Severity::Convention,
-        fix: FixAvailability::None,
+        fix: FixAvailability::Safe,
         stability: Stability::Nursery,
-        kinds: &[],
+        kinds: &[NodeKind::DefNode, NodeKind::CallNode],
         config: &[],
         blind_spots: "",
     };
 
     fn configure(_options: &RuleOptions) -> Result<Self, OptionError> {
-        Ok(Self)
+        Ok(Self { defs: Vec::new() })
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
-        let _ = (node, ctx, NodeKind::CallNode);
+        if let Some(def) = node.as_def_node() {
+            let name = def
+                .parameters()
+                .and_then(|p| p.block())
+                .and_then(|b| b.name_loc())
+                .map(|loc| ctx.text(ruby_ast::LocationExt::span(&loc)).to_vec())
+                .filter(|name| !reassigns_block_arg(node, name));
+            self.defs.push(name);
+            return;
+        }
+        let Some(call) = node.as_call_node() else { return };
+        if call.name().as_slice() != b"block_given?" {
+            return;
+        }
+        let Some(Some(block_arg_name)) = self.defs.last() else { return };
+        let span = call_span_excluding_block(&call);
+        ctx.report_with_fix(
+            &Self::META,
+            span,
+            MSG,
+            Fix {
+                applicability: Applicability::Safe,
+                edits: vec![Edit::replace(span, block_arg_name.clone())],
+            },
+        );
+    }
+
+    fn leave(&mut self, node: &Node<'_>, _ctx: &mut Context<'_>) {
+        if node.as_def_node().is_some() {
+            self.defs.pop();
+        }
     }
 }
