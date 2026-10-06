@@ -459,9 +459,13 @@ begin
 
       # A spec may pass a `Tempfile` as `file` (`Lint/ScriptPermission`);
       # upstream then lints the source under that file's random temp path, so
-      # record a stable stand-in rather than the object's `inspect`.
+      # record a stable stand-in rather than the object's `inspect`. A path under
+      # the (temporary) working directory, `"\#{Dir.pwd}/sorbet/rbi/file.rbi"`, is
+      # recorded relative to it.
       def fixture_file(file)
-        file.respond_to?(:path) ? 'tempfile' : file
+        return 'tempfile' if file.respond_to?(:path)
+
+        file.is_a?(String) ? file.delete_prefix("\#{Dir.pwd}/") : file
       end
 
       # Whether RuboCop prefixes the cop under test's messages with its name
