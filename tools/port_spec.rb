@@ -549,6 +549,7 @@ begin
           entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
           entry['other_cops'] = merge_peers(effective_peer_overrides, entry['other_cops'])
           entry['display_cop_names'] = true if port_display_cop_names?
+          entry['gem_versions'] = port_gem_versions
           # `super` passed, so its offenses render exactly the expected annotations.
           parsed = ::RuboCop::RSpec::ExpectOffense::AnnotatedSource.parse(format_offense(source, **replacements))
           entry['annotated'] = parsed.with_offense_annotations(@offenses).to_s
@@ -587,6 +588,7 @@ begin
           result = super
           entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
           entry['other_cops'] = merge_peers(effective_peer_overrides, entry['other_cops'])
+          entry['gem_versions'] = port_gem_versions
           CAPTURES << entry
           @__last_entry = entry
           result
