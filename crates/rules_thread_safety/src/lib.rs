@@ -17,5 +17,13 @@ pub const GEM: &str = "rubocop-thread_safety";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-thread_safety/default.yml");
 
 rules_support::rule_set! {
+    thread_safety::rack_middleware_instance_variable::RackMiddlewareInstanceVariable,
+    thread_safety::mutable_class_instance_variable::MutableClassInstanceVariable,
+    thread_safety::method_redefinition::MethodRedefinition,
+    thread_safety::lazy_synchronization_primitive::LazySynchronizationPrimitive,
+    thread_safety::dir_chdir::DirChdir,
+    thread_safety::class_instance_variable::ClassInstanceVariable,
+    thread_safety::class_and_module_attributes::ClassAndModuleAttributes,
+    thread_safety::active_support_callbacks::ActiveSupportCallbacks,
     thread_safety::new_thread::NewThread,
 }

@@ -1,0 +1,1 @@
+@regexp ||= /#{ANOTHER_CONST}/

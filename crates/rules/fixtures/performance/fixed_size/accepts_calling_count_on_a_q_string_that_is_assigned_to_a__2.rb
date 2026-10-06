@@ -1,0 +1,1 @@
+CONST = %q(a).count + 1 * 20

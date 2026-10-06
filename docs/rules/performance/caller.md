@@ -8,7 +8,7 @@ Use `caller(n..n)` instead of `caller`.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Identifies places where `caller[n]` can be replaced by `caller(n..n).first`.
 

@@ -1,0 +1,1 @@
+"foo".count { it == 'a' }

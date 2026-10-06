@@ -1,0 +1,3 @@
+def foo
+  return $2 if "foo".match(re)
+end

@@ -1,0 +1,1 @@
+expect(subject.spin).to match(/\n\z/)

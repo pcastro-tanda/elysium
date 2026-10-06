@@ -1,0 +1,1 @@
+str.match /\G\z/

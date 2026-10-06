@@ -1,0 +1,3 @@
+Style/PreferredHashMethods:
+  EnforcedStyle: long
+  Enabled: false

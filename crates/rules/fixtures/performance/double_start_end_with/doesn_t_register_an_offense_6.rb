@@ -1,0 +1,1 @@
+!x.start_with?("a") && !x.end_with?("b")

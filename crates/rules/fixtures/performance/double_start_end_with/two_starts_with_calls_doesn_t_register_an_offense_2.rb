@@ -1,0 +1,1 @@
+!x.starts_with?(a, b) && !x.starts_with?("c", D)

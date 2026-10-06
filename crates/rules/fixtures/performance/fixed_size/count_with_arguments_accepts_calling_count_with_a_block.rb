@@ -1,0 +1,1 @@
+"foo".count { |v| v == 'a' }

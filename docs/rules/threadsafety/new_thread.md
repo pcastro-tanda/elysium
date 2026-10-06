@@ -8,7 +8,7 @@ Avoid starting new threads. Let a framework like Sidekiq handle the threads.
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Avoid starting new threads.
 
