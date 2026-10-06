@@ -438,10 +438,23 @@ begin
       # (its `let(:gem_versions)`, e.g. `{ 'rack' => '3.1.0' }`), as strings. `railties` is
       # left out: the Rails suite's support code derives it from `rails_version`, which the
       # case's `AllCops: TargetRailsVersion` already carries. Core RuboCop cases never record it.
+      # A `Sorbet::TargetSorbetVersion` cop reads `sorbet-static` from `Bundler.locked_gems`
+      # instead, which its tests stub (`stub_sorbet_static_version`); record what it saw.
       def port_gem_versions
-        return {} unless #{extension ? 'true' : 'false'} && respond_to?(:gem_versions, true)
+        return {} unless #{extension ? 'true' : 'false'}
 
-        gem_versions.to_h { |name, version| [name.to_s, version.to_s] }.reject { |name, _| name == 'railties' }
+        versions =
+          if respond_to?(:gem_versions, true)
+            gem_versions.to_h { |name, version| [name.to_s, version.to_s] }.reject { |name, _| name == 'railties' }
+          else
+            {}
+          end
+        if defined?(RuboCop::Cop::Sorbet::TargetSorbetVersion) &&
+           port_cop_class.include?(RuboCop::Cop::Sorbet::TargetSorbetVersion)
+          sorbet_static = port_cop_class.new.send(:read_sorbet_static_version_from_bundler_lock_file)
+          versions['sorbet-static'] = sorbet_static.to_s if sorbet_static
+        end
+        versions
       end
 
       # A spec may pass a `Tempfile` as `file` (`Lint/ScriptPermission`);

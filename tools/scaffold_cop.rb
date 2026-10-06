@@ -57,7 +57,7 @@ def skeleton(cop, entry, origin)
     };
     use ruby_ast::{Node, NodeKind};
 
-    /// #{entry['Description']}
+    #{entry['Description'].to_s.strip.lines.map { |l| "/// #{l.strip}".rstrip }.join("\n")}
     #[derive(Debug, Clone)]
     pub struct #{name};
 
