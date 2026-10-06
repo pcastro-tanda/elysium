@@ -34,3 +34,4 @@ pub mod strict_sigil;
 pub mod struct_prop_name;
 pub mod true_sigil;
 pub mod type_alias_name;
+pub mod void_checked_tests;
