@@ -41,26 +41,15 @@ impl Rule for RefuteEmpty {
             return;
         }
         let arguments = argument_list(&call);
-        let Some(first) = arguments.first().and_then(Node::as_call_node) else {
-            return;
-        };
-        if first.block().is_some_and(|block| block.as_block_node().is_some()) {
-            return;
-        }
-        let inner_arguments = argument_list(&first);
-        if first.name().as_slice() != b"empty?" || !inner_arguments.is_empty() {
-            return;
-        }
-        let receiver = match first.receiver() {
+        let Some(first_argument) = arguments.first() else { return };
+        // `node.first_argument.method?(:empty?)` and `.arguments.empty?` hold for
+        // a call, a block (its own parameters) and a `def` alike.
+        let Some(receiver) = empty_receiver(first_argument) else { return };
+        let receiver = match receiver {
             Some(receiver) => String::from_utf8_lossy(ctx.text(receiver.span())).into_owned(),
             None => "self".to_string(),
         };
-        let mut new_arguments = vec![receiver];
-        if let Some(method_argument) = inner_arguments.first() {
-            new_arguments
-                .push(String::from_utf8_lossy(ctx.text(method_argument.span())).into_owned());
-        }
-        let new_arguments = new_arguments.join(", ");
+        let new_arguments = receiver;
 
         // `message_argument = arguments.last if arguments.first != arguments.last`
         let message_argument = match (arguments.first(), arguments.last()) {
@@ -100,4 +89,37 @@ fn argument_list<'pr>(call: &CallNode<'pr>) -> Vec<Node<'pr>> {
         args.push(block);
     }
     args
+}
+
+/// `first_argument.method?(:empty?) && first_argument.arguments.empty?` for the
+/// node types rubocop-ast gives `method?`: `send`/`csend`, `block` (and
+/// `numblock`/`itblock`, whose arguments are the block's own parameters) and
+/// `def`/`defs`. The outer `Some` is the match; the inner is the receiver.
+#[allow(clippy::option_option)]
+fn empty_receiver<'pr>(node: &Node<'pr>) -> Option<Option<Node<'pr>>> {
+    if let Some(call) = node.as_call_node() {
+        if call.name().as_slice() != b"empty?" {
+            return None;
+        }
+        return match call.block().and_then(|block| block.as_block_node()) {
+            Some(block) => block_parameters_empty(&block).then(|| call.receiver()),
+            None => argument_list(&call).is_empty().then(|| call.receiver()),
+        };
+    }
+    let def = node.as_def_node()?;
+    if def.name().as_slice() != b"empty?" || def.parameters().is_some() {
+        return None;
+    }
+    Some(def.receiver())
+}
+
+/// `block.arguments.empty?`: numbered and `it` parameters are not arguments.
+fn block_parameters_empty(block: &ruby_ast::node::BlockNode<'_>) -> bool {
+    match block.parameters() {
+        None => true,
+        Some(parameters) => match parameters.as_block_parameters_node() {
+            Some(parameters) => parameters.parameters().is_none() && parameters.locals().is_empty(),
+            None => true,
+        },
+    }
 }
