@@ -1,3 +1,3 @@
 it 'does something' do
-  _(foo(a)).must_be_empty 0
+  value(foo(a)).must_be_empty 0
 end

@@ -1,3 +1,3 @@
 it 'does something' do
-  value(C).wont_be_instance_of(:a)
+  _(C).wont_be_instance_of(:a)
 end

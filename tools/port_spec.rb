@@ -513,10 +513,12 @@ begin
 
         # Minitest shuffles tests; captures are written in test definition order, then the
         # assertion's order within its test, so case naming does not depend on the seed.
+        # Tests defined in a loop share a definition line, and a subclass reruns its parent's
+        # tests (`GlobalExpectations` per style); test and class names break those ties.
         def port_order
           file, line = self.class.instance_method(name).source_location
           @__capture_seq = (@__capture_seq || 0) + 1
-          [file.to_s, line.to_i, @__capture_seq]
+          [file.to_s, line.to_i, name, self.class.name.to_s, @__capture_seq]
         end
 
         def port_cop_class

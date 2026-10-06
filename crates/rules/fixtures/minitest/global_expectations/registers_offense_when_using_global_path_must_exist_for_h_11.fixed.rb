@@ -1,4 +1,4 @@
 it 'does something' do
   @@n = do_something
-  value(@@n[:foo]).path_must_exist 42
+  _(@@n[:foo]).path_must_exist 42
 end

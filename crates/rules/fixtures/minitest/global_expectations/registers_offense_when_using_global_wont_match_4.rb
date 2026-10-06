@@ -1,4 +1,4 @@
 it 'does something' do
   n.wont_match 42
-  ^ Use `_(n)` instead.
+  ^ Use `value(n)` instead.
 end

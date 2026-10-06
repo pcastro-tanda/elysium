@@ -1,3 +1,3 @@
 it 'does something' do
-  _(C).wont_equal(:a)
+  value(C).wont_equal(:a)
 end

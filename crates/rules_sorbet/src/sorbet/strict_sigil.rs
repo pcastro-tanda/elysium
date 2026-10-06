@@ -31,7 +31,7 @@ impl Rule for StrictSigil {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[],
         config: &[
             ConfigOption {

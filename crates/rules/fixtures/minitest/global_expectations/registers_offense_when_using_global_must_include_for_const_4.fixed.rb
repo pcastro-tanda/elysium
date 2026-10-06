@@ -1,3 +1,3 @@
 it 'does something' do
-  _(C).must_include(:a)
+  value(C).must_include(:a)
 end

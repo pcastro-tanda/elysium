@@ -1,3 +1,3 @@
 it 'does something' do
-  _(n).path_wont_exist 42
+  value(n).path_wont_exist 42
 end

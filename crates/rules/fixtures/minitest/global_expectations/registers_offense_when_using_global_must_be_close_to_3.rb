@@ -1,4 +1,4 @@
 it 'does something' do
   n.must_be_close_to 42
-  ^ Use `value(n)` instead.
+  ^ Use `_(n)` instead.
 end

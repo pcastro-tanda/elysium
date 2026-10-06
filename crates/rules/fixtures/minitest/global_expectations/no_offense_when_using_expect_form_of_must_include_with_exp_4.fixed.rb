@@ -1,3 +1,3 @@
 it 'does something' do
-  _(n).must_include 42
+  value(n).must_include 42
 end

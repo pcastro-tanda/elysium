@@ -1,3 +1,3 @@
 it 'does something' do
-  value { n }.must_pattern_match 42
+  _ { n }.must_pattern_match 42
 end

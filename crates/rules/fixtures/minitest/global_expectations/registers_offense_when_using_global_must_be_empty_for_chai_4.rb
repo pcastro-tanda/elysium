@@ -1,4 +1,4 @@
 it 'does something' do
   options[:a][:b].must_be_empty 0
-  ^^^^^^^^^^^^^^^ Use `_(options[:a][:b])` instead.
+  ^^^^^^^^^^^^^^^ Use `value(options[:a][:b])` instead.
 end

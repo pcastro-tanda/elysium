@@ -1,3 +1,3 @@
 it 'does something' do
-  _(C).must_be(:a)
+  value(C).must_be(:a)
 end

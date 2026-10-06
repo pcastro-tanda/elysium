@@ -1,3 +1,3 @@
 it 'does something' do
-  value(foo(a)).wont_match 0
+  _(foo(a)).wont_match 0
 end

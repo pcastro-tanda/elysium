@@ -8,7 +8,7 @@ This cop enforces the test to use `assert_nil` instead of using `assert_equal(ni
 | Enabled by default | true |
 | Default severity | convention |
 | Fix | safe |
-| Stability | nursery |
+| Stability | stable |
 
 Enforces the test to use `assert_nil` instead of using `assert_equal(nil, something)`, `assert(something.nil?)`, or `assert_predicate(something, :nil?)`.
 

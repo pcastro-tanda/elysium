@@ -1,3 +1,3 @@
 it 'does something' do
-  value(C).must_equal(:a)
+  _(C).must_equal(:a)
 end

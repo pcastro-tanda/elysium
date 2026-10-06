@@ -1,6 +1,5 @@
 //! `Minitest` department.
 
-pub mod assert_nil;
 pub mod assert_empty;
 pub mod assert_equal;
 pub mod assert_in_delta;
@@ -8,6 +7,7 @@ pub mod assert_includes;
 pub mod assert_instance_of;
 pub mod assert_kind_of;
 pub mod assert_match;
+pub mod assert_nil;
 pub mod assert_operator;
 pub mod assert_output;
 pub mod assert_path_exists;

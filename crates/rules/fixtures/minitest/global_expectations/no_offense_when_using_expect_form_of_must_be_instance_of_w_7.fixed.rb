@@ -1,3 +1,3 @@
 it 'does something' do
-  value(n).must_be_instance_of 42
+  _(n).must_be_instance_of 42
 end

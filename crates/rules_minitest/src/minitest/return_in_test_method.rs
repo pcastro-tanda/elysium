@@ -28,7 +28,7 @@ impl Rule for ReturnInTestMethod {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Safe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::ProgramNode],
         config: &[],
         blind_spots: "",

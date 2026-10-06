@@ -27,7 +27,7 @@ impl Rule for ForbidComparableTEnum {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::ClassNode, NodeKind::CallNode],
         config: &[],
         blind_spots: "",

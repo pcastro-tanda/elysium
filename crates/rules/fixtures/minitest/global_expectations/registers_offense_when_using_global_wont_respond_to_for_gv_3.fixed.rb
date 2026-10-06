@@ -1,4 +1,4 @@
 it 'does something' do
   $n = do_something
-  value($n).wont_respond_to 42
+  _($n).wont_respond_to 42
 end

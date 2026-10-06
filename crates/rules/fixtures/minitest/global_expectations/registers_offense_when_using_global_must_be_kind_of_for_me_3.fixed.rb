@@ -1,3 +1,3 @@
 it 'does something' do
-  value(foo(a)).must_be_kind_of 0
+  _(foo(a)).must_be_kind_of 0
 end

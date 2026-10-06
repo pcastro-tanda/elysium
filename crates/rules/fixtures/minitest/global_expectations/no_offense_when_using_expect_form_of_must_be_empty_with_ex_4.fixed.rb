@@ -1,3 +1,3 @@
 it 'does something' do
-  _(n).must_be_empty 42
+  value(n).must_be_empty 42
 end

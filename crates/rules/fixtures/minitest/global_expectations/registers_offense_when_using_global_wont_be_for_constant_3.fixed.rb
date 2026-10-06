@@ -1,3 +1,3 @@
 it 'does something' do
-  value(C).wont_be(:a)
+  _(C).wont_be(:a)
 end

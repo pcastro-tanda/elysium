@@ -20,7 +20,7 @@ impl Rule for ConstantsFromStrings {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::CallNode],
         config: &[],
         blind_spots: "",

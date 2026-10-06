@@ -38,7 +38,7 @@ impl Rule for ValidGemVersionAnnotations {
         enabled_by_default: true,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[],
         config: &[],
         blind_spots: "",

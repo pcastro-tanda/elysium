@@ -1,0 +1,39 @@
+# Minitest/NonExecutableTestMethod
+
+Checks uses of test methods outside test class.
+
+| | |
+| --- | --- |
+| Department | Minitest |
+| Enabled by default | false |
+| Default severity | warning |
+| Fix | none |
+| Stability | stable |
+
+Checks for the use of test methods outside of a test class.
+
+Test methods should be defined within a test class to ensure their execution.
+
+NOTE: This cop assumes that classes whose superclass name includes the word `Test` are test classes, in order to prevent false positives.
+
+```ruby
+# bad
+class FooTest < Minitest::Test
+end
+def test_method_should_be_inside_test_class
+end
+
+# good
+class FooTest < Minitest::Test
+  def test_method_should_be_inside_test_class
+  end
+end
+```
+
+## Options
+
+This rule has no options.
+
+## Blind spots
+
+None recorded.

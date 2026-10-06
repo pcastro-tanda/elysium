@@ -1,4 +1,4 @@
 it 'does something' do
   $n = do_something
-  _($n[:foo]).must_be_within_epsilon 42
+  value($n[:foo]).must_be_within_epsilon 42
 end

@@ -1,3 +1,3 @@
 it 'does something' do
-  value(foo(a)).must_include 0
+  _(foo(a)).must_include 0
 end

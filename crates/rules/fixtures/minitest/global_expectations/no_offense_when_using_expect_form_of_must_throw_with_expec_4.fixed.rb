@@ -1,3 +1,3 @@
 it 'does something' do
-  _(n).must_throw 42
+  value(n).must_throw 42
 end

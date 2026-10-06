@@ -72,12 +72,10 @@ impl Rule for AssertOutput {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::None,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::ProgramNode],
         config: &[],
-        blind_spots: "Assertions are found among a test case's direct child sends the way \
-                      rubocop-ast lists them for the common body shapes; a body wrapped in \
-                      `rescue`/`ensure` is only searched when it has a single statement.",
+        blind_spots: "",
     };
 
     fn configure(_options: &RuleOptions) -> Result<Self, OptionError> {

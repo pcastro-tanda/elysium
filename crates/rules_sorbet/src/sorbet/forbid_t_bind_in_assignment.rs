@@ -23,7 +23,7 @@ impl Rule for ForbidTBindInAssignment {
         enabled_by_default: false,
         severity: Severity::Convention,
         fix: FixAvailability::Unsafe,
-        stability: Stability::Nursery,
+        stability: Stability::Stable,
         kinds: &[NodeKind::LocalVariableWriteNode, NodeKind::InstanceVariableWriteNode, NodeKind::ClassVariableWriteNode, NodeKind::GlobalVariableWriteNode, NodeKind::ConstantWriteNode, NodeKind::ConstantPathWriteNode, NodeKind::LocalVariableOrWriteNode, NodeKind::LocalVariableAndWriteNode, NodeKind::LocalVariableOperatorWriteNode, NodeKind::InstanceVariableOrWriteNode, NodeKind::InstanceVariableAndWriteNode, NodeKind::InstanceVariableOperatorWriteNode, NodeKind::ClassVariableOrWriteNode, NodeKind::ClassVariableAndWriteNode, NodeKind::ClassVariableOperatorWriteNode, NodeKind::GlobalVariableOrWriteNode, NodeKind::GlobalVariableAndWriteNode, NodeKind::GlobalVariableOperatorWriteNode, NodeKind::ConstantOrWriteNode, NodeKind::ConstantAndWriteNode, NodeKind::ConstantOperatorWriteNode, NodeKind::ConstantPathOrWriteNode, NodeKind::ConstantPathAndWriteNode, NodeKind::ConstantPathOperatorWriteNode, NodeKind::CallOrWriteNode, NodeKind::IndexOrWriteNode, NodeKind::CallAndWriteNode, NodeKind::IndexAndWriteNode, NodeKind::CallOperatorWriteNode, NodeKind::IndexOperatorWriteNode, NodeKind::MultiWriteNode, NodeKind::CallNode],
         config: &[],
         blind_spots: "",
