@@ -1,0 +1,1 @@
+Post.find_by_title_and_id("foo", limit: 1)

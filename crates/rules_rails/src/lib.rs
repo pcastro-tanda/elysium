@@ -21,6 +21,16 @@ pub const GEM: &str = "rubocop-rails";
 pub const DEFAULT_YML: &str = include_str!("../rubocop-rails/default.yml");
 
 rules_support::rule_set! {
+    rails::where_exists::WhereExists,
+    rails::validation::Validation,
+    rails::unknown_env::UnknownEnv,
+    rails::transaction_exit_statement::TransactionExitStatement,
+    rails::redundant_receiver_in_with_options::RedundantReceiverInWithOptions,
+    rails::has_many_or_has_one_dependent::HasManyOrHasOneDependent,
+    rails::enum_syntax::EnumSyntax,
+    rails::dynamic_find_by::DynamicFindBy,
+    rails::compact_blank::CompactBlank,
+    rails::active_record_callbacks_order::ActiveRecordCallbacksOrder,
     rails::action_controller_flash_before_render::ActionControllerFlashBeforeRender,
     rails::relative_date_constant::RelativeDateConstant,
     rails::match_route::MatchRoute,

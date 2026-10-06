@@ -1,0 +1,2 @@
+Rails/TransactionExitStatement:
+  TransactionMethods: [writable_transaction]

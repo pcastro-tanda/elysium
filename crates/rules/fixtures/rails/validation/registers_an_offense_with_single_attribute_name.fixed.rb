@@ -1,0 +1,1 @@
+validates :a, numericality: true

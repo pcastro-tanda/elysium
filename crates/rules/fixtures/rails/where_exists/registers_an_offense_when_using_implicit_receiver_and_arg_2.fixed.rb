@@ -1,0 +1,1 @@
+where(['name = ?', 'john']).exists?

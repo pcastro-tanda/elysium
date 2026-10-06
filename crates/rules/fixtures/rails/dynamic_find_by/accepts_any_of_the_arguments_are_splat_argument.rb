@@ -1,0 +1,1 @@
+User.find_by_foo_and_bar(arg, *args)

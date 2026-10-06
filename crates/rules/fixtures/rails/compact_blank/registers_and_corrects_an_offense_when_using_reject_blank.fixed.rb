@@ -1,0 +1,1 @@
+collection.compact_blank
