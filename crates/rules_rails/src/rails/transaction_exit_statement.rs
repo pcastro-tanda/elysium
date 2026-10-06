@@ -2,8 +2,8 @@
 //! `lib/rubocop/cop/rails/transaction_exit_statement.rb`.
 
 use linter::{
-    ConfigDefault, ConfigOption, Context, Department, FixAvailability, OptionError, Rule,
-    RuleMeta, RuleOptions, Severity, Stability,
+    ConfigDefault, ConfigOption, Context, Department, FixAvailability, OptionError, Rule, RuleMeta,
+    RuleOptions, Severity, Stability,
 };
 use ruby_ast::{for_each_child, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
@@ -40,7 +40,8 @@ impl TransactionExitStatement {
             }
         }
         let is_lambda = node.as_lambda_node().is_some();
-        let call_is_tx = call.as_ref().is_some_and(|c| self.transaction_method_name(c.name().as_slice()));
+        let call_is_tx =
+            call.as_ref().is_some_and(|c| self.transaction_method_name(c.name().as_slice()));
         for_each_child(node, |child| {
             if is_lambda {
                 stack.push(false);

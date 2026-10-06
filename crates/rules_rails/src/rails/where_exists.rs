@@ -106,7 +106,7 @@ impl Rule for WhereExists {
                 let range = Span::new(selector.start, send_span(&call).end);
                 let dot = call
                     .call_operator_loc()
-                    .map_or("." , |l| std::str::from_utf8(ctx.text(l.span())).unwrap_or("."));
+                    .map_or(".", |l| std::str::from_utf8(ctx.text(l.span())).unwrap_or("."));
                 (range, format!("where({}){dot}exists?", source(ctx, arg)))
             }
         };

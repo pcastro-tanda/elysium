@@ -85,8 +85,8 @@ impl Rule for Pluck {
 
         let Some((block_argument, key)) = Self::candidate(&block, ctx) else { return };
         let key_source = ctx.text(key.span());
-        let key_is_regexp =
-            key.as_regular_expression_node().is_some() || key.as_interpolated_regular_expression_node().is_some();
+        let key_is_regexp = key.as_regular_expression_node().is_some()
+            || key.as_interpolated_regular_expression_node().is_some();
         if key_is_regexp || block_argument == key_source {
             return;
         }
@@ -105,10 +105,8 @@ impl Rule for Pluck {
 
         let range = Span::new(message_loc.span().start, block.closing_loc().span().end);
         let replacement = format!("pluck({})", String::from_utf8_lossy(key_source));
-        let message = format!(
-            "Prefer `{replacement}` over `{}`.",
-            String::from_utf8_lossy(ctx.text(range))
-        );
+        let message =
+            format!("Prefer `{replacement}` over `{}`.", String::from_utf8_lossy(ctx.text(range)));
         ctx.report_with_fix(
             &Self::META,
             range,

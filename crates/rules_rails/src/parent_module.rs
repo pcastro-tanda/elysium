@@ -80,10 +80,9 @@ impl ParentModule {
                             const_name(&subject)
                                 .map_or(Part::Poison, |n| Part::Name(format!("#<Class:{n}>")))
                         }
-                        NodeKind::SelfNode => Part::Name(format!(
-                            "#<Class:{}>",
-                            self.name().unwrap_or_default()
-                        )),
+                        NodeKind::SelfNode => {
+                            Part::Name(format!("#<Class:{}>", self.name().unwrap_or_default()))
+                        }
                         _ => Part::Poison,
                     }
                 }

@@ -162,12 +162,12 @@ fn receiver_info(ctx: &Context<'_>, node: &Node<'_>) -> ReceiverInfo {
 /// `redundant_receiver?`.
 fn redundant_receiver(sends: &[SendInfo], kind: BlockKind, params: Option<&Node<'_>>) -> bool {
     match kind {
-        BlockKind::NumBlock => sends.iter().all(|s| {
-            s.receiver.as_ref().is_some_and(|r| r.is_lvar && r.source == b"_1")
-        }),
-        BlockKind::ItBlock => sends.iter().all(|s| {
-            s.receiver.as_ref().is_some_and(|r| r.is_lvar && r.source == b"it")
-        }),
+        BlockKind::NumBlock => sends
+            .iter()
+            .all(|s| s.receiver.as_ref().is_some_and(|r| r.is_lvar && r.source == b"_1")),
+        BlockKind::ItBlock => sends
+            .iter()
+            .all(|s| s.receiver.as_ref().is_some_and(|r| r.is_lvar && r.source == b"it")),
         BlockKind::Block => {
             let Some(arg) = params.and_then(first_argument_name) else { return false };
             sends.iter().all(|s| {

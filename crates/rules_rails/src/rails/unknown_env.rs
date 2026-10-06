@@ -2,8 +2,8 @@
 //! `lib/rubocop/cop/rails/unknown_env.rb`.
 
 use linter::{
-    ConfigDefault, ConfigOption, Context, Department, FixAvailability, OptionError, Rule,
-    RuleMeta, RuleOptions, Severity, Stability,
+    ConfigDefault, ConfigOption, Context, Department, FixAvailability, OptionError, Rule, RuleMeta,
+    RuleOptions, Severity, Stability,
 };
 use ruby_ast::node::CallNode;
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
@@ -155,8 +155,7 @@ fn is_rails_env(node: &Node<'_>) -> bool {
         return constant.name().as_slice() == b"Rails";
     }
     if let Some(path) = receiver.as_constant_path_node() {
-        return path.parent().is_none()
-            && path.name().is_some_and(|n| n.as_slice() == b"Rails");
+        return path.parent().is_none() && path.name().is_some_and(|n| n.as_slice() == b"Rails");
     }
     false
 }

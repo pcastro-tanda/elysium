@@ -6,8 +6,8 @@ use linter::{
     RuleOptions, Severity, Stability,
 };
 use ruby_ast::{LocationExt as _, NodeExt as _};
-use ruby_source::Span;
 use ruby_ast::{Node, NodeKind};
+use ruby_source::Span;
 
 const TYPES: [&str; 12] = [
     "acceptance",
@@ -56,10 +56,8 @@ impl Rule for Validation {
             return;
         }
         let block_arg = call.block().filter(|b| b.as_block_argument_node().is_some());
-        let last_argument = call
-            .arguments()
-            .and_then(|args| args.arguments().iter().last())
-            .or(block_arg);
+        let last_argument =
+            call.arguments().and_then(|args| args.arguments().iter().last()).or(block_arg);
         let Some(last_argument) = last_argument else { return };
         let Some(selector) = call.message_loc() else { return };
         let range = selector.span();
@@ -70,7 +68,9 @@ impl Rule for Validation {
         );
 
         let frozen = frozen_array_argument(&last_argument);
-        if !is_literal(&last_argument) && !matches!(last_argument.kind(), NodeKind::SplatNode) && !frozen
+        if !is_literal(&last_argument)
+            && !matches!(last_argument.kind(), NodeKind::SplatNode)
+            && !frozen
         {
             // Upstream `return`s from inside the `add_offense` block, which
             // discards the offense too.

@@ -51,8 +51,7 @@ impl Rule for EnvironmentComparison {
         let [argument] = args.as_slice() else { return };
 
         // Which side `Rails.env` is on, and the plain env node (`Rails.env`).
-        let (other, env_side) = if is_rails_env(&receiver) || is_env_to_sym(&receiver)
-        {
+        let (other, env_side) = if is_rails_env(&receiver) || is_env_to_sym(&receiver) {
             (argument, &receiver)
         } else if is_rails_env(argument) || is_env_to_sym(argument) {
             (&receiver, argument)

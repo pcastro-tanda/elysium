@@ -103,13 +103,15 @@ impl Rule for SafeNavigation {
             let value = String::from_utf8_lossy(sym.unescaped()).into_owned();
             format!("&.{value}")
         } else {
-            let method_source = String::from_utf8_lossy(ctx.text(first_args[0].span())).into_owned();
+            let method_source =
+                String::from_utf8_lossy(ctx.text(first_args[0].span())).into_owned();
             let method = method_source.get(1..).unwrap_or("").to_owned();
             for arg in &first_args[1..] {
                 args_sources.push(String::from_utf8_lossy(ctx.text(arg.span())).into_owned());
             }
             if let Some(bp) = &block_pass {
-                args_sources.push(String::from_utf8_lossy(ctx.text(bp.as_node().span())).into_owned());
+                args_sources
+                    .push(String::from_utf8_lossy(ctx.text(bp.as_node().span())).into_owned());
             }
             let new_params = args_sources.join(", ");
             if is_setter_method(&method) {

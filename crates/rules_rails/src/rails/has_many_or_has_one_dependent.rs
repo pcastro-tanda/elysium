@@ -6,7 +6,7 @@ use linter::{
     Stability,
 };
 use ruby_ast::node::CallNode;
-use ruby_ast::{LocationExt as _, Node, each_descendant, for_each_child};
+use ruby_ast::{each_descendant, for_each_child, LocationExt as _, Node};
 use ruby_source::Span;
 
 use super::util::parser_args;
@@ -47,7 +47,8 @@ impl Rule for HasManyOrHasOneDependent {
 
     fn file_start(&mut self, ctx: &mut Context<'_>) {
         let source = ctx.source().bytes();
-        if !source.windows(7).any(|w| w == b"has_one") && !source.windows(8).any(|w| w == b"has_many")
+        if !source.windows(7).any(|w| w == b"has_one")
+            && !source.windows(8).any(|w| w == b"has_many")
         {
             return;
         }
@@ -188,7 +189,9 @@ fn readonly_model(parent: Option<&Frame<'_>>) -> bool {
 /// `(def :readonly? (args) (true))`
 fn is_readonly_def(node: &Node<'_>) -> bool {
     let Some(def) = node.as_def_node() else { return false };
-    if def.name().as_slice() != b"readonly?" || def.receiver().is_some() || def.parameters().is_some()
+    if def.name().as_slice() != b"readonly?"
+        || def.receiver().is_some()
+        || def.parameters().is_some()
     {
         return false;
     }

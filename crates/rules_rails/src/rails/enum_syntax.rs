@@ -50,7 +50,9 @@ impl Rule for EnumSyntax {
     };
 
     fn configure(options: &RuleOptions) -> Result<Self, OptionError> {
-        Ok(Self { enabled: options.target_ruby_version() >= 3.0 && options.target_rails_version() >= 7.0 })
+        Ok(Self {
+            enabled: options.target_ruby_version() >= 3.0 && options.target_rails_version() >= 7.0,
+        })
     }
 
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
@@ -153,10 +155,7 @@ fn check_keyword_args(ctx: &mut Context<'_>, call_span: Span, pairs: &[Node<'_>]
     }
 }
 
-fn multiple_enum_definitions(
-    ctx: &Context<'_>,
-    assocs: &[ruby_ast::node::AssocNode<'_>],
-) -> bool {
+fn multiple_enum_definitions(ctx: &Context<'_>, assocs: &[ruby_ast::node::AssocNode<'_>]) -> bool {
     assocs
         .iter()
         .filter(|assoc| {
@@ -181,7 +180,11 @@ fn correct_options(ctx: &Context<'_>, options: &[ruby_ast::node::AssocNode<'_>])
             )
         })
         .collect();
-    if corrected.is_empty() { String::new() } else { format!(", {}", corrected.join(", ")) }
+    if corrected.is_empty() {
+        String::new()
+    } else {
+        format!(", {}", corrected.join(", "))
+    }
 }
 
 /// `pair.key.source`: a label key (`status:`) excludes the colon in
