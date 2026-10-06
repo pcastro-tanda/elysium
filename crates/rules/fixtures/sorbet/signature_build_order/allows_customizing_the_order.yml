@@ -1,0 +1,2 @@
+Sorbet/SignatureBuildOrder:
+  Order: [returns, override]

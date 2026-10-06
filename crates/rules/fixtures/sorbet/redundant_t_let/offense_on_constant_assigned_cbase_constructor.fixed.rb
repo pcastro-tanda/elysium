@@ -1,0 +1,1 @@
+ROOT = ::Pathname.new("/").freeze

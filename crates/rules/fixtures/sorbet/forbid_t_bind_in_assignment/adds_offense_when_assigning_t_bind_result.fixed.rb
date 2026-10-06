@@ -1,0 +1,5 @@
+foo = T.cast(self, Integer)
+@foo = T.cast(self, Integer)
+self.foo = T.cast(self, Integer)
+foo ||= T.cast(self, Integer)
+foo, bar = T.cast(self, Integer)

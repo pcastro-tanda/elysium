@@ -1,0 +1,4 @@
+Sorbet/ForbidTUnsafe:
+  AutocorrectToRBS: true
+Layout/IndentationWidth:
+  Width: ~

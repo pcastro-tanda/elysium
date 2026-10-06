@@ -1,0 +1,9 @@
+class FooTest < Minitest::Test
+  def test_do_something
+    refute_equal(SomeClass, obj.class, <<~MESSAGE
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Prefer using `refute_instance_of(SomeClass, obj, <<~MESSAGE)`.
+      message
+    MESSAGE
+    )
+  end
+end

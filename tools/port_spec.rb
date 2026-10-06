@@ -115,7 +115,8 @@ framework = extension ? extension.framework : :rspec
 # the gem's lib/rubocop/cop (rubocop-sorbet nests some cops a level deeper,
 # `sorbet/sigils/`, still in `RuboCop::Cop::Sorbet`); its cop source is the
 # file there defining the class, and a Minitest suite's test is
-# `<cop source stem>_test.rb`.
+# `<cop source stem>_test.rb` or, failing that, the file defining
+# `<Cop>Test` (`ReturnInTestMethod`'s is `return_in_test_case_method_test.rb`).
 describe_pattern = /^RSpec\.describe[\s(]+RuboCop::Cop::#{Regexp.escape(cop_dept)}::#{Regexp.escape(cop_name)}\b/
 spec_root = File.join(extension ? gem_src : rubocop_src, extension ? extension.spec_root : 'spec/rubocop/cop')
 lib_root = File.join(extension ? gem_src : rubocop_src, 'lib/rubocop/cop')
@@ -127,7 +128,8 @@ if extension
 end
 spec_files =
   if framework == :minitest
-    Dir.glob(File.join(spec_root, '**', "#{File.basename(cop_source, '.rb')}_test.rb")).sort
+    by_name = Dir.glob(File.join(spec_root, '**', "#{File.basename(cop_source, '.rb')}_test.rb")).sort
+    by_name.empty? ? Dir.glob(File.join(spec_root, '**/*_test.rb')).select { |f| File.read(f).match?(/^class #{Regexp.escape(cop_name)}Test\b/) }.sort : by_name
   else
     Dir.glob(File.join(spec_root, '**/*_spec.rb')).select do |f|
       File.read(f).match?(describe_pattern)
@@ -158,7 +160,7 @@ unless extension
 end
 cop_stem = File.basename(cop_source, '.rb')
 spec_stem = File.basename(spec_file, '.rb').delete_suffix(framework == :minitest ? '_test' : '_spec')
-case_prefix = spec_stem == cop_stem ? '' : spec_stem.delete_prefix(cop_stem).delete_prefix('_')
+case_prefix = spec_stem == cop_stem || !spec_stem.start_with?(cop_stem) ? '' : spec_stem.delete_prefix(cop_stem).delete_prefix('_')
 dept_snake = File.join(fixture_dept, cop_stem)
 out_dir = File.expand_path(File.join(options[:out], dept_snake))
 FileUtils.mkdir_p(out_dir)

@@ -1,0 +1,2 @@
+Sorbet/StructPropName:
+  ForbiddenPatterns: [_v1\z]

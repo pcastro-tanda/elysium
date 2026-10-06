@@ -1,0 +1,3 @@
+# file: sorbet/rbi/file.rbi
+Sorbet/ForbidRBIOutsideOfAllowedPaths:
+  AllowedPaths: []

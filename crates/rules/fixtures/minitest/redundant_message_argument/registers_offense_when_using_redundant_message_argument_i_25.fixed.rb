@@ -1,0 +1,1 @@
+refute_nil(obj)

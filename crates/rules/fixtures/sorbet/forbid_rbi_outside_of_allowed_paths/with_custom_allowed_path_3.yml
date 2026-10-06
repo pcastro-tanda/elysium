@@ -1,0 +1,3 @@
+# file: /private/var/folders/wg/8n4knxgj4h180_r5k7zmgjh80000gn/T/port_spec_20261006-33598-faylqe/some/allowed/directory/file.rbi
+Sorbet/ForbidRBIOutsideOfAllowedPaths:
+  AllowedPaths: [some/allowed/**]

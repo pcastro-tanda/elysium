@@ -1,0 +1,3 @@
+# file: hello/other/allowed/file.rbi
+Sorbet/ForbidRBIOutsideOfAllowedPaths:
+  AllowedPaths: [some/allowed/**, hello/other/allowed/**]
