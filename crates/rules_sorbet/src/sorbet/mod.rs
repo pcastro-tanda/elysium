@@ -1,6 +1,5 @@
 //! `Sorbet` department.
 
-pub mod forbid_superclass_const_literal;
 pub mod allow_incompatible_override;
 pub mod binding_constant_without_type_alias;
 pub mod block_method_definition;
@@ -15,6 +14,7 @@ pub mod false_sigil;
 pub mod forbid_comparable_t_enum;
 pub mod forbid_extend_t_sig_helpers_in_shims;
 pub mod forbid_rbi_outside_of_allowed_paths;
+pub mod forbid_superclass_const_literal;
 pub mod forbid_t_any_with_nil;
 pub mod forbid_t_bind_in_assignment;
 pub mod forbid_t_unsafe;
@@ -35,3 +35,4 @@ pub mod struct_prop_name;
 pub mod true_sigil;
 pub mod type_alias_name;
 pub mod void_checked_tests;
+pub mod valid_gem_version_annotations;
