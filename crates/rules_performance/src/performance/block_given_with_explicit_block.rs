@@ -14,24 +14,47 @@ const MSG: &str = "Check block argument explicitly instead of using `block_given
 /// the def has a named `&block` parameter that is never reassigned.
 type DefBlockArg = Option<Vec<u8>>;
 
-/// `` `(lvasgn %1 ...) ``: whether any descendant of `def_node` assigns the local `name`.
+/// Whether an assignment-target node (`LocalVariableTargetNode`, possibly nested
+/// in multiple-assignment targets or splats) assigns the local `name`.
+fn target_assigns(node: &Node<'_>, name: &[u8]) -> bool {
+    if let Some(t) = node.as_local_variable_target_node() {
+        return t.name().as_slice() == name;
+    }
+    if let Some(m) = node.as_multi_target_node() {
+        return m.lefts().iter().any(|n| target_assigns(&n, name))
+            || m.rest().is_some_and(|n| target_assigns(&n, name))
+            || m.rights().iter().any(|n| target_assigns(&n, name));
+    }
+    node.as_splat_node().and_then(|s| s.expression()).is_some_and(|n| target_assigns(&n, name))
+}
+
+/// `` `(lvasgn %1 ...) ``: whether any descendant of `def_node` is a
+/// whitequark `lvasgn` of the local `name` (plain and operator assignments,
+/// multiple-assignment targets, `rescue => name`, `for name in`). Pattern
+/// captures and named regexp captures are not `lvasgn`.
 fn reassigns_block_arg(def_node: &Node<'_>, name: &[u8]) -> bool {
     let mut found = false;
     each_descendant(def_node, &mut |d: &Node<'_>| {
-        let assigned = if let Some(n) = d.as_local_variable_write_node() {
-            n.name()
+        let hit = if let Some(n) = d.as_local_variable_write_node() {
+            n.name().as_slice() == name
         } else if let Some(n) = d.as_local_variable_or_write_node() {
-            n.name()
+            n.name().as_slice() == name
         } else if let Some(n) = d.as_local_variable_and_write_node() {
-            n.name()
+            n.name().as_slice() == name
         } else if let Some(n) = d.as_local_variable_operator_write_node() {
-            n.name()
-        } else if let Some(n) = d.as_local_variable_target_node() {
-            n.name()
+            n.name().as_slice() == name
+        } else if let Some(m) = d.as_multi_write_node() {
+            m.lefts().iter().any(|n| target_assigns(&n, name))
+                || m.rest().is_some_and(|n| target_assigns(&n, name))
+                || m.rights().iter().any(|n| target_assigns(&n, name))
+        } else if let Some(r) = d.as_rescue_node() {
+            r.reference().is_some_and(|n| target_assigns(&n, name))
+        } else if let Some(f) = d.as_for_node() {
+            target_assigns(&f.index(), name)
         } else {
-            return;
+            false
         };
-        if assigned.as_slice() == name {
+        if hit {
             found = true;
         }
     });
