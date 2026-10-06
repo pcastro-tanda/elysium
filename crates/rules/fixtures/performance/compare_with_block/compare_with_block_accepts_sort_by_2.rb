@@ -1,0 +1,1 @@
+array.sort_by! { |a| a.baz }

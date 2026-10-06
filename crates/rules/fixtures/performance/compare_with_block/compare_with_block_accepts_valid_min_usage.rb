@@ -1,0 +1,1 @@
+array.min { |a, b| b <=> a }

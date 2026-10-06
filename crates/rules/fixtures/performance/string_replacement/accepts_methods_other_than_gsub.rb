@@ -1,0 +1,1 @@
+'abc'.insert(2, 'a')

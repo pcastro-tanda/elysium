@@ -1,0 +1,2 @@
+foo = "abc"
+foo.length

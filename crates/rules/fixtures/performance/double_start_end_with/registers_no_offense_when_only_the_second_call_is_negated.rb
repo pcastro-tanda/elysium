@@ -1,0 +1,1 @@
+x.end_with?(a, b) || !x.end_with?("c", D)

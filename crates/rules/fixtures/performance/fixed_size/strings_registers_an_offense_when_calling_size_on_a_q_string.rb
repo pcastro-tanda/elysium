@@ -1,0 +1,2 @@
+%q(a).size
+^^^^^^^^^^ Do not compute the size of statically sized objects.

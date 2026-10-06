@@ -1,0 +1,1 @@
+hash&.value?(1)

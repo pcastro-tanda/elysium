@@ -1,0 +1,1 @@
+str.sub(/\Asuffix\z/, '')

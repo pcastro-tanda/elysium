@@ -1,0 +1,1 @@
+array.max { |a, b| b <=> a }
