@@ -1,0 +1,2 @@
+Sorbet/StructPropName:
+  ForbiddenIdentifiers: [legacy_name]

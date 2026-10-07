@@ -115,7 +115,8 @@ framework = extension ? extension.framework : :rspec
 # the gem's lib/rubocop/cop (rubocop-sorbet nests some cops a level deeper,
 # `sorbet/sigils/`, still in `RuboCop::Cop::Sorbet`); its cop source is the
 # file there defining the class, and a Minitest suite's test is
-# `<cop source stem>_test.rb`.
+# `<cop source stem>_test.rb` or, failing that, the file defining
+# `<Cop>Test` (`ReturnInTestMethod`'s is `return_in_test_case_method_test.rb`).
 describe_pattern = /^RSpec\.describe[\s(]+RuboCop::Cop::#{Regexp.escape(cop_dept)}::#{Regexp.escape(cop_name)}\b/
 spec_root = File.join(extension ? gem_src : rubocop_src, extension ? extension.spec_root : 'spec/rubocop/cop')
 lib_root = File.join(extension ? gem_src : rubocop_src, 'lib/rubocop/cop')
@@ -127,7 +128,8 @@ if extension
 end
 spec_files =
   if framework == :minitest
-    Dir.glob(File.join(spec_root, '**', "#{File.basename(cop_source, '.rb')}_test.rb")).sort
+    by_name = Dir.glob(File.join(spec_root, '**', "#{File.basename(cop_source, '.rb')}_test.rb")).sort
+    by_name.empty? ? Dir.glob(File.join(spec_root, '**/*_test.rb')).select { |f| File.read(f).match?(/^class #{Regexp.escape(cop_name)}Test\b/) }.sort : by_name
   else
     Dir.glob(File.join(spec_root, '**/*_spec.rb')).select do |f|
       File.read(f).match?(describe_pattern)
@@ -158,7 +160,7 @@ unless extension
 end
 cop_stem = File.basename(cop_source, '.rb')
 spec_stem = File.basename(spec_file, '.rb').delete_suffix(framework == :minitest ? '_test' : '_spec')
-case_prefix = spec_stem == cop_stem ? '' : spec_stem.delete_prefix(cop_stem).delete_prefix('_')
+case_prefix = spec_stem == cop_stem || !spec_stem.start_with?(cop_stem) ? '' : spec_stem.delete_prefix(cop_stem).delete_prefix('_')
 dept_snake = File.join(fixture_dept, cop_stem)
 out_dir = File.expand_path(File.join(options[:out], dept_snake))
 FileUtils.mkdir_p(out_dir)
@@ -436,17 +438,34 @@ begin
       # (its `let(:gem_versions)`, e.g. `{ 'rack' => '3.1.0' }`), as strings. `railties` is
       # left out: the Rails suite's support code derives it from `rails_version`, which the
       # case's `AllCops: TargetRailsVersion` already carries. Core RuboCop cases never record it.
+      # A `Sorbet::TargetSorbetVersion` cop reads `sorbet-static` from `Bundler.locked_gems`
+      # instead, which its tests stub (`stub_sorbet_static_version`); record what it saw.
       def port_gem_versions
-        return {} unless #{extension ? 'true' : 'false'} && respond_to?(:gem_versions, true)
+        return {} unless #{extension ? 'true' : 'false'}
 
-        gem_versions.to_h { |name, version| [name.to_s, version.to_s] }.reject { |name, _| name == 'railties' }
+        versions =
+          if respond_to?(:gem_versions, true)
+            gem_versions.to_h { |name, version| [name.to_s, version.to_s] }.reject { |name, _| name == 'railties' }
+          else
+            {}
+          end
+        if defined?(RuboCop::Cop::Sorbet::TargetSorbetVersion) &&
+           port_cop_class.include?(RuboCop::Cop::Sorbet::TargetSorbetVersion)
+          sorbet_static = port_cop_class.new.send(:read_sorbet_static_version_from_bundler_lock_file)
+          versions['sorbet-static'] = sorbet_static.to_s if sorbet_static
+        end
+        versions
       end
 
       # A spec may pass a `Tempfile` as `file` (`Lint/ScriptPermission`);
       # upstream then lints the source under that file's random temp path, so
-      # record a stable stand-in rather than the object's `inspect`.
+      # record a stable stand-in rather than the object's `inspect`. A path under
+      # the (temporary) working directory, `"\#{Dir.pwd}/sorbet/rbi/file.rbi"`, is
+      # recorded relative to it.
       def fixture_file(file)
-        file.respond_to?(:path) ? 'tempfile' : file
+        return 'tempfile' if file.respond_to?(:path)
+
+        file.is_a?(String) ? file.delete_prefix("\#{Dir.pwd}/") : file
       end
 
       # Whether RuboCop prefixes the cop under test's messages with its name
@@ -494,10 +513,12 @@ begin
 
         # Minitest shuffles tests; captures are written in test definition order, then the
         # assertion's order within its test, so case naming does not depend on the seed.
+        # Tests defined in a loop share a definition line, and a subclass reruns its parent's
+        # tests (`GlobalExpectations` per style); test and class names break those ties.
         def port_order
           file, line = self.class.instance_method(name).source_location
           @__capture_seq = (@__capture_seq || 0) + 1
-          [file.to_s, line.to_i, @__capture_seq]
+          [file.to_s, line.to_i, name, self.class.name.to_s, @__capture_seq]
         end
 
         def port_cop_class
@@ -534,19 +555,27 @@ begin
           entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
           entry['other_cops'] = merge_peers(effective_peer_overrides, entry['other_cops'])
           entry['display_cop_names'] = true if port_display_cop_names?
+          entry['gem_versions'] = port_gem_versions
           # `super` passed, so its offenses render exactly the expected annotations.
           parsed = ::RuboCop::RSpec::ExpectOffense::AnnotatedSource.parse(format_offense(source, **replacements))
           entry['annotated'] = parsed.with_offense_annotations(@offenses).to_s
+          entry['plain'] = parsed.plain_source
           CAPTURES << entry
           @__last_entry = entry
           result
         end
 
+        # Unlike RSpec's `expect_correction`, the Minitest helper accepts a "correction" equal
+        # to the source (`Sorbet/HasSigil` on an invalid sigil): that asserts no change.
         def assert_correction(correction, loop: true)
           result = super
           if @__last_entry
-            @__last_entry['correction'] = correction
-            @__last_entry['singlepass'] = true unless loop
+            if correction == @__last_entry['plain']
+              @__last_entry['no_corrections'] = true
+            else
+              @__last_entry['correction'] = correction
+              @__last_entry['singlepass'] = true unless loop
+            end
           end
           result
         end
@@ -572,6 +601,7 @@ begin
           result = super
           entry['cop_config'] = raw.merge(effective_cop_config_extra(raw))
           entry['other_cops'] = merge_peers(effective_peer_overrides, entry['other_cops'])
+          entry['gem_versions'] = port_gem_versions
           CAPTURES << entry
           @__last_entry = entry
           result

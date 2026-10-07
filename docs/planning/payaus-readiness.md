@@ -85,7 +85,7 @@ elysium takes 10 s.
   `MagicCommentFormat` approximate parts of upstream; `RedundantConstantBase`
   has no project index.
 
-### 3. Extension cops (~5 waves)
+### 3. Extension cops (~5 waves) — done
 250 cops payaus enables: Rails 115, Minitest 49, Performance 41, Sorbet 36,
 ThreadSafety 9. Prerequisite: extend `tools/port_spec.rb`/`check_fixtures.rb`
 to each gem's spec suite, pinned to the current releases (decision A: rails
@@ -111,7 +111,21 @@ defaults, messages included; 4,732 truth offenses). Spec examples
 `expect_offense`, ten cops) were rebuilt as throwaway inputs and compared with
 real RuboCop, offenses and autocorrected output; this caught
 `Performance/RedundantMerge` flagging a `merge!` with a literal block.
-Minitest and Sorbet remain.
+
+Minitest and Sorbet — done (2026-10-06): all 49 + 36 ported and `stable`,
+100% agreement with rubocop-minitest 0.40.0 and rubocop-sorbet 0.16.0 on
+payaus (own config and defaults, messages included; 57,449 and 81,608 truth
+offenses) and on discourse and mastodon. Payaus conformance caught two port
+bugs: `Minitest/EmptyLineBeforeAssertionMethods` must treat an op-assign
+target (`@x ||= foo.tap do ... end`) as the value's whitequark `left_sibling`,
+and `Minitest/NonPublicTestMethod` must count a lone assertion call with a
+block (`assert_raises do ... end`) as an assertion. `port_spec.rb` now records
+the `sorbet-static` version a `TargetSorbetVersion` test stubs, treats a
+Minitest `assert_correction` equal to the source as no correction, finds
+`ReturnInTestMethod`'s differently named test, orders loop-defined and
+inherited Minitest tests deterministically (`AssertMatch`, `RefuteMatch`,
+`GlobalExpectations` case names no longer depend on the seed), and keeps
+machine paths (`example at <path>`, `Dir.pwd`) out of fixtures.
 
 ### 4. Tanda custom cops (1-2 waves)
 59 cops, ~3,800 lines of Ruby in `payaus/rubocop/custom_cops`, ported into a

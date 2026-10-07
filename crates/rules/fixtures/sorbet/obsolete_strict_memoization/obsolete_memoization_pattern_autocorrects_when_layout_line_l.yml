@@ -1,0 +1,10 @@
+# gem_versions: sorbet-static=0.5.10210
+Sorbet/ObsoleteStrictMemoization:
+  Safe: false
+  SafeAutoCorrect: false
+Layout/LineLength:
+  Enabled: false
+  AllowHeredoc: false
+  AllowURI: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false

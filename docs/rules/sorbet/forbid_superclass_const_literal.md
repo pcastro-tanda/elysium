@@ -8,7 +8,7 @@ Forbid superclasses which are non-literal constants.
 | Enabled by default | false |
 | Default severity | convention |
 | Fix | none |
-| Stability | nursery |
+| Stability | stable |
 
 Correct superclass `send` expressions by constant literals.
 

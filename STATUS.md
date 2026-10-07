@@ -1,8 +1,9 @@
 # Status
 
-Last updated: 2026-10-06. Payaus step 3: all 115 Rails, 41 Performance, and
-9 ThreadSafety cops payaus enables are ported and `stable` (721 rules with
-the 556 core cops; `docs/planning/payaus-readiness.md`).
+Last updated: 2026-10-06. Payaus step 3 done: all 115 Rails, 41
+Performance, 9 ThreadSafety, 49 Minitest, and 36 Sorbet cops payaus enables
+are ported and `stable` (806 rules with the 556 core cops;
+`docs/planning/payaus-readiness.md`).
 
 ## What works
 
@@ -146,9 +147,9 @@ the 556 core cops; `docs/planning/payaus-readiness.md`).
 - Remote `inherit_from: https://...` is rejected instead of fetched.
 - No `ConfigValidator`: a config with a wrong-typed value or an unknown cop
   name does not produce an error the way RuboCop's own validator does.
-- Extension-gem cops: `Rails/*`, `Performance/*`, and `ThreadSafety/*` are
-  ported (the cops payaus enables); `Minitest/*` and `Sorbet/*` have one
-  smoke cop each (`nursery`), and `RSpec/*` is not started.
+- Extension-gem cops: `Rails/*`, `Performance/*`, `ThreadSafety/*`,
+  `Minitest/*`, and `Sorbet/*` are ported (the cops payaus enables);
+  `RSpec/*` is not started.
 - `TargetRubyVersion` is not inferred from a gemspec's `required_ruby_version`
   when the config doesn't set it explicitly.
 - Syntax error message text matches RuboCop only under
@@ -164,15 +165,18 @@ the 556 core cops; `docs/planning/payaus-readiness.md`).
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 715 | 0 | 8 |
+| 800 | 0 | 6 |
 
 Promotion to `stable` requires >99% corpus conformance on `discourse` and
 `mastodon` (RuboCop 1.91 truth; extension cops against the pinned gems) with
-no unexplained diff; 715 of 723 rules meet it. All 115 Rails, 41
+no unexplained diff; 800 of 806 rules meet it. All 115 Rails, 41
 Performance, and 9 ThreadSafety cops are at 100% on both apps under both
 passes, message text included; 54 Rails and 11 Performance/ThreadSafety cops
 have zero offenses on both apps, so their fixtures are the only positive
-evidence.
+evidence. All 49 Minitest and 36 Sorbet cops are at 100% on discourse,
+mastodon, and payaus under both passes (payaus: 57,449 truth offenses under
+its own config, 81,608 under defaults); 30 Minitest and 21 Sorbet cops have
+zero offenses on all three, so fixtures are their only positive evidence.
 At `nursery`:
 
 - `Lint/RedundantCopDisableDirective` — held back per policy regardless of
@@ -180,8 +184,6 @@ At `nursery`:
 - `Lint/CopDirectiveSyntax` — added at `nursery` in payaus step 1 (payaus
   disables it).
 - The four project-index no-ops listed above.
-- The two remaining extension smoke cops (`Minitest/AssertNil`,
-  `Sorbet/ForbidSuperclassConstLiteral`).
 Known sub-100% residue among `stable` rules (all above the 99% bar):
 `Layout/HeredocIndentation` misses 1 of 1,266 on discourse's own config.
 The corpus workflow (`ci/corpus/run.sh`) compares every stable cop in two
@@ -333,10 +335,9 @@ syntax errors itself. Inventory: `docs/planning/default-parity.md`.
    `inherit_from` fetching,
    `TargetRubyVersion` inference from a gemspec's `required_ruby_version`,
    and non-UTF-8 `# encoding:` column handling.
-4. Phase 7: extension-gem cop implementations. Rails, Performance, and
-   ThreadSafety are done (payaus step 3); Minitest (49) and Sorbet (36)
-   follow the same pipeline (`docs/porting/KIT.md`); `RSpec/*` is outside
-   payaus's scope.
+4. Phase 7: extension-gem cop implementations. Rails, Performance,
+   ThreadSafety, Minitest, and Sorbet are done for the cops payaus enables
+   (payaus step 3); `RSpec/*` is outside payaus's scope.
 
 ## Debt to clear before 1.0
 

@@ -1,0 +1,6 @@
+SET = T.let(Set.new.freeze, Set)
+LICENSES = T.let(Set.new(["mit"]).freeze, T::Set[String])
+MISMATCH = T.let(Regexp.new("foo"), Pathname)
+NILABLE = T.let(Pathname.new("/x"), T.nilable(Pathname))
+KERNEL_METHOD = T.let(Pathname("/x").freeze, Pathname)
+TAPPED = T.let(Version.new("NULL").tap { |v| v }.freeze, Version)
