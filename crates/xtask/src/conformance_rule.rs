@@ -3,10 +3,11 @@
 //!
 //! `--rule` is repeatable and comma-separated (`--rule A,B --rule C`), and
 //! `--rules-file FILE` reads one cop per line (`#` starts a comment) for
-//! waves of dozens of cops. Every rule in a run is linted in a single
-//! RuboCop invocation (`--only A,B,C`) and a single elysium invocation; the
-//! results are split per cop, so a wave costs one pass over the app instead
-//! of one per cop. Reporting stays per rule.
+//! waves of dozens of cops. The rules are grouped by the extension plugins
+//! they need ([`batches`]); each group is linted in a single RuboCop
+//! invocation (`--only A,B,C`) and a single elysium invocation, and the
+//! results are split per cop, so a wave costs one pass over the app per
+//! group instead of one per cop. Reporting stays per rule.
 //!
 //! RuboCop is the ground truth and is slow (minutes on a large app), so its
 //! JSON report is cached per rule next to the corpus checkout
@@ -15,8 +16,8 @@
 //!
 //! Extension cops (`Rails/`, `Performance/`, `Minitest/`, `Sorbet/`,
 //! `ThreadSafety/`) are judged against the pinned gem releases in
-//! [`EXTENSION_GEMS`]: RuboCop runs with `--plugin <gem>` for every extension
-//! department in the wave (in both passes), only through a Gemfile whose
+//! [`EXTENSION_GEMS`]: RuboCop runs with `--plugin <gem>` for the rule's
+//! extension department (in both passes), only through a Gemfile whose
 //! lockfile pins those releases, and elysium gets the same gem defaults via a
 //! throwaway plugins config (see [`run_elysium`]).
 
@@ -65,6 +66,39 @@ fn plugins_for<S: AsRef<str>>(rules: &[S]) -> Vec<&'static str> {
         .map(|(_, gem, _)| *gem)
         .collect()
 }
+
+/// `rules` split into the groups a one-rule-at-a-time run would lint alike:
+/// the same extension plugins. Each group is one RuboCop (or elysium)
+/// invocation, so a cached per-rule report is what a `--only <rule>` run
+/// prints. One invocation across groups would hand every rule the union of
+/// plugins, and a plugin's `AllCops` settings change the file set: under
+/// `--defaults`, rubocop-rails' `AllCops: Exclude: bin/*` would drop
+/// mastodon's `bin/*` scripts from a core cop's run.
+///
+/// The cops in [`ALONE`] get a group each: what they report depends on which
+/// other cops count as enabled, and `Registry#enabled_cop_name?` counts every
+/// cop named in `--only`.
+fn batches(rules: &[String]) -> Vec<Vec<String>> {
+    let mut groups: Vec<(Option<Vec<&'static str>>, Vec<String>)> = Vec::new();
+    for rule in rules {
+        if ALONE.contains(&rule.as_str()) {
+            groups.push((None, vec![rule.clone()]));
+            continue;
+        }
+        let plugins = Some(plugins_for(std::slice::from_ref(rule)));
+        match groups.iter_mut().find(|(key, _)| *key == plugins) {
+            Some((_, group)) => group.push(rule.clone()),
+            None => groups.push((plugins, vec![rule.clone()])),
+        }
+    }
+    groups.into_iter().map(|(_, group)| group).collect()
+}
+
+/// Cops whose offenses depend on the rest of the `--only` list: a disable
+/// directive for a cop named there is live for `MissingCopEnableDirective`
+/// in a batch, but not in a one-rule run. (`RedundantCopDisableDirective`,
+/// which depends on every other cop, RuboCop refuses under `--only`.)
+const ALONE: &[&str] = &["Lint/MissingCopEnableDirective"];
 
 /// Fails unless `lock` (a `Gemfile.lock`) resolves every gem in `plugins` to
 /// its pinned release in [`EXTENSION_GEMS`].
@@ -173,10 +207,14 @@ struct Offense {
 struct Location {
     start_line: u32,
     start_column: u32,
+    last_line: u32,
+    last_column: u32,
 }
 
-/// One offense, keyed the way the comparison identifies it.
-type Key = (String, u32, u32);
+/// One offense, keyed the way the comparison identifies it: relative path,
+/// then the whole range (start line and column, last line and column), so an
+/// offense that starts right but ends wrong is a miss.
+type Key = (String, u32, u32, u32, u32);
 
 pub(crate) fn run(args: &ConformanceArgs) -> Result<ExitCode> {
     let app = args.app.canonicalize().with_context(|| format!("{}", args.app.display()))?;
@@ -206,13 +244,23 @@ pub(crate) fn run(args: &ConformanceArgs) -> Result<ExitCode> {
     }
 
     build_release_cli(&workspace)?;
-    let ours_json = run_elysium(&workspace, &app, &rules, args.defaults)?;
-    let ours: Report = serde_json::from_str(&ours_json).context("parsing elysium report")?;
-    // RuboCop's (and elysium's) `--only` output still emits `Lint/Syntax`
-    // offenses alongside the requested cops, so both sides are filtered
-    // down to the rule under test before comparing. The syntax count is a
-    // property of the app, not of the rule, hence shared by every row.
-    let syntax_ours = count_cop(&ours, "Lint/Syntax");
+    // One elysium run per batch, like the truth; each rule is compared
+    // against its own batch's report.
+    let mut ours: Vec<(Report, usize)> = Vec::new();
+    let mut batch_of: BTreeMap<String, usize> = BTreeMap::new();
+    for batch in batches(&rules) {
+        let json = run_elysium(&workspace, &app, &batch, args.defaults)?;
+        let report: Report = serde_json::from_str(&json).context("parsing elysium report")?;
+        // RuboCop's (and elysium's) `--only` output still emits `Lint/Syntax`
+        // offenses alongside the requested cops, so both sides are filtered
+        // down to the rule under test before comparing. The syntax count is a
+        // property of the batch's file set, not of the rule.
+        let syntax_ours = count_cop(&report, "Lint/Syntax");
+        for rule in batch {
+            batch_of.insert(rule, ours.len());
+        }
+        ours.push((report, syntax_ours));
+    }
 
     let mut rows = Vec::with_capacity(truths.len());
     let mut diverged = false;
@@ -224,8 +272,9 @@ pub(crate) fn run(args: &ConformanceArgs) -> Result<ExitCode> {
         } else {
             report.metadata.rubocop_version.clone()
         };
+        let (ours, syntax_ours) = &ours[batch_of[&truth.rule]];
         let row =
-            compare(&app, &truth.rule, &report, &ours, syntax_ours, args.defaults, rubocop_version);
+            compare(&app, &truth.rule, &report, ours, *syntax_ours, args.defaults, rubocop_version);
         diverged |= row.missing > 0 || row.extra > 0;
         rows.push(row);
     }
@@ -338,7 +387,7 @@ fn compare(
     }
 }
 
-/// Offenses keyed by `(relative path, line, column)`, mapped to their
+/// Offenses keyed by `(relative path, start, end)`, mapped to their
 /// message, restricted to those whose `cop_name` is `rule`. RuboCop's (and
 /// elysium's) `--only Cop/Name` output still carries other cops' offenses
 /// (notably `Lint/Syntax`) alongside the requested one.
@@ -350,10 +399,15 @@ fn index(report: &Report, rule: &str) -> BTreeMap<Key, String> {
             if offense.cop_name != rule {
                 continue;
             }
-            out.insert(
-                (path.clone(), offense.location.start_line, offense.location.start_column),
-                offense.message.clone(),
+            let location = &offense.location;
+            let key = (
+                path.clone(),
+                location.start_line,
+                location.start_column,
+                location.last_line,
+                location.last_column,
             );
+            out.insert(key, offense.message.clone());
         }
     }
     out
@@ -371,12 +425,15 @@ fn print_samples(app: &Path, label: &str, keys: &[&Key]) {
     }
     println!("\n{label}: {} (showing up to 20)", keys.len());
     for key in keys.iter().take(20) {
-        let (path, line, column) = key;
+        let (path, line, column, last_line, last_column) = key;
         let text = fs::read_to_string(app.join(path))
             .ok()
             .and_then(|source| source.lines().nth(*line as usize - 1).map(str::to_string))
             .unwrap_or_default();
-        println!("  {path}:{line}:{column}  {}", text.replace('\t', "\\t"));
+        println!(
+            "  {path}:{line}:{column}-{last_line}:{last_column}  {}",
+            text.replace('\t', "\\t")
+        );
     }
 }
 
@@ -416,9 +473,9 @@ fn truth_reports(app: &Path, args: &ConformanceArgs, rules: &[String]) -> Result
         });
     }
 
-    if !stale.is_empty() {
-        let json = run_rubocop(app, &stale, args.defaults)?;
-        for (rule, report) in split_by_rule(&json, &stale)? {
+    for batch in batches(&stale) {
+        let json = run_rubocop(app, &batch, args.defaults)?;
+        for (rule, report) in split_by_rule(&json, &batch)? {
             let truth = truths
                 .iter_mut()
                 .find(|truth| truth.rule == rule)
@@ -853,7 +910,9 @@ mod tests {
     use std::fs;
     use std::path::PathBuf;
 
-    use super::{check_pinned, plugins_for, resolve_rules, split_by_rule, ConformanceArgs};
+    use super::{
+        batches, check_pinned, plugins_for, resolve_rules, split_by_rule, ConformanceArgs,
+    };
 
     /// An offense as RuboCop serializes it, with its exact key order.
     fn offense(cop: &str, line: u32) -> String {
@@ -961,6 +1020,31 @@ mod tests {
         assert_eq!(plugins_for(&rules(&["Style/Alias", "Lint/Syntax"])), [] as [&str; 0]);
         // A core department that merely starts like an extension one.
         assert_eq!(plugins_for(&rules(&["Railsish/Cop"])), [] as [&str; 0]);
+    }
+
+    /// A plugin's `AllCops` settings change the file set (rubocop-rails
+    /// excludes `bin/*`), so a core cop never shares a run with an extension
+    /// cop, nor two extension departments with each other. A cop reading the
+    /// `--only` list runs alone.
+    #[test]
+    fn batches_never_mix_plugin_sets() {
+        let batches = batches(&rules(&[
+            "Style/Alias",
+            "Rails/Pick",
+            "Lint/MissingCopEnableDirective",
+            "Minitest/AssertNil",
+            "Rails/Date",
+            "Lint/Syntax",
+        ]));
+        assert_eq!(
+            batches,
+            [
+                rules(&["Style/Alias", "Lint/Syntax"]),
+                rules(&["Rails/Pick", "Rails/Date"]),
+                rules(&["Lint/MissingCopEnableDirective"]),
+                rules(&["Minitest/AssertNil"]),
+            ]
+        );
     }
 
     #[test]
