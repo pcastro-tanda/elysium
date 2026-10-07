@@ -169,7 +169,8 @@ are ported and `stable` (806 rules with the 556 core cops;
 
 Promotion to `stable` requires >99% corpus conformance on `discourse` and
 `mastodon` (RuboCop 1.91 truth; extension cops against the pinned gems) with
-no unexplained diff; 800 of 806 rules meet it. All 115 Rails, 41
+no unexplained diff; 800 of 806 rules meet it, matched on the whole offense
+range (start and end) since 2026-10-07. All 115 Rails, 41
 Performance, and 9 ThreadSafety cops are at 100% on both apps under both
 passes, message text included; 54 Rails and 11 Performance/ThreadSafety cops
 have zero offenses on both apps, so their fixtures are the only positive
@@ -265,8 +266,7 @@ CI needs its own recorded baseline before `--check` is a hard gate
 
 ## Decisions pending from the owner
 
-- Project name (`elysium` is the working directory name) and license. No
-  public commit until decided.
+- Project name (`elysium` is the working directory name) and license.
 
 ## Next milestones
 
