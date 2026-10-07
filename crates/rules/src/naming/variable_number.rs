@@ -19,6 +19,13 @@
 //! pattern-matching binding (whitequark's `match_var`, which upstream never
 //! subscribes to), so those are skipped ([`in_pattern`]).
 //!
+//! # Hash-key symbols
+//!
+//! `on_sym` reports the whole `sym` node, but whitequark's `pair_keyword`/
+//! `pair_quoted` builders give a label key (`foo_1: v`, `"foo_1": v`) a
+//! range that stops *before* the trailing `:`, which Prism's `SymbolNode`
+//! includes in its `closing_loc` (`:` / `":`). [`symbol_span`] drops it.
+//!
 //! # `class_emitter_method?` blind spot
 //!
 //! `ConfigurableFormatting#valid_name?` (which `VariableNumber` calls via
@@ -36,6 +43,7 @@ use linter::{
     RuleOptions, Severity, Stability,
 };
 use regex::Regex;
+use ruby_ast::node::SymbolNode;
 use ruby_ast::{LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::Span;
 
@@ -304,7 +312,7 @@ method is flagged even though upstream would accept it.",
                 if name.is_empty() || identifier_matches(&self.allowed_identifiers, name) {
                     return;
                 }
-                self.check(ctx, name, node.span(), "symbol");
+                self.check(ctx, name, symbol_span(&sym), "symbol");
             }
             NodeKind::LocalVariableTargetNode if in_pattern(ctx) => {}
             _ => {
@@ -379,6 +387,20 @@ fn pattern_matches(patterns: &[Regex], name: &[u8]) -> bool {
 /// dropping any entry that fails to compile.
 fn compile_patterns(patterns: &[String]) -> Vec<Regex> {
     patterns.iter().filter_map(|p| Regex::new(p).ok()).collect()
+}
+
+/// The whitequark `sym` node range: Prism's span, minus a label's trailing
+/// `:` (see the module doc). A `%s:foo:` literal's closing `:` is its
+/// delimiter, not a label colon, so a `%`-opened symbol keeps its span.
+fn symbol_span(sym: &SymbolNode<'_>) -> Span {
+    let span = sym.as_node().span();
+    let is_label = sym.closing_loc().is_some_and(|c| c.as_slice().ends_with(b":"))
+        && sym.opening_loc().is_none_or(|o| !o.as_slice().starts_with(b"%"));
+    if is_label {
+        Span::new(span.start, span.end - 1)
+    } else {
+        span
+    }
 }
 
 /// The variable's name (sigil included, as upstream's `node.name`) and the
