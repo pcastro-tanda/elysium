@@ -145,10 +145,12 @@ fn first_token_width(bytes: &[u8]) -> u32 {
         if i < bytes.len() && matches!(bytes[i], b'?' | b'!') && bytes.get(i + 1) != Some(&b'=') {
             i += 1;
         }
-    } else if b0 == b'@' || b0 == b'$' {
+    } else if b0 == b'@' {
         while i < bytes.len() && (is_ident_continue(bytes[i]) || bytes[i] == b'@') {
             i += 1;
         }
+    } else if b0 == b'$' {
+        i = gvar_width(bytes);
     } else if b0.is_ascii_digit() {
         while i < bytes.len() && (bytes[i].is_ascii_alphanumeric() || bytes[i] == b'_') {
             i += 1;
@@ -171,6 +173,26 @@ fn first_token_width(bytes: &[u8]) -> u32 {
         i = i.min(bytes.len());
     }
     u32::try_from(i).expect("offset exceeds u32")
+}
+
+/// Width of a `$`-led token, per `parse.y`'s `parse_gvar`: `$` plus an
+/// identifier (`$foo`, `$_`, `$0`), plus one punctuation character for the
+/// special and back-reference globals (`$:`, `$!`, `$&`, ...), `$-` plus one
+/// identifier character (`$-w`), or `$` plus digits (`$1`); a bare `$`
+/// otherwise.
+fn gvar_width(bytes: &[u8]) -> usize {
+    match bytes.get(1) {
+        Some(
+            b'~' | b'*' | b'$' | b'?' | b'!' | b'@' | b'/' | b'\\' | b';' | b',' | b'.' | b'='
+            | b':' | b'<' | b'>' | b'"' | b'&' | b'`' | b'\'' | b'+',
+        ) => 2,
+        Some(b'-') if bytes.get(2).is_some_and(|&b| is_ident_continue(b)) => 3,
+        Some(b'1'..=b'9') => 2 + bytes[2..].iter().take_while(|b| b.is_ascii_digit()).count(),
+        Some(&b) if is_ident_continue(b) => {
+            1 + bytes[1..].iter().take_while(|&&b| is_ident_continue(b)).count()
+        }
+        _ => 1,
+    }
 }
 
 /// `Sorbet::ValidSigil#on_new_investigation`.

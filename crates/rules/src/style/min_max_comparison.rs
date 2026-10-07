@@ -21,6 +21,13 @@
 //! keyword and to the outer node as its *else* marker); `node.parent.loc.else
 //! .begin_pos` is therefore just `node.if_keyword_loc().span().start` here,
 //! sidestepping the parent lookup entirely.
+//!
+//! `add_offense(node)` on an `elsif` link reports whitequark's own range for
+//! that inner `:if`, which `condition_map` builds without an `end` token (the
+//! shared `end` belongs to the outermost `if`): it runs from the `elsif`
+//! keyword to the end of the `else` branch's body. Prism's `elsif` `IfNode`
+//! instead extends through that shared `end`, so the offense range is cut
+//! back to the else branch here (an offense always has one).
 
 use linter::{
     Applicability, Context, Department, Edit, Fix, FixAvailability, OptionError, Rule, RuleMeta,
@@ -114,9 +121,11 @@ impl Rule for MinMaxComparison {
             vec![Edit::replace(node.span(), replacement.clone().into_bytes())]
         };
 
+        let range =
+            if shape.elsif { Span::new(node.span().start, else_branch.end) } else { node.span() };
         ctx.report_with_fix(
             &Self::META,
-            node.span(),
+            range,
             message,
             Fix { applicability: Applicability::Unsafe, edits },
         );

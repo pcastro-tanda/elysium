@@ -196,9 +196,32 @@ end
             NodeKind::LocalVariableOrWriteNode,
             NodeKind::LocalVariableTargetNode,
             NodeKind::InstanceVariableWriteNode,
+            NodeKind::InstanceVariableOperatorWriteNode,
+            NodeKind::InstanceVariableAndWriteNode,
+            NodeKind::InstanceVariableOrWriteNode,
             NodeKind::ClassVariableWriteNode,
+            NodeKind::ClassVariableOperatorWriteNode,
+            NodeKind::ClassVariableAndWriteNode,
+            NodeKind::ClassVariableOrWriteNode,
             NodeKind::GlobalVariableWriteNode,
+            NodeKind::GlobalVariableOperatorWriteNode,
+            NodeKind::GlobalVariableAndWriteNode,
+            NodeKind::GlobalVariableOrWriteNode,
             NodeKind::ConstantWriteNode,
+            NodeKind::ConstantOperatorWriteNode,
+            NodeKind::ConstantAndWriteNode,
+            NodeKind::ConstantOrWriteNode,
+            NodeKind::ConstantPathWriteNode,
+            NodeKind::ConstantPathOperatorWriteNode,
+            NodeKind::ConstantPathAndWriteNode,
+            NodeKind::ConstantPathOrWriteNode,
+            NodeKind::IndexOperatorWriteNode,
+            NodeKind::IndexAndWriteNode,
+            NodeKind::IndexOrWriteNode,
+            NodeKind::CallOperatorWriteNode,
+            NodeKind::CallAndWriteNode,
+            NodeKind::CallOrWriteNode,
+            NodeKind::MultiWriteNode,
             NodeKind::MatchPredicateNode,
             NodeKind::MatchRequiredNode,
             NodeKind::DefinedNode,
@@ -212,14 +235,13 @@ Reads `Layout/LineLength`'s `Max`/`Enabled`/`AllowURI`/`AllowCopDirectives`/
 
 `Node#left_siblings` (used for the `defined?` guard and
 `another_statement_on_same_line?`) and `Node#chained?`/`parenthesize?` (used
-for the `chained?` guard and fix parenthesization) are reconstructed from a
-`StatementsNode`'s direct body list and a few known wrapping constructs
-(assignment to a local/instance/class/global/constant variable, `&&`/`||`,
-array elements, hash values, call receiver/arguments) rather than true
-parent pointers; an `if`/`unless` that is not a direct child of one of those
-(e.g. inside a multiple assignment, an index write, or a `+=`/`||=`-style
-operator assignment) is treated as having no left siblings and as never
-needing parentheses or being chained, which only risks false negatives.
+for the `chained?` guard, the parenthesizing message, and fix
+parenthesization) are reconstructed from a `StatementsNode`'s direct body
+list and the known wrapping constructs (every assignment kind, including
+multiple, index, attribute and `+=`/`||=`-style operator assignments,
+`&&`/`||`, array elements, hash values, call receiver/arguments) rather than
+true parent pointers; an `if`/`unless` outside a `StatementsNode` body is
+treated as having no left siblings, which only risks false negatives.
 
 `if_body_source`'s omitted-hash-value reconstruction only special-cases a
 call whose last argument is a hash/keyword-hash with a value-omitted last
@@ -379,6 +401,10 @@ is not ported: this port has no cross-rule autocorrect-conflict mechanism.",
                 self.conditional_spans.push(node.span());
             }
             _ => {
+                // Every other assignment kind ([`assignment_value`]): RuboCop's
+                // `parent.assignment?` covers `ivasgn`/`cvasgn`/`gvasgn`/
+                // `casgn`/`masgn` and every `op_asgn`/`or_asgn`/`and_asgn`,
+                // whatever their target (`@x ||= if ...`, `h[k] ||= if ...`).
                 if let Some(value) = assignment_value(node) {
                     self.paren_targets.insert(value.span());
                 }

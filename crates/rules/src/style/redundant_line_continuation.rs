@@ -212,7 +212,8 @@ fixture-generation artifact, not a cop defect.",
                 continue;
             }
             if verified_by_reparse(ctx, offset) {
-                report(ctx, offset);
+                // `LINE_CONTINUATION_PATTERN` matches the backslash and its newline.
+                report(ctx, Span::new(offset, offset + 2));
             }
         }
 
@@ -239,12 +240,15 @@ fn inspect_trailing_continuation(ctx: &mut Context<'_>, program_span: Span) {
         return;
     }
     if verified_by_reparse(ctx, offset) {
-        report(ctx, offset);
+        // `trailing_line_continuation_range`: the backslash alone.
+        report(ctx, Span::new(offset, offset + 1));
     }
 }
 
-fn report(ctx: &mut Context<'_>, backslash_offset: u32) {
-    let span = Span::new(backslash_offset, backslash_offset + 1);
-    let fix = Fix { applicability: Applicability::Safe, edits: vec![Edit::delete(span)] };
-    ctx.report_with_fix(&RedundantLineContinuation::META, span, MSG, fix);
+/// The offense covers `range`; the correction removes only its leading
+/// backslash (`remove_leading(range, 1)` / `remove_trailing(range, 1)`).
+fn report(ctx: &mut Context<'_>, range: Span) {
+    let backslash = Span::new(range.start, range.start + 1);
+    let fix = Fix { applicability: Applicability::Safe, edits: vec![Edit::delete(backslash)] };
+    ctx.report_with_fix(&RedundantLineContinuation::META, range, MSG, fix);
 }

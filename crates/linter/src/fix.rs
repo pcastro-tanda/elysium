@@ -9,7 +9,7 @@ use ruby_ast::{ParseOptions, Parsed};
 use ruby_source::{SourceFile, Span};
 
 use crate::diagnostic::{Applicability, Diagnostic, Edit};
-use crate::engine::lint_parsed_with_injected;
+use crate::engine::{lint, Uniq};
 use crate::rule::Dispatch;
 use crate::settings::FileSettings;
 
@@ -121,6 +121,10 @@ pub fn apply_fixes(
 /// discarded, the loop stops, and [`FixReport::introduced_syntax_error`] is
 /// set. `rules` is cloned for every round so per-file rule state starts
 /// fresh, as it would for a normal single-pass lint.
+///
+/// Like [`crate::lint_parsed_with`], each round drops repeats the way
+/// RuboCop's `Runner` does; a dropped repeat's fix (which shares the kept
+/// one's start, so would overlap it) is not applied either.
 pub fn fix_file<D: Dispatch + Clone>(
     source: &SourceFile,
     options: ParseOptions,
@@ -128,11 +132,12 @@ pub fn fix_file<D: Dispatch + Clone>(
     settings: &FileSettings,
     allow_unsafe: bool,
 ) -> FixOutcome {
-    fix_file_with_injected(source, options, rules, settings, allow_unsafe, &[])
+    fix(source, options, rules, settings, allow_unsafe, &[], Uniq::Runner)
 }
 
 /// Like [`fix_file`], but every round's lint pass additionally injects `injected` via
-/// [`crate::lint_parsed_with_injected`]. See that function's docs for why fixture replay of
+/// [`crate::lint_parsed_with_injected`] (spec semantics: no `Runner` dedup). See that
+/// function's docs for why fixture replay of
 /// `Lint/RedundantCopDisableDirective`'s upstream spec (the only caller) needs this: each round
 /// re-resolves `injected`'s `(rule, line)` pairs against that round's own re-parsed source, so a
 /// fix that only rewrites text on the injected offense's own line (never deleting whole lines
@@ -144,6 +149,18 @@ pub fn fix_file_with_injected<D: Dispatch + Clone>(
     settings: &FileSettings,
     allow_unsafe: bool,
     injected: &[(&'static str, u32)],
+) -> FixOutcome {
+    fix(source, options, rules, settings, allow_unsafe, injected, Uniq::Spec)
+}
+
+fn fix<D: Dispatch + Clone>(
+    source: &SourceFile,
+    options: ParseOptions,
+    rules: &mut D,
+    settings: &FileSettings,
+    allow_unsafe: bool,
+    injected: &[(&'static str, u32)],
+    uniq: Uniq,
 ) -> FixOutcome {
     let path = source.path().to_path_buf();
     let mut current = source.bytes().to_vec();
@@ -161,7 +178,7 @@ pub fn fix_file_with_injected<D: Dispatch + Clone>(
         }
 
         let mut round_rules = rules.clone();
-        let result = lint_parsed_with_injected(&parsed, &mut round_rules, settings, injected);
+        let result = lint(&parsed, &mut round_rules, settings, injected, uniq);
         report.iterations = round + 1;
         diagnostics = result.diagnostics;
 
@@ -184,7 +201,7 @@ pub fn fix_file_with_injected<D: Dispatch + Clone>(
         return FixOutcome { bytes: source.bytes().to_vec(), diagnostics, report };
     }
     let mut round_rules = rules.clone();
-    let result = lint_parsed_with_injected(&parsed, &mut round_rules, settings, injected);
+    let result = lint(&parsed, &mut round_rules, settings, injected, uniq);
     FixOutcome { bytes: current, diagnostics: result.diagnostics, report }
 }
 

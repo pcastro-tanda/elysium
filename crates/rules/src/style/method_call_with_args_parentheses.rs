@@ -18,6 +18,14 @@
 //! this cop does not need them beyond `conditional?`/`class_type?` kind
 //! checks.
 //!
+//! Upstream's `node` is always the `send`/`csend`/`yield` itself, whose
+//! whitequark range never includes a `do ... end`/`{ ... }` block (that
+//! block is a separate `:block` node wrapped *around* the send), while a
+//! Prism `CallNode`'s span runs through its attached block. Every place
+//! upstream reads the send's own extent -- the `add_offense(node)` range,
+//! `args_end`'s `node.source_range.end`, and `node.multiline?` -- goes
+//! through [`Target::send_span`] instead of the raw node span.
+//!
 //! The upstream `OmitParentheses#on_investigation_end` reparse-verification
 //! safety net (confirms an omission would not change how the code parses,
 //! by literally re-parsing a corrected copy) is not reproduced; the
@@ -31,6 +39,7 @@ use linter::{
     OptionError, Rule, RuleMeta, RuleOptions, Severity, Stability,
 };
 use regex::Regex;
+use ruby_ast::ext::call_span_excluding_block;
 use ruby_ast::node::{BlockNode, CallNode, YieldNode};
 use ruby_ast::{for_each_child, LocationExt as _, Node, NodeExt as _, NodeKind};
 use ruby_source::{Side, Span};
@@ -260,6 +269,18 @@ impl<'pr> Target<'pr> {
         }
     }
 
+    /// The whitequark `send`/`csend`/`yield` node's own range: Prism's span
+    /// minus an attached `BlockNode` (a `&blk` block-pass stays, being an
+    /// argument there). See the module doc.
+    fn send_span(&self) -> Span {
+        match self {
+            Self::Call(c) if c.block().is_some_and(|b| b.kind() == NodeKind::BlockNode) => {
+                call_span_excluding_block(c)
+            }
+            _ => self.as_node().span(),
+        }
+    }
+
     /// RuboCop's `node.yield_type? ? loc.keyword : loc.selector`.
     fn keyword_span(&self) -> Span {
         match self {
@@ -405,7 +426,7 @@ fn args_begin_span(target: &Target<'_>) -> Span {
 
 /// RuboCop's `args_end`.
 fn args_end(target: &Target<'_>) -> u32 {
-    target.as_node().span().end
+    target.send_span().end
 }
 
 // ---------------------------------------------------------------------
@@ -430,7 +451,7 @@ impl MethodCallWithArgsParentheses {
             return None;
         }
 
-        let span = target.as_node().span();
+        let span = target.send_span();
         let mut edits = vec![Edit::replace(args_begin_span(target), b"(".to_vec())];
         if !args_parenthesized(target) {
             edits.push(Edit::insert(args_end(target), b")".to_vec()));
@@ -671,7 +692,7 @@ impl MethodCallWithArgsParentheses {
             || call_in_logical_operators(target, analysis, ctx)
             || call_in_optional_arguments(target, analysis)
             || call_in_single_line_inheritance(target, analysis, ctx)
-            || (self.allow.multiline() && !ctx.is_single_line(target.as_node().span()))
+            || (self.allow.multiline() && !ctx.is_single_line(target.send_span()))
             || (self.allow.chaining() && allowed_chained_call_with_parentheses(target))
             || assignment_in_condition(target, analysis)
             || forwards_anonymous_rest_arguments(target)
@@ -1158,7 +1179,7 @@ fn inside_string_interpolation(target: &Target<'_>, analysis: &Analysis<'_>) -> 
 
 /// RuboCop's `parentheses_at_the_end_of_multiline_call?`.
 fn parens_at_end_of_multiline_call(target: &Target<'_>, ctx: &Context<'_>) -> bool {
-    if ctx.is_single_line(target.as_node().span()) {
+    if ctx.is_single_line(target.send_span()) {
         return false;
     }
     let Some(open) = target.opening() else { return false };

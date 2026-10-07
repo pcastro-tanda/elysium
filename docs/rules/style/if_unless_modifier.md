@@ -85,14 +85,13 @@ Reads `Layout/LineLength`'s `Max`/`Enabled`/`AllowURI`/`AllowCopDirectives`/
 
 `Node#left_siblings` (used for the `defined?` guard and
 `another_statement_on_same_line?`) and `Node#chained?`/`parenthesize?` (used
-for the `chained?` guard and fix parenthesization) are reconstructed from a
-`StatementsNode`'s direct body list and a few known wrapping constructs
-(assignment to a local/instance/class/global/constant variable, `&&`/`||`,
-array elements, hash values, call receiver/arguments) rather than true
-parent pointers; an `if`/`unless` that is not a direct child of one of those
-(e.g. inside a multiple assignment, an index write, or a `+=`/`||=`-style
-operator assignment) is treated as having no left siblings and as never
-needing parentheses or being chained, which only risks false negatives.
+for the `chained?` guard, the parenthesizing message, and fix
+parenthesization) are reconstructed from a `StatementsNode`'s direct body
+list and the known wrapping constructs (every assignment kind, including
+multiple, index, attribute and `+=`/`||=`-style operator assignments,
+`&&`/`||`, array elements, hash values, call receiver/arguments) rather than
+true parent pointers; an `if`/`unless` outside a `StatementsNode` body is
+treated as having no left siblings, which only risks false negatives.
 
 `if_body_source`'s omitted-hash-value reconstruction only special-cases a
 call whose last argument is a hash/keyword-hash with a value-omitted last
