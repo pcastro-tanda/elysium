@@ -156,8 +156,12 @@ are ported and `stable` (806 rules with the 556 core cops;
   `ParserEngine: parser_prism`; the legacy `parser` engine wording
   (`unexpected token kEND`) is not reproduced. See ADR 0003.
 - `Lint/ArgumentMismatch`, `DeprecatedReference`, `NameTypo`, and
-  `SuperArgumentMismatch` are registered but never report: they resolve
-  methods/constants across files, which needs a project index.
+  `SuperArgumentMismatch` are registered but never report: upstream they run
+  only with `AllCops/UseProjectIndex: true` and the `rubydex` gem (both off by
+  default), resolving methods/constants across files. **TODO:** link
+  rubydex's Rust crate (`Shopify/rubydex`) for the project index, so these
+  cops (and the index-powered parts of others) resolve exactly as RuboCop
+  does when an app enables `UseProjectIndex`.
 - Encoding: files are treated as bytes; `# encoding:` magic comments other
   than UTF-8 are not honoured for column computation.
 
