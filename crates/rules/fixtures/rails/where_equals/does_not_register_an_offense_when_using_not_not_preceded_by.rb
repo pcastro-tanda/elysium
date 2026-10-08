@@ -1,0 +1,1 @@
+users.not('name = ?', 'Gabe')

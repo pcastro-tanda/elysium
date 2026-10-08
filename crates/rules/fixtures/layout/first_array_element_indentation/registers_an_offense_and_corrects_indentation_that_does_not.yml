@@ -2,3 +2,7 @@ Layout/FirstArrayElementIndentation:
   EnforcedStyle: align_brackets
   IndentationWidth: 4
   Preview: ~
+Layout/ArrayAlignment:
+  EnforcedStyle: ~
+Layout/IndentationStyle:
+  EnforcedStyle: ~

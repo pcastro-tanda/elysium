@@ -1,0 +1,2 @@
+hash.compact
+hash.compact!

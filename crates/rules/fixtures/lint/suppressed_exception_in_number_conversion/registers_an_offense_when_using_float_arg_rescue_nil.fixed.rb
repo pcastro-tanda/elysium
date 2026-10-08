@@ -1,0 +1,1 @@
+Float(arg, exception: false)

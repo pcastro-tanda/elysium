@@ -1,0 +1,1 @@
+binwrite("command", "hi")

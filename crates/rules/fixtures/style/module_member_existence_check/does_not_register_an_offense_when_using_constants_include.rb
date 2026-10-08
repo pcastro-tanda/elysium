@@ -1,0 +1,1 @@
+x.constants.include?(:String)

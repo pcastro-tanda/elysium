@@ -1,0 +1,1 @@
+yield File.basepath(path)

@@ -113,7 +113,9 @@ upstream's own `Alignment#configured_indentation_width` cross-cop read.",
         }
 
         let message = if self.braces_style { BRACES_MSG } else { KEYWORD_MSG };
-        let span = first_line_span(node.span(), ctx);
+        // `add_offense(node)`: the whole `or_asgn`, from the target through
+        // the multi-line right-hand side's closing `)`/`end`.
+        let span = node.span();
 
         let fix = if self.braces_style {
             braces_fix(&rhs)
@@ -159,15 +161,6 @@ fn bad_rhs(rhs: &Node<'_>, braces_style: bool, ctx: &Context<'_>) -> bool {
 /// RuboCop's `contains_rescue_or_ensure?`.
 fn contains_rescue_or_ensure(begin: &BeginNode<'_>) -> bool {
     begin.rescue_clause().is_some() || begin.ensure_clause().is_some()
-}
-
-/// RuboCop's default `add_offense(node)` range, clamped to `node`'s first
-/// physical line (matches upstream's `expect_offense` fixtures: the range
-/// never extends past the end of the line it starts on).
-fn first_line_span(span: Span, ctx: &Context<'_>) -> Span {
-    let first_line = ctx.line_col(span.start).line;
-    let line_end = ctx.line_span(first_line).end;
-    Span::new(span.start, span.end.min(line_end))
 }
 
 /// RuboCop's braces-style autocorrect: `corrector.replace(rhs.loc.begin,

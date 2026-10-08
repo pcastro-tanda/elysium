@@ -1,0 +1,1 @@
+pluck(:column_name)

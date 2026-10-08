@@ -1,0 +1,1 @@
+hash[/regexp/] = value

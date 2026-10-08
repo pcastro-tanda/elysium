@@ -1,0 +1,1 @@
+foo.not('column >= ?', value)

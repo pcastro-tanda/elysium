@@ -1,0 +1,1 @@
+foo(Class.new(Base))

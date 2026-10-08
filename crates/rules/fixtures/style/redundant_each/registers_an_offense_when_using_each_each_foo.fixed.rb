@@ -1,0 +1,1 @@
+array.each(&:foo)

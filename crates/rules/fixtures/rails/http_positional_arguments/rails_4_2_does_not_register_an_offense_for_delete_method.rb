@@ -1,0 +1,1 @@
+delete :destroy, id: @user.id

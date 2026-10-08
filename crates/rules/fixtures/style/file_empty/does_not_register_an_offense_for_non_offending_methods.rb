@@ -1,0 +1,1 @@
+File.exist?("path/to/file")

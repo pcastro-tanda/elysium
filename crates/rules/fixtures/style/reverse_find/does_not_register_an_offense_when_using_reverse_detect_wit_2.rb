@@ -1,0 +1,1 @@
+array.reverse.detect(&:even?)

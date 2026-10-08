@@ -1,0 +1,3 @@
+<<~MYHEREDOC
+#\{my_var}
+MYHEREDOC

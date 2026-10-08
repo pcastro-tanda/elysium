@@ -3,3 +3,5 @@ AllCops:
 Layout/LineLength:
   Max: 5
   AllowHeredoc: true
+Layout/IndentationWidth:
+  Width: ~

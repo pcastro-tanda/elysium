@@ -1,0 +1,2 @@
+string =~ /^\P$/
+string == 'string'

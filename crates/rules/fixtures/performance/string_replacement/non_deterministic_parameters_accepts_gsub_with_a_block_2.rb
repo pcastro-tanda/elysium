@@ -1,0 +1,1 @@
+'abc'.gsub!('a') { |s| s.upcase } 

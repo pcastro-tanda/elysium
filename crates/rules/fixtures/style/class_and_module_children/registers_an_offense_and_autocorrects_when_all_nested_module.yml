@@ -1,2 +1,4 @@
 Style/ClassAndModuleChildren:
   EnforcedStyle: compact
+Layout/IndentationWidth:
+  Width: ~

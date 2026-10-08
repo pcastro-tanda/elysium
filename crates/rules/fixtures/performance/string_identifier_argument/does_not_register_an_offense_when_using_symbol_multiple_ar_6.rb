@@ -1,0 +1,1 @@
+protected :one, :two, :three

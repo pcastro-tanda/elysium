@@ -1,0 +1,1 @@
+class A < SomeNamespace::OpenStruct; end

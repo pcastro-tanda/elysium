@@ -1,5 +1,9 @@
 Style/GuardClause:
   AllowConsecutiveConditionals: true
 Layout/LineLength:
-  Enabled: true
   Max: 80
+  AllowHeredoc: false
+  AllowURI: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false
+  Enabled: true

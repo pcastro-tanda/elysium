@@ -1,0 +1,3 @@
+<<~MYHEREDOC
+f\u{006f 006f}
+MYHEREDOC

@@ -1,0 +1,1 @@
+ApplicationRecord = Class.new(ActiveRecord::Base)

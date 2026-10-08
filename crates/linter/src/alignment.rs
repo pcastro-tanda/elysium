@@ -183,7 +183,7 @@ mod tests {
         let ctx = ctx_for(&source, &parsed);
         let span = Span::new(0, u32::try_from(text.len()).unwrap());
 
-        assert!(shift_lines(&ctx, span, 2, &[]).is_empty());
+        assert_eq!(shift_lines(&ctx, span, 2, &[]), Vec::<Edit>::new());
     }
 
     #[test]

@@ -1,0 +1,1 @@
+protected(:do_something)

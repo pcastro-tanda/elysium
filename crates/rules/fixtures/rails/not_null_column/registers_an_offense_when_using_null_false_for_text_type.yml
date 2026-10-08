@@ -1,0 +1,7 @@
+# file: 20250101010101_add_content_to_articles.rb
+AllCops:
+  MigratedSchemaVersion: '20240101010101'
+Rails/NotNullColumn:
+  Database: postgresql
+  Include: ~
+  SupportedDatabases: ~

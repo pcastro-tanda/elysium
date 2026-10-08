@@ -1,0 +1,5 @@
+Rails/Blank:
+  NilOrEmpty: false
+  NotPresent: false
+Style/UnlessElse:
+  Enabled: false

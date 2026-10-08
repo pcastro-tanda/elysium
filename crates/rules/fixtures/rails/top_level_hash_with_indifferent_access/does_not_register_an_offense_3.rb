@@ -1,0 +1,1 @@
+HashWithIndifferentAccess.new(foo: 'bar')

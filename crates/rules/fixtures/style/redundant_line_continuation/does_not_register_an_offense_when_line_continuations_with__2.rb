@@ -1,0 +1,2 @@
+bar \
+  until foo

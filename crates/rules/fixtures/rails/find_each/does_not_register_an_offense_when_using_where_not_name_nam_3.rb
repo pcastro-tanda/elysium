@@ -1,0 +1,1 @@
+User.where.not(name: name).select(:name, :age).each { |u| u.something }

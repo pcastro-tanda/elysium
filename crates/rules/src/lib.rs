@@ -1,18 +1,7 @@
-//! Every rule, one file per rule, grouped by RuboCop department.
+//! Every core RuboCop rule, one file per rule, grouped by department.
 //!
-//! [`rule_set!`] is the single registration point: it expands to the slot
-//! list [`RuleSet`] holds and to [`ALL_RULES`]. Node-kind subscription is a
-//! compile-time `const` table per rule, and dispatch is a monomorphized
-//! walk over the slot list, so no rule is ever behind a `dyn` pointer.
-
-use std::sync::Arc;
-
-use config::{CopConfig, LoadedConfig, YamlValue};
-use linter::{
-    subscription_table, Context, Diagnostic, Dispatch, OptionError, OptionValue, PeerOptions, Rule,
-    RuleMeta, RuleOptions,
-};
-use ruby_ast::{Node, NodeKind};
+//! [`rules_support::rule_set!`] below is the crate's single registration
+//! point; the `registry` crate composes it with the extension-gem crates.
 
 pub mod bundler;
 pub mod gemspec;
@@ -26,38 +15,166 @@ pub mod style;
 
 mod name_similarity;
 
-/// Registers every rule in one place.
-///
-/// Expands to the private slot-list type [`RuleSet`] stores its configured
-/// rules in and to [`ALL_RULES`], in registration order. The slot list is a
-/// tree of tuples with `Option<Rule>` leaves, so no identifier has to be
-/// synthesized for each rule and cop names that share a snake-case file
-/// name across departments -- `Layout/LineLength` and `Metrics/LineLength`
-/// -- cannot collide. Rules are grouped eight to a balanced subtree before
-/// chaining, keeping type nesting (and rustc's drop-check/auto-trait
-/// recursion over it) at roughly an eighth of the rule count.
-macro_rules! rule_set {
-    ($($rule:path),+ $(,)?) => {
-        /// Every registered rule's metadata, in registration order.
-        pub const ALL_RULES: &[&'static RuleMeta] = &[$(<$rule as RuleExt>::META_REF),+];
-
-        /// The configured rules [`RuleSet`] dispatches to.
-        type Slots = rule_set!(@slots $($rule),+);
-    };
-    (@slots $a:path, $b:path, $c:path, $d:path, $e:path, $f:path, $g:path, $h:path, $($rest:path),+) => {
-        (
-            (
-                ((Option<$a>, Option<$b>), (Option<$c>, Option<$d>)),
-                ((Option<$e>, Option<$f>), (Option<$g>, Option<$h>)),
-            ),
-            rule_set!(@slots $($rest),+),
-        )
-    };
-    (@slots $head:path) => { Option<$head> };
-    (@slots $head:path, $($tail:path),+) => { (Option<$head>, rule_set!(@slots $($tail),+)) };
-}
-
-rule_set! {
+rules_support::rule_set! {
+    style::yaml_file_read::YAMLFileRead,
+    style::time_now::TimeNow,
+    style::tally_method::TallyMethod,
+    style::swap_values::SwapValues,
+    style::super_with_args_parentheses::SuperWithArgsParentheses,
+    style::super_arguments::SuperArguments,
+    style::string_chars::StringChars,
+    style::single_line_do_end_block::SingleLineDoEndBlock,
+    style::send::Send,
+    style::select_by_regexp::SelectByRegexp,
+    style::select_by_range::SelectByRange,
+    style::select_by_kind::SelectByKind,
+    style::reverse_find::ReverseFind,
+    style::return_nil::ReturnNil,
+    style::redundant_string_escape::RedundantStringEscape,
+    style::redundant_self_assignment_branch::RedundantSelfAssignmentBranch,
+    style::redundant_regexp_constructor::RedundantRegexpConstructor,
+    style::redundant_regexp_argument::RedundantRegexpArgument,
+    style::redundant_min_max_by::RedundantMinMaxBy,
+    style::redundant_line_continuation::RedundantLineContinuation,
+    style::redundant_interpolation_unfreeze::RedundantInterpolationUnfreeze,
+    style::redundant_initialize::RedundantInitialize,
+    style::redundant_heredoc_delimiter_quotes::RedundantHeredocDelimiterQuotes,
+    style::redundant_format::RedundantFormat,
+    style::redundant_filter_chain::RedundantFilterChain,
+    style::redundant_each::RedundantEach,
+    style::redundant_double_splat_hash_braces::RedundantDoubleSplatHashBraces,
+    style::redundant_current_directory_in_path::RedundantCurrentDirectoryInPath,
+    style::redundant_constant_base::RedundantConstantBase,
+    style::redundant_array_constructor::RedundantArrayConstructor,
+    style::redundant_argument::RedundantArgument,
+    style::reduce_to_hash::ReduceToHash,
+    style::quoted_symbols::QuotedSymbols,
+    style::predicate_with_kind::PredicateWithKind,
+    style::partition_instead_of_double_select::PartitionInsteadOfDoubleSelect,
+    style::operator_method_call::OperatorMethodCall,
+    style::open_struct_use::OpenStructUse,
+    style::one_class_per_file::OneClassPerFile,
+    style::object_then::ObjectThen,
+    style::numbered_parameters_limit::NumberedParametersLimit,
+    style::numbered_parameters::NumberedParameters,
+    style::nil_lambda::NilLambda,
+    style::negative_array_index::NegativeArrayIndex,
+    style::negated_if_else_condition::NegatedIfElseCondition,
+    style::multiline_method_signature::MultilineMethodSignature,
+    style::multiline_in_pattern_then::MultilineInPatternThen,
+    style::module_member_existence_check::ModuleMemberExistenceCheck,
+    style::min_max_comparison::MinMaxComparison,
+    style::method_call_with_args_parentheses::MethodCallWithArgsParentheses,
+    style::map_to_set::MapToSet,
+    style::map_to_hash::MapToHash,
+    style::map_join::MapJoin,
+    style::map_into_array::MapIntoArray,
+    style::map_compact_with_conditional_block::MapCompactWithConditionalBlock,
+    style::magic_comment_format::MagicCommentFormat,
+    style::keyword_arguments_merging::KeywordArgumentsMerging,
+    style::it_assignment::ItAssignment,
+    style::in_pattern_then::InPatternThen,
+    style::if_with_boolean_literal_branches::IfWithBooleanLiteralBranches,
+    style::hash_slice::HashSlice,
+    style::hash_fetch_chain::HashFetchChain,
+    style::hash_conversion::HashConversion,
+    style::file_write::FileWrite,
+    style::file_touch::FileTouch,
+    style::file_read::FileRead,
+    style::file_open::FileOpen,
+    style::file_null::FileNull,
+    style::file_empty::FileEmpty,
+    style::fetch_env_var::FetchEnvVar,
+    style::exact_regexp_match::ExactRegexpMatch,
+    style::env_home::EnvHome,
+    style::endless_method::EndlessMethod,
+    style::empty_string_inside_interpolation::EmptyStringInsideInterpolation,
+    style::empty_heredoc::EmptyHeredoc,
+    style::empty_class_definition::EmptyClassDefinition,
+    style::document_dynamic_eval_definition::DocumentDynamicEvalDefinition,
+    style::directive_scope::DirectiveScope,
+    style::dir_empty::DirEmpty,
+    style::dig_chain::DigChain,
+    style::date_time::DateTime,
+    style::data_inheritance::DataInheritance,
+    style::comparable_clamp::ComparableClamp,
+    style::comparable_between::ComparableBetween,
+    style::combinable_defined::CombinableDefined,
+    style::collection_querying::CollectionQuerying,
+    style::collection_methods::CollectionMethods,
+    style::collection_compact::CollectionCompact,
+    style::bitwise_predicate::BitwisePredicate,
+    style::auto_resource_cleanup::AutoResourceCleanup,
+    style::array_intersect_with_single_element::ArrayIntersectWithSingleElement,
+    style::ambiguous_endless_method_definition::AmbiguousEndlessMethodDefinition,
+    security::io_methods::IoMethods,
+    security::compound_hash::CompoundHash,
+    lint::useless_ruby2_keywords::UselessRuby2Keywords,
+    lint::useless_rescue::UselessRescue,
+    lint::useless_or::UselessOr,
+    lint::useless_numeric_operation::UselessNumericOperation,
+    lint::useless_defined::UselessDefined,
+    lint::useless_default_value_argument::UselessDefaultValueArgument,
+    lint::unreachable_pattern_branch::UnreachablePatternBranch,
+    lint::unmodified_reduce_accumulator::UnmodifiedReduceAccumulator,
+    lint::unexpected_block_arity::UnexpectedBlockArity,
+    lint::unescaped_bracket_in_regexp::UnescapedBracketInRegexp,
+    lint::triple_quotes::TripleQuotes,
+    lint::to_enum_arguments::ToEnumArguments,
+    lint::symbol_conversion::SymbolConversion,
+    lint::suppressed_exception_in_number_conversion::SuppressedExceptionInNumberConversion,
+    lint::super_argument_mismatch::SuperArgumentMismatch,
+    lint::shared_mutable_default::SharedMutableDefault,
+    lint::require_relative_self_path::RequireRelativeSelfPath,
+    lint::require_range_parentheses::RequireRangeParentheses,
+    lint::refinement_import_methods::RefinementImportMethods,
+    lint::redundant_type_conversion::RedundantTypeConversion,
+    lint::redundant_regexp_quantifiers::RedundantRegexpQuantifiers,
+    lint::or_assignment_to_constant::OrAssignmentToConstant,
+    lint::numeric_operation_with_constant_result::NumericOperationWithConstantResult,
+    lint::numbered_parameter_assignment::NumberedParameterAssignment,
+    lint::non_atomic_file_operation::NonAtomicFileOperation,
+    lint::no_return_in_begin_end_blocks::NoReturnInBeginEndBlocks,
+    lint::name_typo::NameTypo,
+    lint::mixed_case_range::MixedCaseRange,
+    lint::misplaced_magic_comment::MisplacedMagicComment,
+    lint::literal_assignment_in_condition::LiteralAssignmentInCondition,
+    lint::lambda_without_literal_block::LambdaWithoutLiteralBlock,
+    lint::it_without_arguments_in_block::ItWithoutArgumentsInBlock,
+    lint::incompatible_io_select_with_fiber_scheduler::IncompatibleIoSelectWithFiberScheduler,
+    lint::hash_new_with_keyword_arguments_as_default::HashNewWithKeywordArgumentsAsDefault,
+    lint::empty_in_pattern::EmptyInPattern,
+    lint::empty_class::EmptyClass,
+    lint::duplicate_set_element::DuplicateSetElement,
+    lint::duplicate_regexp_character_class_element::DuplicateRegexpCharacterClassElement,
+    lint::duplicate_match_pattern::DuplicateMatchPattern,
+    lint::duplicate_magic_comment::DuplicateMagicComment,
+    lint::deprecated_reference::DeprecatedReference,
+    lint::deprecated_constants::DeprecatedConstants,
+    lint::data_define_override::DataDefineOverride,
+    lint::constant_reassignment::ConstantReassignment,
+    lint::constant_overwritten_in_rescue::ConstantOverwrittenInRescue,
+    lint::array_literal_in_regexp::ArrayLiteralInRegexp,
+    lint::argument_mismatch::ArgumentMismatch,
+    lint::ambiguous_range::AmbiguousRange,
+    lint::ambiguous_operator_precedence::AmbiguousOperatorPrecedence,
+    lint::ambiguous_assignment::AmbiguousAssignment,
+    layout::space_before_brackets::SpaceBeforeBrackets,
+    layout::multiline_hash_key_line_breaks::MultilineHashKeyLineBreaks,
+    layout::line_end_string_concatenation_indentation::LineEndStringConcatenationIndentation,
+    layout::line_continuation_spacing::LineContinuationSpacing,
+    layout::first_method_parameter_line_break::FirstMethodParameterLineBreak,
+    layout::first_method_argument_line_break::FirstMethodArgumentLineBreak,
+    layout::first_hash_element_line_break::FirstHashElementLineBreak,
+    layout::first_array_element_line_break::FirstArrayElementLineBreak,
+    layout::empty_lines_after_module_inclusion::EmptyLinesAfterModuleInclusion,
+    layout::class_structure::ClassStructure,
+    gemspec::require_mfa::RequireMFA,
+    gemspec::development_dependencies::DevelopmentDependencies,
+    gemspec::deprecated_attribute_assignment::DeprecatedAttributeAssignment,
+    gemspec::attribute_assignment::AttributeAssignment,
+    gemspec::add_runtime_dependency::AddRuntimeDependency,
+    lint::cop_directive_syntax::CopDirectiveSyntax,
     style::conditional_assignment::ConditionalAssignment,
     metrics::perceived_complexity::PerceivedComplexity,
     metrics::parameter_lists::ParameterLists,
@@ -455,300 +572,4 @@ rule_set! {
     layout::indentation_style::IndentationStyle,
     layout::empty_line_after_magic_comment::EmptyLineAfterMagicComment,
     layout::initial_indentation::InitialIndentation,
-}
-
-/// Per-rule constants derived from [`Rule::META`] at compile time.
-trait RuleExt: Rule {
-    /// `META` as a `'static` reference, for [`ALL_RULES`] and [`RuleOptions`].
-    const META_REF: &'static RuleMeta = &Self::META;
-    /// `true` at `kind as usize` for every node kind the rule subscribed to.
-    const SUBSCRIBED: [bool; NodeKind::COUNT] = subscription_table(Self::META.kinds);
-}
-
-impl<R: Rule> RuleExt for R {}
-
-/// Converts one configuration value to the rule-facing [`OptionValue`].
-pub fn option_value(value: &YamlValue) -> OptionValue {
-    match value {
-        YamlValue::Null => OptionValue::Null,
-        YamlValue::Bool(b) => OptionValue::Bool(*b),
-        YamlValue::Int(i) => OptionValue::Int(*i),
-        YamlValue::Float(f) => OptionValue::Float(*f),
-        YamlValue::String(s) | YamlValue::Regexp(s) => OptionValue::Str(s.clone()),
-        YamlValue::Array(items) => OptionValue::List(items.iter().map(option_value).collect()),
-        YamlValue::Mapping(map) => OptionValue::Map(
-            map.iter().map(|(key, value)| (key.to_string(), option_value(value))).collect(),
-        ),
-    }
-}
-
-/// A cop's configured options, in the rule-facing representation, plus its
-/// resolved `Enabled` flag so a rule can mirror RuboCop's `for_enabled_cop`
-/// (a disabled peer's options do not apply). The raw `Enabled` value is
-/// dropped from the parameter chain -- it would otherwise appear a second
-/// time under the same key, shadowed by the resolved flag -- and its one
-/// piece of information the flag cannot carry, `Enabled: pending`, is
-/// surfaced as `EnabledPending` instead (RuboCop's `Config#for_cop`
-/// reporting `'pending'`, which `Lint/RedundantCopDisableDirective`'s
-/// `pending_cop_not_run?` needs).
-fn cop_options(cop: &CopConfig) -> Vec<(String, OptionValue)> {
-    std::iter::once(("Enabled".to_string(), OptionValue::Bool(cop.enabled)))
-        .chain(cop.is_pending().then(|| ("EnabledPending".to_string(), OptionValue::Bool(true))))
-        .chain(
-            cop.options
-                .iter()
-                .filter(|(key, _)| key.as_str() != "Enabled")
-                .map(|(key, value)| (key.clone(), option_value(value))),
-        )
-        .collect()
-}
-
-/// Every cop's options plus `AllCops`, so a rule can read another cop's
-/// settings or global ones such as `TargetRubyVersion`.
-fn peer_options(cfg: &LoadedConfig) -> PeerOptions {
-    let mut peers: PeerOptions =
-        cfg.cops().map(|(name, cop)| (name.to_string(), cop_options(cop))).collect();
-    let all_cops = cfg
-        .all_cops()
-        .raw()
-        .iter()
-        .map(|(key, value)| (key.to_string(), option_value(value)))
-        .collect();
-    peers.insert("AllCops".to_string(), all_cops);
-    peers
-}
-
-/// Everything the slot list needs to decide whether a rule runs and with
-/// which options.
-struct Builder<'a> {
-    cfg: Option<&'a LoadedConfig>,
-    /// When set, exactly these cops run, regardless of `Enabled`, mirroring
-    /// RuboCop's `--only`.
-    only: Option<&'a [&'a str]>,
-    /// Whether `only` came from the CLI's `--only` (see [`RuleOptions::only_run`]).
-    only_run: bool,
-    peers: Arc<PeerOptions>,
-}
-
-impl Builder<'_> {
-    fn configure<R: Rule>(&self) -> Result<Option<R>, OptionError> {
-        let meta = <R as RuleExt>::META_REF;
-        let cop = self.cfg.and_then(|cfg| cfg.cop(meta.name));
-        let enabled = match self.only {
-            Some(names) => names.contains(&meta.name),
-            None => cop.map_or(meta.enabled_by_default, |cop| cop.enabled),
-        };
-        if !enabled {
-            return Ok(None);
-        }
-        let own = cop.map(cop_options).unwrap_or_default();
-        let options =
-            RuleOptions::new(meta, own, Arc::clone(&self.peers)).with_only_run(self.only_run);
-        R::configure(&options).map(Some)
-    }
-}
-
-/// One slot list: a tree of tuples whose leaves are optional rules.
-trait SlotList: Clone + Send + Sync + 'static + Sized {
-    fn build(builder: &Builder<'_>) -> Result<Self, OptionError>;
-    fn add_interest(&self, interest: &mut [bool; NodeKind::COUNT]);
-    fn file_start(&mut self, ctx: &mut Context<'_>);
-    fn enter(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>);
-    fn leave(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>);
-    fn file_end(&mut self, ctx: &mut Context<'_>);
-    fn file_finish(&mut self, ctx: &mut Context<'_>, reported: &[Diagnostic]);
-}
-
-impl<R: Rule> SlotList for Option<R> {
-    fn build(builder: &Builder<'_>) -> Result<Self, OptionError> {
-        builder.configure::<R>()
-    }
-
-    fn add_interest(&self, interest: &mut [bool; NodeKind::COUNT]) {
-        if self.is_some() {
-            for (slot, subscribed) in interest.iter_mut().zip(<R as RuleExt>::SUBSCRIBED) {
-                *slot |= subscribed;
-            }
-        }
-    }
-
-    #[inline]
-    fn file_start(&mut self, ctx: &mut Context<'_>) {
-        if let Some(rule) = self {
-            rule.file_start(ctx);
-        }
-    }
-
-    #[inline]
-    fn enter(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>) {
-        if let Some(rule) = self {
-            if <R as RuleExt>::SUBSCRIBED[kind as usize] {
-                rule.enter(node, ctx);
-            }
-        }
-    }
-
-    #[inline]
-    fn leave(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>) {
-        if let Some(rule) = self {
-            if <R as RuleExt>::SUBSCRIBED[kind as usize] {
-                rule.leave(node, ctx);
-            }
-        }
-    }
-
-    #[inline]
-    fn file_end(&mut self, ctx: &mut Context<'_>) {
-        if let Some(rule) = self {
-            rule.file_end(ctx);
-        }
-    }
-
-    #[inline]
-    fn file_finish(&mut self, ctx: &mut Context<'_>, reported: &[Diagnostic]) {
-        if let Some(rule) = self {
-            rule.file_finish(ctx, reported);
-        }
-    }
-}
-
-impl<A: SlotList, B: SlotList> SlotList for (A, B) {
-    fn build(builder: &Builder<'_>) -> Result<Self, OptionError> {
-        Ok((A::build(builder)?, B::build(builder)?))
-    }
-
-    fn add_interest(&self, interest: &mut [bool; NodeKind::COUNT]) {
-        self.0.add_interest(interest);
-        self.1.add_interest(interest);
-    }
-
-    #[inline]
-    fn file_start(&mut self, ctx: &mut Context<'_>) {
-        self.0.file_start(ctx);
-        self.1.file_start(ctx);
-    }
-
-    #[inline]
-    fn enter(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>) {
-        self.0.enter(kind, node, ctx);
-        self.1.enter(kind, node, ctx);
-    }
-
-    #[inline]
-    fn leave(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>) {
-        self.0.leave(kind, node, ctx);
-        self.1.leave(kind, node, ctx);
-    }
-
-    #[inline]
-    fn file_end(&mut self, ctx: &mut Context<'_>) {
-        self.0.file_end(ctx);
-        self.1.file_end(ctx);
-    }
-
-    #[inline]
-    fn file_finish(&mut self, ctx: &mut Context<'_>, reported: &[Diagnostic]) {
-        self.0.file_finish(ctx, reported);
-        self.1.file_finish(ctx, reported);
-    }
-}
-
-/// The configured set of enabled rules for one effective configuration.
-///
-/// Cloned per file: rules keep per-file state in `self`.
-#[derive(Clone)]
-pub struct RuleSet {
-    slots: Slots,
-    /// `true` at `kind as usize` when any enabled rule subscribed to it.
-    interest: [bool; NodeKind::COUNT],
-}
-
-impl RuleSet {
-    fn from_builder(builder: &Builder<'_>) -> Result<Self, OptionError> {
-        let slots = <Slots as SlotList>::build(builder)?;
-        let mut interest = [false; NodeKind::COUNT];
-        slots.add_interest(&mut interest);
-        Ok(Self { slots, interest })
-    }
-
-    /// Every rule enabled by default, with RuboCop's default options.
-    ///
-    /// # Panics
-    ///
-    /// If a rule rejects its own declared defaults, which is a bug in that
-    /// rule's schema.
-    pub fn rubocop_defaults() -> Self {
-        let builder =
-            Builder { cfg: None, only: None, only_run: false, peers: Arc::new(PeerOptions::new()) };
-        Self::from_builder(&builder)
-            .unwrap_or_else(|err| panic!("rule rejected its own defaults: {err}"))
-    }
-
-    /// The rules `cfg` enables, configured from it.
-    pub fn from_config(cfg: &LoadedConfig) -> Result<Self, OptionError> {
-        let builder = Builder {
-            cfg: Some(cfg),
-            only: None,
-            only_run: false,
-            peers: Arc::new(peer_options(cfg)),
-        };
-        Self::from_builder(&builder)
-    }
-
-    /// Only `names`, configured from `cfg`, enabled regardless of what
-    /// `cfg` says about them (RuboCop's `--only`).
-    pub fn only(names: &[&str], cfg: &LoadedConfig) -> Result<Self, OptionError> {
-        Self::restricted(names, cfg, true)
-    }
-
-    /// Only `names`, configured from `cfg` and enabled regardless of it, the
-    /// way RuboCop's `CopHelper` runs a cop in its specs: unlike
-    /// [`RuleSet::only`], the run is not an `--only` run, so rules that read
-    /// the registry see every configured cop.
-    pub fn isolated(names: &[&str], cfg: &LoadedConfig) -> Result<Self, OptionError> {
-        Self::restricted(names, cfg, false)
-    }
-
-    fn restricted(names: &[&str], cfg: &LoadedConfig, only_run: bool) -> Result<Self, OptionError> {
-        let builder = Builder {
-            cfg: Some(cfg),
-            only: Some(names),
-            only_run,
-            peers: Arc::new(peer_options(cfg)),
-        };
-        Self::from_builder(&builder)
-    }
-}
-
-impl Dispatch for RuleSet {
-    #[inline]
-    fn file_start(&mut self, ctx: &mut Context<'_>) {
-        self.slots.file_start(ctx);
-    }
-
-    #[inline]
-    fn enter(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>) {
-        if !self.interest[kind as usize] {
-            return;
-        }
-        self.slots.enter(kind, node, ctx);
-    }
-
-    #[inline]
-    fn leave(&mut self, kind: NodeKind, node: &Node<'_>, ctx: &mut Context<'_>) {
-        if !self.interest[kind as usize] {
-            return;
-        }
-        self.slots.leave(kind, node, ctx);
-    }
-
-    #[inline]
-    fn file_end(&mut self, ctx: &mut Context<'_>) {
-        self.slots.file_end(ctx);
-    }
-
-    #[inline]
-    fn file_finish(&mut self, ctx: &mut Context<'_>, reported: &[Diagnostic]) {
-        self.slots.file_finish(ctx, reported);
-    }
 }

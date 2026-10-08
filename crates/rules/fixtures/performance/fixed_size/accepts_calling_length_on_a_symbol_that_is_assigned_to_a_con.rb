@@ -1,0 +1,1 @@
+CONST = :foo.length

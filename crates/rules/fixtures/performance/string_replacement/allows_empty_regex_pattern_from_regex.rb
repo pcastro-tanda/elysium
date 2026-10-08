@@ -1,0 +1,1 @@
+'abc'.gsub(Regexp.new(//), '1')

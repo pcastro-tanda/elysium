@@ -1,0 +1,1 @@
+Kernel::BigDecimal(42)

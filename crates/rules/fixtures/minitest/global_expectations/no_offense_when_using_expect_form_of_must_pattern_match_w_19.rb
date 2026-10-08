@@ -1,0 +1,4 @@
+it 'does something' do
+  expect { n }.must_pattern_match 42
+  ^^^^^^^^^^^^ Use `_` instead.
+end

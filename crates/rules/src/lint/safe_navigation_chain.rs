@@ -183,7 +183,24 @@ impl SafeNavigationChain {
             return;
         }
         let Some(receiver) = call.receiver() else { return };
-        let Some(safe_nav) = receiver.as_call_node() else { return };
+        // RuboCop's `bad_method?` also matches `(send (begin (csend ...))
+        // ...)`: a safe-navigation call parenthesized before the ordinary
+        // call chains onto it, e.g. `(x&.foo).bar`.
+        let safe_nav = if let Some(c) = receiver.as_call_node() {
+            c
+        } else if let Some(parens) = receiver.as_parentheses_node() {
+            let Some(body) = parens.body() else { return };
+            let Some(stmts) = body.as_statements_node() else { return };
+            let statements = stmts.body();
+            if statements.len() != 1 {
+                return;
+            }
+            let Some(sole) = statements.iter().next() else { return };
+            let Some(c) = sole.as_call_node() else { return };
+            c
+        } else {
+            return;
+        };
         if !safe_nav.is_safe_navigation() {
             return;
         }

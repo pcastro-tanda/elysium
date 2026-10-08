@@ -30,6 +30,28 @@ that actually declares `RSpec.describe RuboCop::Cop::<Dept>::<Name>` (so it
 always matches RuboCop's own file layout, including acronym-heavy cop names)
 and writes into `<out>/<dept>/<snake>/`.
 
+### Extension gem cops
+
+`Rails/`, `Performance/`, `ThreadSafety/`, `Minitest/` and `Sorbet/` cops
+come from the gems pinned in `extension_gems.rb` (version, repository/tag,
+crate, suite framework and the suite's own Gemfile dependencies):
+
+```sh
+ruby tools/port_spec.rb --cop Minitest/AssertNil \
+  --rubocop-src /Users/paulo/Work/lab/corpus/rubocop-1.91.0 \
+  [--gem-src minitest=/Users/paulo/Work/lab/corpus/rubocop-minitest-0.40.0]
+```
+
+`--gem-src KEY=PATH[,KEY=PATH]` defaults to the `<gem>-<version>` checkout
+next to `--rubocop-src`, and its version file must match the pin. The gem's
+own `spec/spec_helper.rb` / `test/test_helper.rb` is loaded (with its `lib/`
+first on the load path) from a scratch directory, so the checkout is never
+written to. RSpec suites are captured as for core; Minitest suites through
+rubocop-minitest's `assert_offense` / `assert_no_offenses` /
+`assert_correction` / `assert_no_corrections`, in test-definition order (the
+run itself is shuffled). `ruby tools/extension_gems.rb` prints the pins, one
+gem per line, for CI.
+
 ### What it produces, per example
 
 - `<case>.rb` — the exact `expect_offense` annotated source (or the plain
@@ -52,6 +74,11 @@ and writes into `<out>/<dept>/<snake>/`.
     instead of going through the shared `:config` context's `other_cops`
     merge — any bare, non-`AllCops` top-level key is a department name, since
     RuboCop's real default config never has one;
+  - each peer-cop key the cop under test read through `Config#for_cop` during
+    the example, with the spec's own value: nil (`~`) when the spec's config
+    never set it, even for a peer it never mentions. The harness merges
+    `default.yml`, so without this a nil the cop saw upstream would read as
+    the default (e.g. `Layout/BeginEndAlignment`'s `EnforcedStyleAlignWith`);
   - `AllCops: {TargetRubyVersion: X}` when the example's `ruby_version` is
     explicitly set below the Prism-mode default (see below);
   - a `# file: <path>` leading comment when the example passed a file name to

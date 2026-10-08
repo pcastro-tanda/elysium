@@ -1,0 +1,1 @@
+'fooSplitbar'.split(/split/x)

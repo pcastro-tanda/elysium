@@ -1,0 +1,3 @@
+<<~MYHEREDOC
+  #whatever
+MYHEREDOC

@@ -1,0 +1,1 @@
+Foo.new(key: :value)

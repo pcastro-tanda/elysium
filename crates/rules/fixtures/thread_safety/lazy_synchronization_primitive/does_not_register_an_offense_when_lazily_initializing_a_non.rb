@@ -1,0 +1,3 @@
+def cache
+  @cache ||= {}
+end

@@ -1,0 +1,1 @@
+SortedSet.new([:foo, :bar])

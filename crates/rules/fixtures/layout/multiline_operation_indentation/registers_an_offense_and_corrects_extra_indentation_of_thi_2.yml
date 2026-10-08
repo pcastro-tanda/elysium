@@ -1,2 +1,4 @@
 Layout/MultilineOperationIndentation:
   EnforcedStyle: indented
+Layout/IndentationStyle:
+  EnforcedStyle: ~

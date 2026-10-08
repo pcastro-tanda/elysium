@@ -1,0 +1,1 @@
+CONST = %q(a).length + 1 * 20

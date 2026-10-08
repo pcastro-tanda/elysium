@@ -1,0 +1,1 @@
+$foo = condition ? $bar : $foo

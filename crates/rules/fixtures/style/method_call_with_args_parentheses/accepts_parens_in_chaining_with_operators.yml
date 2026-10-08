@@ -1,0 +1,2 @@
+Style/MethodCallWithArgsParentheses:
+  EnforcedStyle: omit_parentheses

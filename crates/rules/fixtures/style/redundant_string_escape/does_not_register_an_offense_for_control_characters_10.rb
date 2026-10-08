@@ -1,0 +1,3 @@
+<<~'MYHEREDOC'
+\cc \C-c
+MYHEREDOC

@@ -1,0 +1,1 @@
+post :create, user_id: @user.id

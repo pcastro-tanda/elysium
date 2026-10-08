@@ -502,12 +502,11 @@ impl IndentationWidth {
         }
     }
 
-    fn on_unless(&mut self, ctx: &mut Context<'_>, node: &Node<'_>) {
+    fn on_unless(&mut self, ctx: &mut Context<'_>, node: &Node<'_>, base: Span) {
         let unless_node = node.as_unless_node().expect("kind matched");
         if unless_node.end_keyword_loc().is_none() {
             return;
         }
-        let base = unless_node.location().span();
         self.check_indentation(ctx, base, unless_node.statements().map(|s| s.as_node()), "normal");
         if let Some(else_node) = unless_node.else_clause() {
             self.check_indentation(
@@ -595,7 +594,10 @@ impl IndentationWidth {
         // chain needs walking.
         let Some(rhs) = first_part_of_call_chain(value) else { return };
         let rhs = match rhs {
-            Node::IfNode { .. } | Node::WhileNode { .. } | Node::UntilNode { .. } => rhs,
+            Node::IfNode { .. }
+            | Node::UnlessNode { .. }
+            | Node::WhileNode { .. }
+            | Node::UntilNode { .. } => rhs,
             _ => return,
         };
         let rhs_span = rhs.span();
@@ -607,6 +609,7 @@ impl IndentationWidth {
         self.ignored.insert(rhs_span.start);
         match rhs {
             Node::IfNode { .. } => self.on_if(ctx, &rhs, base),
+            Node::UnlessNode { .. } => self.on_unless(ctx, &rhs, base),
             Node::WhileNode { .. } => {
                 let w = rhs.as_while_node().expect("kind matched");
                 self.on_while_until(
@@ -658,13 +661,15 @@ impl IndentationWidth {
             }
         }
 
-        // RuboCop's `CheckAssignment#on_send` (attribute/element writers: `foo.bar = ...`,
-        // `foo[bar] = ...`).
-        if call.is_attribute_write() {
-            if let Some(args) = call.arguments() {
-                if let Some(last) = args.arguments().last() {
-                    self.check_assignment(ctx, node.span(), last);
-                }
+        // RuboCop's `CheckAssignment#on_send`: `extract_rhs` takes *any* call's last
+        // argument, not just a setter/attribute writer's -- `rows << if cond ... end` is
+        // itself a `(send rows :<< (if ...))`, so its `if` gets the same assignment-aware
+        // base as a real assignment's RHS would. `check_assignment` itself is a no-op unless
+        // that last argument is an `if`/`while`/`until`, so this is safe to try
+        // unconditionally.
+        if let Some(args) = call.arguments() {
+            if let Some(last) = args.arguments().last() {
+                self.check_assignment(ctx, node.span(), last);
             }
         }
 
@@ -860,6 +865,36 @@ fn write_node_value<'pr>(node: &Node<'pr>) -> Option<Node<'pr>> {
         }
         Node::ConstantOrWriteNode { .. } => {
             Some(node.as_constant_or_write_node().expect("kind matched").value())
+        }
+        Node::ConstantPathWriteNode { .. } => {
+            Some(node.as_constant_path_write_node().expect("kind matched").value())
+        }
+        Node::ConstantPathOperatorWriteNode { .. } => {
+            Some(node.as_constant_path_operator_write_node().expect("kind matched").value())
+        }
+        Node::ConstantPathAndWriteNode { .. } => {
+            Some(node.as_constant_path_and_write_node().expect("kind matched").value())
+        }
+        Node::ConstantPathOrWriteNode { .. } => {
+            Some(node.as_constant_path_or_write_node().expect("kind matched").value())
+        }
+        Node::CallOperatorWriteNode { .. } => {
+            Some(node.as_call_operator_write_node().expect("kind matched").value())
+        }
+        Node::CallAndWriteNode { .. } => {
+            Some(node.as_call_and_write_node().expect("kind matched").value())
+        }
+        Node::CallOrWriteNode { .. } => {
+            Some(node.as_call_or_write_node().expect("kind matched").value())
+        }
+        Node::IndexOperatorWriteNode { .. } => {
+            Some(node.as_index_operator_write_node().expect("kind matched").value())
+        }
+        Node::IndexAndWriteNode { .. } => {
+            Some(node.as_index_and_write_node().expect("kind matched").value())
+        }
+        Node::IndexOrWriteNode { .. } => {
+            Some(node.as_index_or_write_node().expect("kind matched").value())
         }
         _ => None,
     }
@@ -1104,6 +1139,17 @@ records.uniq { |el| el[:profile_id] }
             NodeKind::ConstantOperatorWriteNode,
             NodeKind::ConstantAndWriteNode,
             NodeKind::ConstantOrWriteNode,
+            NodeKind::ConstantPathWriteNode,
+            NodeKind::ConstantPathOperatorWriteNode,
+            NodeKind::ConstantPathAndWriteNode,
+            NodeKind::ConstantPathOrWriteNode,
+            NodeKind::CallOperatorWriteNode,
+            NodeKind::CallAndWriteNode,
+            NodeKind::CallOrWriteNode,
+            NodeKind::IndexOperatorWriteNode,
+            NodeKind::IndexAndWriteNode,
+            NodeKind::IndexOrWriteNode,
+            NodeKind::MultiWriteNode,
         ],
         config: &[
             ConfigOption {
@@ -1249,7 +1295,7 @@ corrections with stale byte ranges).",
                 if self.ignored.contains(&node.span().start) {
                     return;
                 }
-                self.on_unless(ctx, node);
+                self.on_unless(ctx, node, node.span());
             }
             Node::WhileNode { .. } => self.on_while_node(ctx, node),
             Node::UntilNode { .. } => self.on_until_node(ctx, node),
@@ -1281,10 +1327,24 @@ corrections with stale byte ranges).",
             | Node::ConstantWriteNode { .. }
             | Node::ConstantOperatorWriteNode { .. }
             | Node::ConstantAndWriteNode { .. }
-            | Node::ConstantOrWriteNode { .. } => {
+            | Node::ConstantOrWriteNode { .. }
+            | Node::ConstantPathWriteNode { .. }
+            | Node::ConstantPathOperatorWriteNode { .. }
+            | Node::ConstantPathAndWriteNode { .. }
+            | Node::ConstantPathOrWriteNode { .. }
+            | Node::CallOperatorWriteNode { .. }
+            | Node::CallAndWriteNode { .. }
+            | Node::CallOrWriteNode { .. }
+            | Node::IndexOperatorWriteNode { .. }
+            | Node::IndexAndWriteNode { .. }
+            | Node::IndexOrWriteNode { .. } => {
                 if let Some(value) = write_node_value(node) {
                     self.check_assignment(ctx, node.span(), value);
                 }
+            }
+            Node::MultiWriteNode { .. } => {
+                let masgn = node.as_multi_write_node().expect("kind matched");
+                self.check_assignment(ctx, node.span(), masgn.value());
             }
             _ => {}
         }

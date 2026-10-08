@@ -3,3 +3,5 @@ Layout/FirstArrayElementIndentation:
   Preview: ~
 Layout/ArrayAlignment:
   EnforcedStyle: with_fixed_indentation
+Layout/IndentationStyle:
+  EnforcedStyle: ~

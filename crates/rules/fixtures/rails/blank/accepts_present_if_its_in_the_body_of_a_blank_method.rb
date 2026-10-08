@@ -1,0 +1,1 @@
+def blank?; !present? end

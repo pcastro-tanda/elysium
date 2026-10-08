@@ -23,16 +23,19 @@
 //! (which requires every namespace segment to itself already be a
 //! constant) rejects it for real.
 //!
-//! `add_offense(node)` highlights the whole `resbody` -- its whitequark
-//! source range runs from the `rescue` keyword through the last of the
-//! exception list/`=>` variable, but *not* into the clause's body (see the
-//! `rescue Exception\n  #do nothing\nend` spec: only the `rescue Exception`
-//! line is underlined). Prism's `RescueNode::location` does not reproduce
-//! this: for every clause but the last in a chain it extends through every
-//! `subsequent` clause too (the same quirk documented in
-//! `shadowed_exception.rs`'s module doc), so [`resbody_header_span`]
-//! recomputes it from the clause's own keyword/exceptions/`=>`-variable
-//! children instead, exactly like that cop's `shadowing_span`.
+//! `add_offense(node)` highlights the whole `resbody`, i.e. its whitequark
+//! `loc.expression`, which the parser gem's `rescue_body_map` builds as
+//! `keyword.join(compstmt || then || exc_var || exc_list || keyword)`: the
+//! `rescue` keyword through the end of the clause's *body* when it has one
+//! (an empty or comment-only body falls back to the `then`/`=>`-variable/
+//! exception-list tail, so the `rescue Exception\n  #do nothing\nend` spec
+//! underlines only the `rescue Exception` line). Prism's
+//! `RescueNode::location` does not reproduce this: for every clause but the
+//! last in a chain it extends through every `subsequent` clause too (the
+//! same quirk documented in `shadowed_exception.rs`'s module doc), so
+//! [`resbody_span`] recomputes it from the clause's own children, copied
+//! privately from `Lint/SuppressedException`'s helper of the same name
+//! (including its `;`-terminator handling -- see that module's doc).
 
 use linter::{
     Context, Department, FixAvailability, OptionError, Rule, RuleMeta, RuleOptions, Severity,
@@ -47,22 +50,49 @@ use ruby_source::Span;
 const MSG: &str =
     "Avoid rescuing the `Exception` class. Perhaps you meant to rescue `StandardError`?";
 
-/// RuboCop's `offense_range`-equivalent for a `resbody`: the `rescue`
-/// keyword through the end of whichever of the `=>` variable or the last
-/// exception expression is present, never into the clause's body. See the
-/// module doc comment for why `RescueNode::location` cannot be reused.
-fn resbody_header_span(rescue_node: &RescueNode<'_>) -> Span {
+/// RuboCop's `offense_range`-equivalent for a `resbody` (whitequark's
+/// `loc.expression`), reconstructed from its own keyword/statements/
+/// `then`/`=>`-variable/exception-list children. See the module doc
+/// comment for why `RescueNode::location` cannot be reused.
+fn resbody_span(ctx: &Context<'_>, rescue_node: &RescueNode<'_>) -> Span {
     let start = rescue_node.keyword_loc().span().start;
-    let end = if let Some(reference) = rescue_node.reference() {
+    let end = if let Some(statements) = rescue_node.statements() {
+        statements.location().span().end
+    } else if let Some(then_keyword) = rescue_node.then_keyword_loc() {
+        then_keyword.span().end
+    } else if let Some(reference) = rescue_node.reference() {
         reference.span().end
-    } else if let Some(operator_loc) = rescue_node.operator_loc() {
-        operator_loc.span().end
     } else if let Some(last_exception) = rescue_node.exceptions().last() {
         last_exception.span().end
     } else {
         rescue_node.keyword_loc().span().end
     };
+    let end = if rescue_node.statements().is_none()
+        && rescue_node.then_keyword_loc().is_none()
+        && rescue_node.reference().is_none()
+    {
+        extend_through_semicolon(ctx, end)
+    } else {
+        end
+    };
     Span::new(start, end)
+}
+
+/// See `Lint/SuppressedException`'s module doc ("A body-less `resbody`
+/// terminated by `;` instead of `then`"): scans forward from a body-less
+/// resbody's end, over horizontal whitespace only, for an immediate `;` and
+/// extends the span past it when found.
+fn extend_through_semicolon(ctx: &Context<'_>, end: u32) -> u32 {
+    let line_col = ctx.line_col(end);
+    let line_text = ctx.line_text(line_col.line);
+    let col = line_col.column as usize;
+    let Some(rest) = line_text.get(col..) else { return end };
+    let ws = rest.iter().take_while(|&&b| b == b' ' || b == b'\t').count();
+    if rest.get(ws) == Some(&b';') {
+        end + u32::try_from(ws + 1).expect("offset exceeds u32")
+    } else {
+        end
+    }
 }
 
 /// RuboCop's `targets_exception?`.
@@ -119,7 +149,7 @@ upstream's own \"does not crash\" specs for those shapes.",
     fn enter(&mut self, node: &Node<'_>, ctx: &mut Context<'_>) {
         let resbody = node.as_rescue_node().expect("kind matched");
         if resbody.exceptions().iter().any(targets_exception) {
-            ctx.report(&Self::META, resbody_header_span(&resbody), MSG);
+            ctx.report(&Self::META, resbody_span(ctx, &resbody), MSG);
         }
     }
 }

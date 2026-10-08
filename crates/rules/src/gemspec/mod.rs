@@ -1,5 +1,10 @@
 //! `Gemspec` department.
+pub mod add_runtime_dependency;
+pub mod attribute_assignment;
+pub mod deprecated_attribute_assignment;
+pub mod development_dependencies;
 pub mod duplicated_assignment;
 pub mod ordered_dependencies;
+pub mod require_mfa;
 pub mod required_ruby_version;
 pub mod ruby_version_globals_usage;

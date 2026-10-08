@@ -1,0 +1,4 @@
+AllCops:
+  TargetRailsVersion: 7.1
+Rails/UnknownEnv:
+  Environments: [development, production, test]

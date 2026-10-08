@@ -1,0 +1,16 @@
+A = T.type_alias(T.any(String, Integer))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Sorbet/BindingConstantWithoutTypeAlias: It looks like you're using the old `T.type_alias` syntax. `T.type_alias` now expects a block.Run Sorbet with the options "--autocorrect --error-white-list=5043" to automatically upgrade to the new syntax.
+B = T.type_alias(T.all(String, Integer))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Sorbet/BindingConstantWithoutTypeAlias: It looks like you're using the old `T.type_alias` syntax. `T.type_alias` now expects a block.Run Sorbet with the options "--autocorrect --error-white-list=5043" to automatically upgrade to the new syntax.
+C = T.type_alias(T.noreturn)
+    ^^^^^^^^^^^^^^^^^^^^^^^^ Sorbet/BindingConstantWithoutTypeAlias: It looks like you're using the old `T.type_alias` syntax. `T.type_alias` now expects a block.Run Sorbet with the options "--autocorrect --error-white-list=5043" to automatically upgrade to the new syntax.
+D = T.type_alias(T.class_of(String))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Sorbet/BindingConstantWithoutTypeAlias: It looks like you're using the old `T.type_alias` syntax. `T.type_alias` now expects a block.Run Sorbet with the options "--autocorrect --error-white-list=5043" to automatically upgrade to the new syntax.
+E = T.type_alias(T.proc.void)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^ Sorbet/BindingConstantWithoutTypeAlias: It looks like you're using the old `T.type_alias` syntax. `T.type_alias` now expects a block.Run Sorbet with the options "--autocorrect --error-white-list=5043" to automatically upgrade to the new syntax.
+F = T.type_alias(T.untyped)
+    ^^^^^^^^^^^^^^^^^^^^^^^ Sorbet/BindingConstantWithoutTypeAlias: It looks like you're using the old `T.type_alias` syntax. `T.type_alias` now expects a block.Run Sorbet with the options "--autocorrect --error-white-list=5043" to automatically upgrade to the new syntax.
+G = T.type_alias(T.nilable(String))
+    ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Sorbet/BindingConstantWithoutTypeAlias: It looks like you're using the old `T.type_alias` syntax. `T.type_alias` now expects a block.Run Sorbet with the options "--autocorrect --error-white-list=5043" to automatically upgrade to the new syntax.
+H = T.type_alias(T.self_type)
+    ^^^^^^^^^^^^^^^^^^^^^^^^^ Sorbet/BindingConstantWithoutTypeAlias: It looks like you're using the old `T.type_alias` syntax. `T.type_alias` now expects a block.Run Sorbet with the options "--autocorrect --error-white-list=5043" to automatically upgrade to the new syntax.

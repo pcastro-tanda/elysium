@@ -1,0 +1,2 @@
+super \
+  %I[bar]

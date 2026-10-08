@@ -1,0 +1,5 @@
+data.[](value)
+data&.[](value)
+string.<<(even_more_string)
+ruby.==(good)
+ruby&.===(better)

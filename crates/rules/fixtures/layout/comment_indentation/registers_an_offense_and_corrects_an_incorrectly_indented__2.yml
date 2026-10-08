@@ -1,2 +1,4 @@
 Layout/CommentIndentation:
   AllowForAlignment: true
+Layout/IndentationStyle:
+  EnforcedStyle: ~

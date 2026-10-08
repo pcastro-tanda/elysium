@@ -1,0 +1,1 @@
+array.include?(element)

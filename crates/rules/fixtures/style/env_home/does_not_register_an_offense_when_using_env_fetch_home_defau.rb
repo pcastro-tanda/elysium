@@ -1,0 +1,1 @@
+ENV.fetch('HOME', default)

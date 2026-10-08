@@ -1,0 +1,4 @@
+AllCops:
+  MigratedSchemaVersion: '20240101010101'
+Rails/AddColumnIndex:
+  Include: ~

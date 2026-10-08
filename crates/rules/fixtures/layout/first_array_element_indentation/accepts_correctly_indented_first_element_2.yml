@@ -1,2 +1,4 @@
 Layout/FirstArrayElementIndentation:
   Preview: ~
+Layout/ArrayAlignment:
+  EnforcedStyle: ~

@@ -1,0 +1,1 @@
+Nested::MyModel = Class.new(ActiveRecord::Base)

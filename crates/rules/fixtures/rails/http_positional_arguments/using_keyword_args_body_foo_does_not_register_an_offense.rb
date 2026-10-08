@@ -1,0 +1,1 @@
+get :new, body: "foo"

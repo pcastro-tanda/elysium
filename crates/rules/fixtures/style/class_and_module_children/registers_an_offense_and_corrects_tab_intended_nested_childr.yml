@@ -2,3 +2,5 @@ Style/ClassAndModuleChildren:
   EnforcedStyle: compact
 Layout/IndentationStyle:
   EnforcedStyle: tabs
+Layout/IndentationWidth:
+  Width: ~

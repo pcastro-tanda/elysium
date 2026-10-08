@@ -1,0 +1,1 @@
+User.average(:age)

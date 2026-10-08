@@ -1,0 +1,1 @@
+User.find_by_scan(*args)

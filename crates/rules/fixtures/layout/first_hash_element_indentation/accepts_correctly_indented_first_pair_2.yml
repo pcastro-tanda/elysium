@@ -3,3 +3,5 @@ Layout/FirstHashElementIndentation:
 Layout/HashAlignment:
   EnforcedHashRocketStyle: separator
   AllowMultipleStyles: false
+Layout/ArgumentAlignment:
+  EnforcedStyle: ~

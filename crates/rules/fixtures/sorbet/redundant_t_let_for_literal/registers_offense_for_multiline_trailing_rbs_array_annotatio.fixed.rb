@@ -1,0 +1,4 @@
+NAMES = [
+  "alice",
+  "bob",
+]

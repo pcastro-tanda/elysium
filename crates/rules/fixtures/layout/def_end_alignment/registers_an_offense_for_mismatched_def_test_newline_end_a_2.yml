@@ -1,3 +1,5 @@
 Layout/DefEndAlignment:
   EnforcedStyleAlignWith: def
   AutoCorrect: true
+Layout/IndentationStyle:
+  EnforcedStyle: ~

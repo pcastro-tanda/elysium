@@ -1,0 +1,1 @@
+str.match?(/#{CONST}/o)

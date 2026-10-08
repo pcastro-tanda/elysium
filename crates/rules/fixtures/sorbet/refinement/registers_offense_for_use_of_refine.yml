@@ -1,0 +1,3 @@
+# file: my_refinement.rb
+AllCops:
+  DisplayCopNames: true

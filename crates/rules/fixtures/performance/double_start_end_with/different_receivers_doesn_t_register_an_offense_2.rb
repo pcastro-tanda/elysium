@@ -1,0 +1,1 @@
+x.end_with?("a") || y.end_with?("b")

@@ -1,0 +1,1 @@
+PAIRS = [["a"], ["b"]].freeze

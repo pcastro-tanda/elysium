@@ -285,7 +285,14 @@ fn aligned_with_line(
         }
         let Some(idx) = first_non_ws_col(ctx, lineno) else { continue };
         if let Some(ind) = indent {
-            if ind != idx {
+            // A less-indented candidate ends the whole enclosing block (an
+            // alignment anchor beyond it would be coincidental), stopping
+            // the search entirely; a more-indented one is nested content
+            // of the current group and is merely skipped over.
+            if idx < ind {
+                break;
+            }
+            if idx > ind {
                 continue;
             }
         }

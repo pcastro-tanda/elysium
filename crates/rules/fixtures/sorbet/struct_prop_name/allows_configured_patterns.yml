@@ -1,0 +1,2 @@
+Sorbet/StructPropName:
+  AllowedPatterns: ["\\Alegacy[A-Z]"]

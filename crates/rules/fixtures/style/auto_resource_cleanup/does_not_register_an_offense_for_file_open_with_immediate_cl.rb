@@ -1,0 +1,1 @@
+File.open("file", "w", 0o777).close

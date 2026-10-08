@@ -53,7 +53,9 @@ jobs:
     # checks against (pinned in ci/corpus/*/Gemfile): the embedded
     # config/default.yml and config/obsoletion.yml verbatim, and every fixture
     # exactly as tools/port_spec.rb generates it from that version's specs,
-    # minus crates/rules/fixtures/REMOVED.txt.
+    # minus crates/rules/fixtures/REMOVED.txt. The same holds for each
+    # extension gem tools/extension_gems.rb pins: its vendored
+    # config/default.yml, and its department's fixtures from its own suite.
     name: matches pinned RuboCop
     runs-on: ubuntu-latest
     steps:
@@ -64,15 +66,35 @@ jobs:
       - name: RuboCop version pinned by the corpus Gemfiles
         id: pin
         run: echo "version=$(ruby -e 'print File.read("ci/corpus/discourse/Gemfile")[/gem "rubocop", "([^"]+)"/, 1]')" >> "$GITHUB_OUTPUT"
-      - name: Install RuboCop and spec dependencies
-        run: gem install --no-document "rubocop:${{ steps.pin.outputs.version }}" rspec 'mcp:~> 0.6'
-      - name: RuboCop source (specs)
-        run: git clone --quiet --depth 1 --branch "v${{ steps.pin.outputs.version }}" https://github.com/rubocop/rubocop.git "$RUNNER_TEMP/rubocop"
-      - name: Embedded config files are the pinned version's
+      - name: Install RuboCop, the pinned extension gems and spec dependencies
+        run: |
+          # The suites' own dependencies (tools/extension_gems.rb `gemfile`):
+          # rubocop-thread_safety's spec_helper needs simplecov,
+          # rubocop-minitest's test_helper minitest 5 and minitest-proveit,
+          # rubocop-sorbet's test_helper minitest, mocha, debug and
+          # rubocop-minitest 0.38.1.
+          gem install --no-document "rubocop:${{ steps.pin.outputs.version }}" rspec 'mcp:~> 0.6' \
+            simplecov 'minitest:~> 5.11' minitest-proveit minitest mocha debug rubocop-minitest:0.38.1
+          while read -r key gem version repository tag vendored; do
+            gem install --no-document "$gem:$version"
+          done < <(ruby tools/extension_gems.rb)
+      - name: RuboCop and extension gem sources (specs/tests)
+        run: |
+          git clone --quiet --depth 1 --branch "v${{ steps.pin.outputs.version }}" https://github.com/rubocop/rubocop.git "$RUNNER_TEMP/rubocop"
+          gem_src=""
+          while read -r key gem version repository tag vendored; do
+            git clone --quiet --depth 1 --branch "$tag" "$repository" "$RUNNER_TEMP/$gem-$version"
+            gem_src="${gem_src:+$gem_src,}$key=$RUNNER_TEMP/$gem-$version"
+          done < <(ruby tools/extension_gems.rb)
+          echo "GEM_SRC=$gem_src" >> "$GITHUB_ENV"
+      - name: Embedded config files are the pinned versions'
         run: |
           diff -u "$RUNNER_TEMP/rubocop/config/default.yml" crates/config/rubocop/default.yml
           diff -u "$RUNNER_TEMP/rubocop/config/obsoletion.yml" crates/config/rubocop/obsoletion.yml
-      - run: ruby tools/check_fixtures.rb --rubocop-src "$RUNNER_TEMP/rubocop" --jobs 4
+          while read -r key gem version repository tag vendored; do
+            diff -u "$RUNNER_TEMP/$gem-$version/config/default.yml" "$vendored"
+          done < <(ruby tools/extension_gems.rb)
+      - run: ruby tools/check_fixtures.rb --rubocop-src "$RUNNER_TEMP/rubocop" --gem-src "$GEM_SRC" --jobs 4
 
   deny:
     name: deny

@@ -1,0 +1,48 @@
+# Sorbet/ConstantsFromStrings
+
+Forbids constant access through meta-programming.
+
+| | |
+| --- | --- |
+| Department | Sorbet |
+| Enabled by default | false |
+| Default severity | convention |
+| Fix | none |
+| Stability | stable |
+
+Disallows the calls that are used to get constants fom Strings
+such as `constantize`, `const_get`, and `constants`.
+
+The goal of this cop is to make the code easier to statically analyze,
+more IDE-friendly, and more predictable. It leads to code that clearly
+expresses which values the constant can have.
+
+```ruby
+# bad
+class_name.constantize
+
+# bad
+constants.detect { |c| c.name == "User" }
+
+# bad
+const_get(class_name)
+
+# good
+case class_name
+when "User"
+  User
+else
+  raise ArgumentError
+end
+
+# good
+{ "User" => User }.fetch(class_name)
+```
+
+## Options
+
+This rule has no options.
+
+## Blind spots
+
+None recorded.

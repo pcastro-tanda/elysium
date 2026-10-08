@@ -1,0 +1,1 @@
+Kernel::Rational(42)

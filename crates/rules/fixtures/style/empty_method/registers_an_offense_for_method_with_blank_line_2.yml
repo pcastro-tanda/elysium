@@ -1,0 +1,4 @@
+Style/SingleLineMethods:
+  AllowIfMethodIsEmpty: ~
+Layout/LineLength:
+  Max: ~

@@ -96,7 +96,7 @@ fn jaro_winkler(a: &[char], b: &[char]) -> f64 {
 }
 
 /// `DidYouMean::Levenshtein.distance`.
-fn levenshtein(a: &[char], b: &[char]) -> usize {
+pub(crate) fn levenshtein(a: &[char], b: &[char]) -> usize {
     let (n, m) = (a.len(), b.len());
     if n == 0 {
         return m;

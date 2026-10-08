@@ -8,6 +8,7 @@ description = "RuboCop configuration loading and effective settings"
 
 [dependencies]
 globset.workspace = true
+regex.workspace = true
 linter.workspace = true
 saphyr.workspace = true
 

@@ -2,3 +2,8 @@ Layout/ArgumentAlignment:
   EnforcedStyle: with_fixed_indentation
   Preview: ~
   SupportedStyles: ~
+Layout/HashAlignment:
+  EnforcedColonStyle: ~
+  EnforcedHashRocketStyle: ~
+Layout/IndentationStyle:
+  EnforcedStyle: ~

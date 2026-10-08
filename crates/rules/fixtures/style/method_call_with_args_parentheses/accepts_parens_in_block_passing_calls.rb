@@ -1,0 +1,1 @@
+        foo(&method(:args))

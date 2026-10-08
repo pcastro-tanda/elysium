@@ -1,6 +1,6 @@
 # Default-cop parity inventory
 Generated from RuboCop 1.82.1 `config/default.yml` (`Enabled: true` only; `pending` cops excluded) minus the rules registered in `docs/rules/`. Regenerate with the script in this file's git history / `tools/` once ported there.
-**1 default-enabled cops missing of 393** (392 implemented). `Style/DoubleCopDisableDirective` is excluded: RuboCop 1.91.0, the corpus truth, removed it.
+**1 default-enabled cops missing of 394** (393 implemented; RuboCop 1.91.0 made `Lint/CopDirectiveSyntax` default-enabled, now ported). `Style/DoubleCopDisableDirective` is excluded: RuboCop 1.91.0, the corpus truth, removed it.
 ## By department
 - Style: 0
 - Layout: 0

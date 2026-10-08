@@ -1,0 +1,4 @@
+# file: gems.rb
+Gemspec/DevelopmentDependencies:
+  Enabled: true
+  AllowedGems: [allowed]

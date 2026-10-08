@@ -1,0 +1,3 @@
+<<~MESSAGE
+  foo
+MESSAGE

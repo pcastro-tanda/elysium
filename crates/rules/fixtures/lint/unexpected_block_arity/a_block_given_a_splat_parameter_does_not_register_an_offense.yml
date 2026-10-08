@@ -1,0 +1,2 @@
+Lint/UnexpectedBlockArity:
+  Methods: {reduce: 2, inject: 2}

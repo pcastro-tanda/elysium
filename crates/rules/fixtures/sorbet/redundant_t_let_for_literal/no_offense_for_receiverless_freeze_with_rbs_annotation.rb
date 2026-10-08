@@ -1,0 +1,1 @@
+VALUE = freeze #: Array[String]

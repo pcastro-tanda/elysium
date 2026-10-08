@@ -1,0 +1,1 @@
+/\z\z/.match? str

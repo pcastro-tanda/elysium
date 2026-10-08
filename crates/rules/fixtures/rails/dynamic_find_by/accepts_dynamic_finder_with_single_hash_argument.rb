@@ -1,0 +1,1 @@
+Post.find_by_id(limit: 1)

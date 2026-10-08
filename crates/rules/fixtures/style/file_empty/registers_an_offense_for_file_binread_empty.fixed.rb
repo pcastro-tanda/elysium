@@ -1,0 +1,1 @@
+File.empty?('path/to/file')

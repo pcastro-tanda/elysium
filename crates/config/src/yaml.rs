@@ -141,6 +141,18 @@ impl Mapping {
         self.get(key).map(YamlValue::to_string_list).unwrap_or_default()
     }
 
+    /// The path patterns of an `Include`/`Exclude`-style list at `key`: its
+    /// string and `!ruby/regexp` elements, kept typed so a regexp is never
+    /// mistaken for a glob.
+    pub fn get_pattern_list(&self, key: &str) -> Vec<YamlValue> {
+        self.get(key)
+            .map(YamlValue::to_array)
+            .unwrap_or_default()
+            .into_iter()
+            .filter(|value| matches!(value, YamlValue::String(_) | YamlValue::Regexp(_)))
+            .collect()
+    }
+
     #[must_use]
     /// Ruby's `Hash#merge`: `other`'s values win, `self`'s order is kept and
     /// keys new to `other` are appended.
@@ -230,7 +242,7 @@ impl YamlValue {
         }
     }
 
-    fn scalar_text(&self) -> Option<String> {
+    pub(crate) fn scalar_text(&self) -> Option<String> {
         match self {
             YamlValue::String(s) | YamlValue::Regexp(s) => Some(s.clone()),
             YamlValue::Int(i) => Some(i.to_string()),
@@ -260,6 +272,16 @@ pub(crate) fn parse_document(source: &str) -> Result<Option<YamlValue>, String> 
         None | Some(Yaml::BadValue) => Ok(None),
         Some(doc) => convert(&doc).map(Some),
     }
+}
+
+/// [`parse_document`] for rules that read other YAML files (such as
+/// `config/database.yml`) with the same value model.
+///
+/// # Errors
+///
+/// Returns the scanner's message for malformed YAML or a disallowed tag.
+pub fn parse_yaml(source: &str) -> Result<Option<YamlValue>, String> {
+    parse_document(source)
 }
 
 fn convert(node: &Yaml<'_>) -> Result<YamlValue, String> {

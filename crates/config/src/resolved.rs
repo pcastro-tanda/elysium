@@ -4,11 +4,13 @@
 use std::collections::{BTreeMap, BTreeSet};
 use std::io::Write;
 use std::path::{Path, PathBuf};
+use std::sync::Arc;
 
 use linter::{Annotation, Severity};
 
 use crate::defaults::DEFAULT_CONFIG;
 use crate::file_matcher::FileMatcher;
+use crate::lockfile::GemVersions;
 use crate::obsoletion::RULES;
 use crate::yaml::{emit_mapping, Mapping, YamlValue};
 
@@ -89,6 +91,8 @@ pub struct AllCops {
     pub display_style_guide: bool,
     /// `ExtraDetails`.
     pub extra_details: bool,
+    /// `MigratedSchemaVersion` (rubocop-rails), as `to_s` renders it.
+    pub migrated_schema_version: Option<String>,
     raw: Mapping,
 }
 
@@ -114,6 +118,9 @@ impl AllCops {
             display_cop_names: raw.get("DisplayCopNames").is_some_and(YamlValue::is_truthy),
             display_style_guide: raw.get("DisplayStyleGuide").is_some_and(YamlValue::is_truthy),
             extra_details: raw.get("ExtraDetails").is_some_and(YamlValue::is_truthy),
+            migrated_schema_version: raw
+                .get("MigratedSchemaVersion")
+                .and_then(YamlValue::scalar_text),
             raw,
         }
     }
@@ -175,6 +182,7 @@ pub struct LoadedConfig {
     /// already merged the latter in).
     resolved_extensions: BTreeSet<String>,
     warnings: Vec<String>,
+    gem_versions: Option<Arc<GemVersions>>,
 }
 
 impl LoadedConfig {
@@ -231,7 +239,7 @@ impl LoadedConfig {
             let department = name.rsplit_once('/').and_then(|(dept, _)| raw.get_mapping(dept));
             let badge = badge_clusivity(department, &params);
             if badge.include.is_some() || badge.exclude.is_some() {
-                if let Ok(matcher) = FileMatcher::rooted(
+                if let Ok(matcher) = FileMatcher::rooted_cop(
                     root.clone(),
                     badge.include.as_deref(),
                     badge.exclude.as_deref(),
@@ -276,9 +284,12 @@ impl LoadedConfig {
             &mut cops,
         );
 
-        let matcher =
-            FileMatcher::rooted(root.clone(), Some(&all_cops.include), Some(&all_cops.exclude))
-                .unwrap_or_else(|_| FileMatcher::rubocop_defaults());
+        let matcher = FileMatcher::rooted(
+            root.clone(),
+            Some(&all_cops.raw.get_pattern_list("Include")),
+            Some(&all_cops.raw.get_pattern_list("Exclude")),
+        )
+        .unwrap_or_else(|_| FileMatcher::rubocop_defaults());
 
         Self {
             raw,
@@ -291,7 +302,23 @@ impl LoadedConfig {
             extensions,
             resolved_extensions: resolved_extensions.into_iter().collect(),
             warnings,
+            gem_versions: None,
         }
+    }
+
+    /// Sets the locked gem versions of the target (see [`Self::gem_versions`]).
+    #[must_use]
+    pub(crate) fn with_gem_versions(mut self, versions: Option<GemVersions>) -> Self {
+        self.gem_versions = versions.map(Arc::new);
+        self
+    }
+
+    /// RuboCop's `Config#gem_versions_in_target`: the gem versions locked by
+    /// the `Gemfile.lock` (or `gems.locked`) found at or above the directory
+    /// the configuration is relative to, transitive gems included; `None`
+    /// when the configuration was not read from a file or no lockfile exists.
+    pub fn gem_versions(&self) -> Option<&Arc<GemVersions>> {
+        self.gem_versions.as_ref()
     }
 
     /// The directory paths in the configuration are relative to: the directory
@@ -485,6 +512,10 @@ impl LoadedConfig {
         for feature in &self.extensions {
             feed(feature.as_bytes(), &mut hash);
         }
+        // Version-gated cops (`requires_gem`) read the locked gem versions.
+        for (gem, version) in self.gem_versions.iter().flat_map(|versions| versions.iter()) {
+            feed(format!("\ngem {gem} {version}").as_bytes(), &mut hash);
+        }
         hash
     }
 }
@@ -552,23 +583,23 @@ fn enabled_value(
 /// (RuboCop 1.91.0). `None` means neither side sets the key, which RuboCop
 /// answers with the clusivity default.
 struct BadgeClusivity {
-    include: Option<Vec<String>>,
-    exclude: Option<Vec<String>>,
+    include: Option<Vec<YamlValue>>,
+    exclude: Option<Vec<YamlValue>>,
 }
 
 fn badge_clusivity(department: Option<&Mapping>, params: &Mapping) -> BadgeClusivity {
     let pick = |key: &str| {
         if params.contains_key(key) {
-            Some(params.get_string_list(key))
+            Some(params.get_pattern_list(key))
         } else {
-            department.filter(|dept| dept.contains_key(key)).map(|dept| dept.get_string_list(key))
+            department.filter(|dept| dept.contains_key(key)).map(|dept| dept.get_pattern_list(key))
         }
     };
     let mut exclude = pick("Exclude");
     if let Some(dept) = department.filter(|dept| dept.contains_key("Exclude")) {
         if params.contains_key("Exclude") {
-            let mut unioned = dept.get_string_list("Exclude");
-            for path in params.get_string_list("Exclude") {
+            let mut unioned = dept.get_pattern_list("Exclude");
+            for path in params.get_pattern_list("Exclude") {
                 if !unioned.contains(&path) {
                     unioned.push(path);
                 }

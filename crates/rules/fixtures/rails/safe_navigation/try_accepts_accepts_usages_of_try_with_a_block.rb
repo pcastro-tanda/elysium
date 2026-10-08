@@ -1,0 +1,1 @@
+[1, 2].try(:map) { |e| e.some_method }

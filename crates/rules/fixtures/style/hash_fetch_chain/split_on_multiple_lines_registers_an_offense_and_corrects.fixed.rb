@@ -1,0 +1,2 @@
+hash
+  .dig('foo', 'bar')

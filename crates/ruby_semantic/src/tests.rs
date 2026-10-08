@@ -297,7 +297,7 @@ fn pattern_variables_declare_without_assigning() {
     semantics("foo in { bar: bar }\n", |model, _| {
         let variable = find(model, "bar");
         assert_eq!(model.variable(variable).decl_kind(), DeclKind::PatternMatch);
-        assert!(model.variable(variable).assignments().is_empty());
+        assert_eq!(model.variable(variable).assignments(), []);
     });
 }
 

@@ -1,0 +1,1 @@
+get :new, session: { foo: 'bar' }

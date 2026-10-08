@@ -1,2 +1,6 @@
 Layout/LineLength:
   Enabled: false
+  AllowHeredoc: false
+  AllowURI: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false

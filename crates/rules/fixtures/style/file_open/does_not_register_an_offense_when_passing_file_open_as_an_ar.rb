@@ -1,0 +1,1 @@
+process(File.open('file'))

@@ -1,0 +1,6 @@
+HASH = T.let(Hash.new(0).freeze, Hash)
+ARRAY = T.let(Array.new(3).freeze, Array)
+RANGE = T.let(Range.new(1, 2).freeze, Range)
+ENUM = T.let(Enumerator.new { |y| y << 1 }.freeze, Enumerator)
+KLASS = T.let(Class.new.freeze, Class)
+MOD = T.let(Module.new.freeze, Module)

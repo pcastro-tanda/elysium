@@ -63,11 +63,14 @@ pub struct Session {
     pub annotations: Arc<linter::Annotations>,
     pub parse_options: ParseOptions,
     /// The configured rules, cloned per file (rules keep per-file state).
-    pub rule_set: rules::RuleSet,
+    pub rule_set: registry::RuleSet,
     /// Names of the cops `rule_set` includes. Reused by [`effective_rule_set`]
     /// to detect, per file, a cop this run's base selection left out that the
     /// file nonetheless "opts in" via a `# rubocop:enable <Cop>` directive.
     pub rule_names: Vec<&'static str>,
+    /// The source of `db/schema.rb`, found the way rubocop-rails'
+    /// `SchemaLoader.db_schema_path` finds it, for the rules that read it.
+    pub db_schema: Option<Arc<str>>,
 }
 
 /// Loads the configuration, prints its warnings, and precomputes the
@@ -89,10 +92,32 @@ pub fn prepare(args: &CheckArgs) -> Result<Session> {
         version: ruby_version(cfg.all_cops().target_ruby_version),
         partial_script: true,
     };
-    let (rule_set, rule_names) = select_rules(&cfg, &args.only, &args.except)?;
+    let db_schema = load_db_schema(&cwd);
+    let (rule_set, rule_names) = select_rules(&cfg, &args.only, &args.except, db_schema.as_ref())?;
     let overrides = cop_overrides(&cfg, &args.only);
     let annotations = Arc::new(style_guide_annotations(&cfg));
-    Ok(Session { cfg, root, overrides, annotations, parse_options, rule_set, rule_names })
+    Ok(Session {
+        cfg,
+        root,
+        overrides,
+        annotations,
+        parse_options,
+        rule_set,
+        rule_names,
+        db_schema,
+    })
+}
+
+/// rubocop-rails' `SchemaLoader.db_schema_path`: the first `db/schema.rb`
+/// found walking up from the working directory (`Pathname.pwd`), stopping
+/// before the filesystem root. `None` when there is none or it cannot be read.
+fn load_db_schema(cwd: &Path) -> Option<Arc<str>> {
+    let path = cwd.ancestors().take_while(|dir| dir.parent().is_some()).find_map(|dir| {
+        let candidate = dir.join("db/schema.rb");
+        candidate.exists().then_some(candidate)
+    })?;
+    let bytes = std::fs::read(path).ok()?;
+    Some(Arc::from(String::from_utf8_lossy(&bytes).as_ref()))
 }
 
 /// True when `selector` names `cop` exactly or names its department.
@@ -105,17 +130,20 @@ fn selects(selector: &str, cop: &str) -> bool {
 
 /// Builds the rule set for this run, applying `--only`/`--except` on top
 /// of the configuration. `--only` enables a cop the configuration
-/// disabled, like RuboCop's.
+/// disabled, like RuboCop's. A cop the configuration does not know at all
+/// belongs to an extension gem the project did not load, so it never runs
+/// from the configuration alone.
 fn select_rules(
     cfg: &LoadedConfig,
     only: &[String],
     except: &[String],
-) -> Result<(rules::RuleSet, Vec<&'static str>)> {
-    let names: Vec<&str> = rules::ALL_RULES
+    db_schema: Option<&Arc<str>>,
+) -> Result<(registry::RuleSet, Vec<&'static str>)> {
+    let names: Vec<&str> = registry::ALL_RULES
         .iter()
         .filter(|meta| {
             let selected = if only.is_empty() {
-                cfg.cop(meta.name).map_or(meta.enabled_by_default, |cop| cop.enabled)
+                cfg.cop(meta.name).is_some_and(|cop| cop.enabled)
             } else {
                 only.iter().any(|sel| selects(sel, meta.name))
             };
@@ -123,15 +151,16 @@ fn select_rules(
         })
         .map(|meta| meta.name)
         .collect();
-    let rule_set = rules::RuleSet::only(&names, cfg).map_err(|err| anyhow::anyhow!("{err}"))?;
+    let rule_set = registry::RuleSet::only(&names, cfg, db_schema.cloned())
+        .map_err(|err| anyhow::anyhow!("{err}"))?;
     Ok((rule_set, names))
 }
 
-/// Builds the [`rules::RuleSet`] `path`'s file runs with: `session.rule_set`
+/// Builds the [`registry::RuleSet`] `path`'s file runs with: `session.rule_set`
 /// as-is, unless `directives` shows the file "opts in" (RuboCop's
 /// `CommentConfig#cop_opted_in?`, `comment_config.rb:59-61`) a cop this
 /// run's base selection (`session.rule_names`) left disabled. When it does, a
-/// fresh [`rules::RuleSet`] including that cop is built for this file alone --
+/// fresh [`registry::RuleSet`] including that cop is built for this file alone --
 /// mirroring `Cop::Team#roundup_relevant_cops` (`team.rb:263-271`,
 /// RuboCop 1.91.0), whose `next true if
 /// processed_source.comment_config.cop_opted_in?(cop)` reactivates a cop
@@ -142,12 +171,15 @@ fn select_rules(
 fn effective_rule_set(
     session: &Session,
     directives: &ruby_directives::Directives,
-) -> rules::RuleSet {
-    let extra: Vec<&'static str> = rules::ALL_RULES
+) -> registry::RuleSet {
+    let extra: Vec<&'static str> = registry::ALL_RULES
         .iter()
         .filter_map(|meta| {
             let name = meta.name;
-            (!session.rule_names.contains(&name) && directives.is_opted_in(name)).then_some(name)
+            (!session.rule_names.contains(&name)
+                && session.cfg.cop(name).is_some()
+                && directives.is_opted_in(name))
+            .then_some(name)
         })
         .collect();
     if extra.is_empty() {
@@ -155,7 +187,7 @@ fn effective_rule_set(
     }
     let mut names = session.rule_names.clone();
     names.extend(extra);
-    rules::RuleSet::only(&names, &session.cfg).unwrap_or_else(|err| {
+    registry::RuleSet::only(&names, &session.cfg, session.db_schema.clone()).unwrap_or_else(|err| {
         eprintln!("warning: cannot opt a disabled cop in for this file: {err}");
         session.rule_set.clone()
     })
@@ -170,7 +202,7 @@ fn style_guide_annotations(cfg: &LoadedConfig) -> linter::Annotations {
     let all_cops = cfg.all_cops();
     let mut annotations =
         linter::Annotations::new(all_cops.display_style_guide, all_cops.extra_details);
-    for meta in rules::ALL_RULES {
+    for meta in registry::ALL_RULES {
         if let Some(annotation) = cfg.style_guide_annotation(meta.name) {
             annotations.insert(meta.name, annotation);
         }
@@ -309,10 +341,11 @@ pub struct CopOverride {
 /// stays cheap.
 fn cop_overrides(cfg: &LoadedConfig, only: &[String]) -> Vec<CopOverride> {
     cfg.cops()
-        .filter(|(_, cop)| {
+        .filter(|(name, cop)| {
             !cop.enabled
                 || !cop.include.is_empty()
                 || !cop.exclude.is_empty()
+                || cfg.cop_file_matcher(name).is_some()
                 || cop.severity.is_some()
         })
         .map(|(name, cop)| CopOverride {
@@ -338,6 +371,7 @@ pub fn file_settings(
 ) -> linter::FileSettings {
     let mut settings = linter::FileSettings::all_enabled();
     settings.set_annotations(Arc::clone(annotations));
+    settings.set_migrated_schema_version(cfg.all_cops().migrated_schema_version.clone());
     for over in overrides {
         let enabled = if over.forced {
             cfg.is_cop_targeting(over.name, relative)
@@ -427,11 +461,20 @@ mod tests {
                 version: ruby_version(cfg.all_cops().target_ruby_version),
                 partial_script: true,
             };
-            let (rule_set, rule_names) = select_rules(&cfg, &[], &[]).expect("rule set builds");
+            let (rule_set, rule_names) =
+                select_rules(&cfg, &[], &[], None).expect("rule set builds");
             let overrides = cop_overrides(&cfg, &[]);
             let annotations = Arc::new(style_guide_annotations(&cfg));
-            let session =
-                Session { cfg, root, overrides, annotations, parse_options, rule_set, rule_names };
+            let session = Session {
+                cfg,
+                root,
+                overrides,
+                annotations,
+                parse_options,
+                rule_set,
+                rule_names,
+                db_schema: None,
+            };
             let io_errors = AtomicUsize::new(0);
             let bytes = AtomicU64::new(0);
             let nodes = AtomicU64::new(0);

@@ -1,0 +1,1 @@
+Model.delete(params[:id])

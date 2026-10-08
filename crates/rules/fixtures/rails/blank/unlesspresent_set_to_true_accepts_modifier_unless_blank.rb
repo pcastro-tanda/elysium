@@ -1,0 +1,1 @@
+something unless foo.blank?

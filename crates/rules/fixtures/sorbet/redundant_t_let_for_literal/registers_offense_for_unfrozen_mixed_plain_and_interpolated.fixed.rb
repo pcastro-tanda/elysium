@@ -1,0 +1,1 @@
+NAMES = ["alice", "#{prefix}bob"]

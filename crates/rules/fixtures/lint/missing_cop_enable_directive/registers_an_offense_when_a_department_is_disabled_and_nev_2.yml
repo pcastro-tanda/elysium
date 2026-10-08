@@ -1,2 +1,40 @@
 Lint/MissingCopEnableDirective:
   MaxRangeSize: 2
+Layout/ClassStructure:
+  Enabled: true
+Layout/EmptyLineAfterMultilineCondition:
+  Enabled: true
+Layout/EmptyLinesAfterModuleInclusion:
+  Enabled: true
+Layout/FirstArrayElementLineBreak:
+  Enabled: true
+Layout/FirstHashElementLineBreak:
+  Enabled: true
+Layout/FirstMethodArgumentLineBreak:
+  Enabled: true
+Layout/FirstMethodParameterLineBreak:
+  Enabled: true
+Layout/HeredocArgumentClosingParenthesis:
+  Enabled: true
+Layout/LineContinuationLeadingSpace:
+  Enabled: true
+Layout/LineContinuationSpacing:
+  Enabled: true
+Layout/LineEndStringConcatenationIndentation:
+  Enabled: true
+Layout/MultilineArrayLineBreaks:
+  Enabled: true
+Layout/MultilineAssignmentLayout:
+  Enabled: true
+Layout/MultilineHashKeyLineBreaks:
+  Enabled: true
+Layout/MultilineMethodArgumentLineBreaks:
+  Enabled: true
+Layout/MultilineMethodParameterLineBreaks:
+  Enabled: true
+Layout/RedundantLineBreak:
+  Enabled: true
+Layout/SingleLineBlockChain:
+  Enabled: true
+Layout/SpaceBeforeBrackets:
+  Enabled: true

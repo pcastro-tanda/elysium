@@ -1,0 +1,2 @@
+collection.collect { |item| item.do_something }.compact
+           ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^ Use `filter_map` instead.

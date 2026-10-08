@@ -1,0 +1,2 @@
+class MyControllerTest < SuperControllerTest
+end

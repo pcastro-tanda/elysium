@@ -1,0 +1,1 @@
+{ key: value }.to_h { [foo(_1), bar(_2)] }

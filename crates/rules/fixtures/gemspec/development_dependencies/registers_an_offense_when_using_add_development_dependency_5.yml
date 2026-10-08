@@ -1,0 +1,5 @@
+# file: example.gemspec
+Gemspec/DevelopmentDependencies:
+  Enabled: true
+  EnforcedStyle: gems.rb
+  AllowedGems: [allowed]

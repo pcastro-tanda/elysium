@@ -1,0 +1,1 @@
+Complex("number", exception: false).to_c

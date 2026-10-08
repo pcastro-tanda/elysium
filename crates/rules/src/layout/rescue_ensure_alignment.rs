@@ -380,6 +380,7 @@ properly.\n\n```ruby\n# bad\nbegin\n  something\n  rescue\n  puts 'error'\nend\n
                 .peer("Layout/BeginEndAlignment", "EnforcedStyleAlignWith")
                 .and_then(linter::OptionValue::as_str)
                 == Some("start_of_line");
+
         Ok(Self { align_with_start_of_line, ..Self::default() })
     }
 
@@ -455,6 +456,7 @@ impl RescueEnsureAlignment {
                     {
                         (a_start, a_end)
                     }
+                    _ if self.align_with_start_of_line => (call_start, opening.end),
                     _ => block_default(ctx, end_excluding_block, opening),
                 }
             }

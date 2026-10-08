@@ -1,0 +1,3 @@
+assert_raises(MyError) do
+  # nothing to see here...
+end

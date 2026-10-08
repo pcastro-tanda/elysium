@@ -73,12 +73,17 @@ pub fn lint_parsed<D: Dispatch>(parsed: &Parsed<'_>, rules: &mut D) -> FileResul
 ///
 /// [`SYNTAX_RULE`] is never dropped or re-severitied: a parse error is
 /// always reported as-is, regardless of `settings` or directive comments.
+///
+/// This is the `rubocop` CLI's view: repeats are dropped like `Runner`'s
+/// `uniq` ([`dedup_like_runner`]), which an upstream spec's
+/// `expect_offense` (replayed through [`lint_parsed_with_injected`]) never
+/// does.
 pub fn lint_parsed_with<D: Dispatch>(
     parsed: &Parsed<'_>,
     rules: &mut D,
     settings: &FileSettings,
 ) -> FileResult {
-    lint_parsed_with_injected(parsed, rules, settings, &[])
+    lint(parsed, rules, settings, &[], Uniq::Runner)
 }
 
 /// Like [`lint_parsed_with`], but each `(rule, line)` pair in `injected` additionally becomes a
@@ -92,11 +97,34 @@ pub fn lint_parsed_with<D: Dispatch>(
 /// means a plain `(rule, line)` pair -- re-resolved to a byte span against *this* call's own
 /// `parsed` every time -- stays correct across fix iterations, whereas a pre-built [`Diagnostic`]
 /// with a stale byte span from an earlier round's source would not.
+///
+/// Spec semantics: one rule's offenses sharing a start and message all
+/// survive, as in `expect_offense`, which runs the cop without `Runner`.
 pub fn lint_parsed_with_injected<D: Dispatch>(
     parsed: &Parsed<'_>,
     rules: &mut D,
     settings: &FileSettings,
     injected: &[(&'static str, u32)],
+) -> FileResult {
+    lint(parsed, rules, settings, injected, Uniq::Spec)
+}
+
+/// Which repeats survive besides `Cop::Base`'s same-range ones.
+#[derive(Debug, Clone, Copy, PartialEq, Eq)]
+pub(crate) enum Uniq {
+    /// An upstream spec's `expect_offense`: all of them.
+    Spec,
+    /// The `rubocop` CLI: the first of each `Offense#==` group
+    /// ([`dedup_like_runner`]).
+    Runner,
+}
+
+pub(crate) fn lint<D: Dispatch>(
+    parsed: &Parsed<'_>,
+    rules: &mut D,
+    settings: &FileSettings,
+    injected: &[(&'static str, u32)],
+    uniq: Uniq,
 ) -> FileResult {
     let source = parsed.source();
 
@@ -134,6 +162,10 @@ pub fn lint_parsed_with_injected<D: Dispatch>(
     rules.file_end(&mut ctx);
 
     let mut reported = ctx.take_diagnostics();
+    if uniq == Uniq::Runner {
+        // Emission order still holds here: the first reported wins.
+        dedup_like_runner(&mut reported);
+    }
     reported.sort_by_key(|d| (d.span.start, d.span.end));
     if injected.is_empty() {
         rules.file_finish(&mut ctx, &reported);
@@ -171,7 +203,8 @@ pub fn lint_parsed_with_injected<D: Dispatch>(
 }
 
 /// Drops disabled diagnostics, applies severity overrides, orders the
-/// survivors by position, and dedups repeats.
+/// survivors by position, and dedups same-span repeats
+/// (`Cop::Base#add_offense`'s `current_offense_locations`).
 ///
 /// A diagnostic is dropped when its rule is disabled in `settings`, or when
 /// `directives` disables it (by name or via `# rubocop:disable all`) on any
@@ -200,9 +233,13 @@ fn finish(
     directives: &Directives,
     settings: &FileSettings,
 ) -> Vec<Diagnostic> {
+    let already_migrated = settings.is_already_migrated_file(source.path());
     diagnostics.retain(|d| {
         if d.rule == SYNTAX_RULE {
             return true;
+        }
+        if already_migrated {
+            return false;
         }
         // `Cop::Base#enabled_lines?`: a directive on any line of the offense's
         // range suppresses it, not only one on its first line.
@@ -235,6 +272,34 @@ fn finish(
     diagnostics
 }
 
+/// RuboCop's `Runner` keeps the first of the offenses equal under
+/// `Offense#==` (`offenses_by_iteration.flatten.uniq`), whose
+/// `COMPARISON_ATTRIBUTES` are line, column, cop name, message, and severity:
+/// the start, never the end. So of two offenses from one rule starting at the
+/// same place with the same message, only the first reported survives, however
+/// their ranges end (`Style/MultilineBlockChain` on `a do end.b {}.c {}`
+/// reports each outer block from the same `end`). Severity is per rule here.
+/// The stable sort keeps emission order within a `(start, rule)` group, so
+/// `diagnostics` must arrive in the order the rules reported them.
+fn dedup_like_runner(diagnostics: &mut Vec<Diagnostic>) {
+    diagnostics.sort_by_key(|d| (d.span.start, d.rule));
+    let mut group = 0;
+    let keep: Vec<bool> = (0..diagnostics.len())
+        .map(|i| {
+            let d = &diagnostics[i];
+            if i > 0 {
+                let prev = &diagnostics[i - 1];
+                if (prev.span.start, prev.rule) != (d.span.start, d.rule) {
+                    group = i;
+                }
+            }
+            !diagnostics[group..i].iter().any(|earlier| earlier.message == d.message)
+        })
+        .collect();
+    let mut keep = keep.into_iter();
+    diagnostics.retain(|_| keep.next().unwrap_or(true));
+}
+
 #[cfg(test)]
 mod tests {
     use std::sync::Arc;
@@ -250,7 +315,7 @@ mod tests {
     fn clean_file_walks_every_node() {
         let source = SourceFile::new("a.rb", b"puts 1\n".to_vec());
         let result = lint_file(&source, &mut NoRules);
-        assert!(result.diagnostics.is_empty());
+        assert_eq!(result.diagnostics.len(), 0);
         assert!(!result.has_syntax_errors);
         // Program, Statements, Call, Arguments, Integer
         assert_eq!(result.node_count, 5);
@@ -264,7 +329,7 @@ mod tests {
         assert_eq!(result.node_count, 0);
         assert!(result.diagnostics.iter().all(|d| d.rule == SYNTAX_RULE));
         assert!(result.diagnostics.iter().all(|d| d.severity == Severity::Fatal));
-        assert!(!result.diagnostics.is_empty());
+        assert_ne!(result.diagnostics.len(), 0);
     }
 
     #[test]
@@ -276,6 +341,36 @@ mod tests {
         let result = lint_file(&source, &mut NoRules);
         assert_eq!(result.diagnostics.len(), 1);
         assert!(result.diagnostics[0].message.starts_with("unexpected 'end'; expected"));
+    }
+
+    /// `Offense#==` ignores where an offense ends: of one rule's offenses
+    /// starting together with one message, the first reported wins (even when
+    /// a later one is shorter); a different message or rule is a different
+    /// offense.
+    #[test]
+    fn same_start_and_message_collapse_to_the_first_reported() {
+        let d = |rule, start, end, message| {
+            Diagnostic::new(rule, Span::new(start, end), Severity::Warning, message)
+        };
+        let mut diagnostics = vec![
+            d("Fake/Aa", 4, 30, "m"),
+            d("Fake/Aa", 4, 20, "m"),
+            d("Fake/Aa", 4, 10, "other"),
+            d("Fake/Bb", 4, 10, "m"),
+            d("Fake/Aa", 5, 10, "m"),
+        ];
+        dedup_like_runner(&mut diagnostics);
+        let left: Vec<_> =
+            diagnostics.iter().map(|d| (d.rule, d.span.start, d.span.end, &*d.message)).collect();
+        assert_eq!(
+            left,
+            [
+                ("Fake/Aa", 4, 30, "m"),
+                ("Fake/Aa", 4, 10, "other"),
+                ("Fake/Bb", 4, 10, "m"),
+                ("Fake/Aa", 5, 10, "m"),
+            ]
+        );
     }
 
     /// Dispatch that pushes two fixed diagnostics — `Fake/Aa` at line 1 and
@@ -496,7 +591,7 @@ mod tests {
         let source = SourceFile::new("a.rb", b"# rubocop:disable all\ndef foo(\n".to_vec());
         let result = lint_file(&source, &mut NoRules);
         assert!(result.has_syntax_errors);
-        assert!(!result.diagnostics.is_empty());
+        assert_ne!(result.diagnostics.len(), 0);
         assert!(result.diagnostics.iter().all(|d| d.rule == SYNTAX_RULE));
     }
 
@@ -508,7 +603,7 @@ mod tests {
         let parsed = Parsed::parse(&source);
         let result = lint_parsed_with(&parsed, &mut NoRules, &settings);
         assert!(result.has_syntax_errors);
-        assert!(!result.diagnostics.is_empty());
+        assert_ne!(result.diagnostics.len(), 0);
         assert!(result.diagnostics.iter().all(|d| d.rule == SYNTAX_RULE));
     }
 

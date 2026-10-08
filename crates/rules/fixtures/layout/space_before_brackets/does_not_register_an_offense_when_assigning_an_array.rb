@@ -1,0 +1,1 @@
+task.options = ['--no-output']

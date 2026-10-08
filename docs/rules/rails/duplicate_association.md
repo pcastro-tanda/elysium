@@ -1,0 +1,43 @@
+# Rails/DuplicateAssociation
+
+Don't repeat associations in a model.
+
+| | |
+| --- | --- |
+| Department | Rails |
+| Enabled by default | false |
+| Default severity | warning |
+| Fix | safe |
+| Stability | stable |
+
+Looks for associations that have been defined multiple times in the same file.
+
+When an association is defined multiple times on a model, Active Record overrides the previously defined association with the new one. Because of this, this cop's autocorrection simply keeps the last of any duplicates and discards the rest.
+
+```ruby
+# bad
+belongs_to :foo
+belongs_to :bar
+has_one :foo
+
+# good
+belongs_to :bar
+has_one :foo
+
+# bad
+has_many :foo, class_name: 'Foo'
+has_many :bar, class_name: 'Foo'
+has_one :baz
+
+# good
+has_many :bar, class_name: 'Foo'
+has_one :foo
+```
+
+## Options
+
+This rule has no options.
+
+## Blind spots
+
+None recorded.

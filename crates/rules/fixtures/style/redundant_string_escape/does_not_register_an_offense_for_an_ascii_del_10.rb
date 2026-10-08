@@ -1,0 +1,3 @@
+<<~'MYHEREDOC'
+\c? \C-?
+MYHEREDOC

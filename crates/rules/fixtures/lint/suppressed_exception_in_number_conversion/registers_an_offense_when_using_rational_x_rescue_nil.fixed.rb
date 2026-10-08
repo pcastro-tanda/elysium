@@ -1,0 +1,1 @@
+Rational(x, exception: false)

@@ -1,0 +1,1 @@
+FOO.each { |u| u.x }

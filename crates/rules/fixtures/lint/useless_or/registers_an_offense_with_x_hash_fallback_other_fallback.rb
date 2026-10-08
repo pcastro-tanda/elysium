@@ -1,0 +1,2 @@
+x.hash || fallback || other_fallback
+       ^^^^^^^^^^^ `fallback` will never evaluate because `x.hash` always returns a truthy value.

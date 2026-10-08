@@ -1,7 +1,9 @@
 # Status
 
-Last updated: 2026-09-25. Phase 4 landed: semantic layer plus the ten
-semantic cops (60 rules total).
+Last updated: 2026-10-06. Payaus step 3 done: all 115 Rails, 41
+Performance, 9 ThreadSafety, 49 Minitest, and 36 Sorbet cops payaus enables
+are ported and `stable` (806 rules with the 556 core cops;
+`docs/planning/payaus-readiness.md`).
 
 ## What works
 
@@ -11,8 +13,13 @@ semantic cops (60 rules total).
   with RuboCop-identical message text, line, and column (verified against
   `rubocop --format json` with `ParserEngine: parser_prism`, including
   multi-byte columns and same-range deduplication).
-- Rules: 60 Style/Layout/Lint cops (see `docs/rules/`), each registered
-  through `rule_set!` with a compile-time node-kind subscription table and
+- Rules: 556 core cops (see `docs/rules/`) in the `rules` crate, 115
+  rubocop-rails cops in `rules_rails`, 41 rubocop-performance cops in
+  `rules_performance`, and 9 rubocop-thread_safety cops in
+  `rules_thread_safety` (plus one smoke cop each in `rules_minitest` and
+  `rules_sorbet`), each crate registering its rules through
+  `rules_support::rule_set!` (composed by `registry`) with a compile-time
+  node-kind subscription table and
   configured from RuboCop option names (`RuleOptions`, incl. peer-cop and
   `AllCops` reads). `elysium fix [--unsafe] [--diff]` applies byte-range
   fixes and reparses to convergence; `check --only/--except` mirror RuboCop
@@ -140,15 +147,21 @@ semantic cops (60 rules total).
 - Remote `inherit_from: https://...` is rejected instead of fetched.
 - No `ConfigValidator`: a config with a wrong-typed value or an unknown cop
   name does not produce an error the way RuboCop's own validator does.
-- `!ruby/regexp` YAML tags inside `Exclude`/`Include` entries are not
-  matched; only plain glob-string entries work.
-- Extension-gem cops (`Rails/*`, `RSpec/*`, ...) load their defaults from the
-  installed gem but have no implementations yet (Phase 6).
+- Extension-gem cops: `Rails/*`, `Performance/*`, `ThreadSafety/*`,
+  `Minitest/*`, and `Sorbet/*` are ported (the cops payaus enables);
+  `RSpec/*` is not started.
 - `TargetRubyVersion` is not inferred from a gemspec's `required_ruby_version`
   when the config doesn't set it explicitly.
 - Syntax error message text matches RuboCop only under
   `ParserEngine: parser_prism`; the legacy `parser` engine wording
   (`unexpected token kEND`) is not reproduced. See ADR 0003.
+- `Lint/ArgumentMismatch`, `DeprecatedReference`, `NameTypo`, and
+  `SuperArgumentMismatch` are registered but never report: upstream they run
+  only with `AllCops/UseProjectIndex: true` and the `rubydex` gem (both off by
+  default), resolving methods/constants across files. **TODO:** link
+  rubydex's Rust crate (`Shopify/rubydex`) for the project index, so these
+  cops (and the index-powered parts of others) resolve exactly as RuboCop
+  does when an app enables `UseProjectIndex`.
 - Encoding: files are treated as bytes; `# encoding:` magic comments other
   than UTF-8 are not honoured for column computation.
 
@@ -156,14 +169,26 @@ semantic cops (60 rules total).
 
 | stable | preview | nursery |
 |-------:|--------:|--------:|
-| 396 | 0 | 1 |
+| 800 | 0 | 6 |
 
 Promotion to `stable` requires >99% corpus conformance on `discourse` and
-`mastodon` (RuboCop 1.91 truth) with no unexplained diff; 396 of 397 rules meet
-it. At `nursery`:
+`mastodon` (RuboCop 1.91 truth; extension cops against the pinned gems) with
+no unexplained diff; 800 of 806 rules meet it, matched on the whole offense
+range (start and end) since 2026-10-07. All 115 Rails, 41
+Performance, and 9 ThreadSafety cops are at 100% on both apps under both
+passes, message text included; 54 Rails and 11 Performance/ThreadSafety cops
+have zero offenses on both apps, so their fixtures are the only positive
+evidence. All 49 Minitest and 36 Sorbet cops are at 100% on discourse,
+mastodon, and payaus under both passes (payaus: 57,449 truth offenses under
+its own config, 81,608 under defaults); 30 Minitest and 21 Sorbet cops have
+zero offenses on all three, so fixtures are their only positive evidence.
+At `nursery`:
 
 - `Lint/RedundantCopDisableDirective` — held back per policy regardless of
   measured agreement (see above).
+- `Lint/CopDirectiveSyntax` — added at `nursery` in payaus step 1 (payaus
+  disables it).
+- The four project-index no-ops listed above.
 Known sub-100% residue among `stable` rules (all above the 99% bar):
 `Layout/HeredocIndentation` misses 1 of 1,266 on discourse's own config.
 The corpus workflow (`ci/corpus/run.sh`) compares every stable cop in two
@@ -245,12 +270,11 @@ CI needs its own recorded baseline before `--check` is a hard gate
 
 ## Decisions pending from the owner
 
-- Project name (`elysium` is the working directory name) and license. No
-  public commit until decided.
+- Project name (`elysium` is the working directory name) and license.
 
 ## Next milestones
 
-**Default-cop parity: 392 of RuboCop 1.91.0's 393 default-enabled core cops
+**Default-cop parity: 393 of RuboCop 1.91.0's 394 default-enabled core cops
 are implemented;** only `Lint/Syntax` is not a rule, since the engine reports
 syntax errors itself. Inventory: `docs/planning/default-parity.md`.
 
@@ -312,13 +336,12 @@ syntax errors itself. Inventory: `docs/planning/default-parity.md`.
    the "What does not work yet" list above]`: config/CLI hardening — a
    `ConfigValidator` (type/unknown-cop errors), a minimal ERB subset
    evaluator for `.rubocop.yml` (unblocking GitLab's real config), remote
-   `inherit_from` fetching, `!ruby/regexp` `Include`/`Exclude` tags,
+   `inherit_from` fetching,
    `TargetRubyVersion` inference from a gemspec's `required_ruby_version`,
    and non-UTF-8 `# encoding:` column handling.
-4. Phase 7: extension-gem cop implementations (`Rails/*`, `RSpec/*`,
-   `Performance/*`, ...) — their `config/default.yml` layering and
-   conformance skip-list (`EXTENSION_DEPARTMENTS`) already exist; only the
-   cops themselves are unported.
+4. Phase 7: extension-gem cop implementations. Rails, Performance,
+   ThreadSafety, Minitest, and Sorbet are done for the cops payaus enables
+   (payaus step 3); `RSpec/*` is outside payaus's scope.
 
 ## Debt to clear before 1.0
 

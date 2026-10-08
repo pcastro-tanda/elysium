@@ -22,10 +22,14 @@ registries). Open question was how much of Prism's generated API to wrap.
   call typed `visit_statements_node`-style methods for single-kind fields and
   never route them through `visit`, so `StatementsNode`, `ArgumentsNode`,
   `ParametersNode` and others would be invisible to an enter/leave visitor.
-- Rules declare `META.kinds: &'static [NodeKind]`. The `rules` crate
-  generates a `Dispatch` impl that matches on `NodeKind` and calls only the
-  subscribed rules, so the cost per node is one `match` plus the enabled
-  rules for that kind.
+- Rules declare `META.kinds: &'static [NodeKind]`. Each rule crate (`rules`
+  for core RuboCop, one crate per extension gem) registers its rules with
+  `rules_support::rule_set!`; the `registry` crate chains every crate's
+  slot list into one `RuleSet` whose `Dispatch` impl calls only the
+  subscribed rules, so the cost per node is one interest-table check plus
+  the enabled rules for that kind. Extension gems are compiled in, not
+  loaded at runtime: a runtime plugin would need a `dyn` boundary per rule
+  and a stable ABI over Prism's types, which Rust does not have.
 
 ## Consequences
 

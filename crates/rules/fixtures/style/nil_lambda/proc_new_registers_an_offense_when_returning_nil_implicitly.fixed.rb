@@ -1,0 +1,2 @@
+Proc.new do
+end

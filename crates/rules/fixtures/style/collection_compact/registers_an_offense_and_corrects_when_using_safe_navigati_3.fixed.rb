@@ -1,0 +1,2 @@
+array&.compact
+hash&.compact!

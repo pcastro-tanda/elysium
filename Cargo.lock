@@ -255,10 +255,10 @@ dependencies = [
  "linter",
  "parking_lot",
  "rayon",
+ "registry",
  "ruby_ast",
  "ruby_directives",
  "ruby_source",
- "rules",
  "serde",
  "serde_json",
  "tempfile",
@@ -276,6 +276,7 @@ version = "0.1.0"
 dependencies = [
  "globset",
  "linter",
+ "regex",
  "saphyr",
  "tempfile",
 ]
@@ -761,6 +762,22 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "d6f6ff9a378485b298a5286656da665ba74413d36db0979633275d2e708145d4"
 
 [[package]]
+name = "registry"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "linter",
+ "ruby_ast",
+ "rules",
+ "rules_minitest",
+ "rules_performance",
+ "rules_rails",
+ "rules_sorbet",
+ "rules_support",
+ "rules_thread_safety",
+]
+
+[[package]]
 name = "ruby-prism"
 version = "1.9.0"
 dependencies = [
@@ -820,10 +837,97 @@ dependencies = [
  "config",
  "linter",
  "regex",
+ "registry",
  "ruby_ast",
  "ruby_directives",
  "ruby_semantic",
  "ruby_source",
+ "rules_minitest",
+ "rules_performance",
+ "rules_rails",
+ "rules_sorbet",
+ "rules_support",
+ "rules_thread_safety",
+]
+
+[[package]]
+name = "rules_minitest"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "linter",
+ "regex",
+ "ruby_ast",
+ "ruby_directives",
+ "ruby_semantic",
+ "ruby_source",
+ "rules_support",
+]
+
+[[package]]
+name = "rules_performance"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "linter",
+ "regex",
+ "ruby_ast",
+ "ruby_directives",
+ "ruby_semantic",
+ "ruby_source",
+ "rules_support",
+]
+
+[[package]]
+name = "rules_rails"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "linter",
+ "regex",
+ "ruby_ast",
+ "ruby_directives",
+ "ruby_semantic",
+ "ruby_source",
+ "rules",
+ "rules_support",
+]
+
+[[package]]
+name = "rules_sorbet"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "linter",
+ "regex",
+ "ruby_ast",
+ "ruby_directives",
+ "ruby_semantic",
+ "ruby_source",
+ "rules_support",
+]
+
+[[package]]
+name = "rules_support"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "linter",
+ "ruby_ast",
+]
+
+[[package]]
+name = "rules_thread_safety"
+version = "0.1.0"
+dependencies = [
+ "config",
+ "linter",
+ "regex",
+ "ruby_ast",
+ "ruby_directives",
+ "ruby_semantic",
+ "ruby_source",
+ "rules_support",
 ]
 
 [[package]]
@@ -1108,7 +1212,7 @@ dependencies = [
  "anyhow",
  "clap",
  "linter",
- "rules",
+ "registry",
  "saphyr",
  "serde",
  "serde_json",

@@ -1,0 +1,1 @@
+Foo.open('file')

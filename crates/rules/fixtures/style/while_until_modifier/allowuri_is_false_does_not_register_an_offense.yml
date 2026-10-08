@@ -1,4 +1,9 @@
 Layout/LineLength:
-  Enabled: true
   Max: 40
   AllowURI: false
+  AllowHeredoc: false
+  AllowQualifiedName: false
+  AllowCopDirectives: false
+  Enabled: true
+Layout/IndentationWidth:
+  Width: ~

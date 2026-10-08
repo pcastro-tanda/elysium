@@ -272,10 +272,10 @@ mod tests {
         let source = src("def foo(a)\n  a +\nend\n");
         let parsed = Parsed::parse(&source);
         let errors: Vec<_> = parsed.errors().collect();
-        assert!(!errors.is_empty());
+        assert_ne!(errors, [] as [SyntaxError; 0]);
         let first = &errors[0];
         assert!(first.span.end as usize <= source.bytes().len());
-        assert!(!first.message.is_empty());
+        assert_ne!(first.message, "");
     }
 
     #[test]

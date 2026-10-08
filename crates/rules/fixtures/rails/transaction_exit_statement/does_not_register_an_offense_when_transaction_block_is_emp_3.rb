@@ -1,0 +1,2 @@
+ApplicationRecord.writable_transaction do
+end
